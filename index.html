@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Compras · Grupo LEM</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root { --rojo:#B3282D; --rojo2:#8f1f23; --gris:#f4f4f5; --borde:#e4e4e7; --txt:#18181b; --txt2:#71717a; --verde:#15803d; --ambar:#b45309; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--gris); color:var(--txt); font-size:16px; }
+  header { background:var(--rojo); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  header h1 { font-size:17px; font-weight:700; }
+  header .u { font-size:12px; opacity:.85; }
+  main { max-width:640px; margin:0 auto; padding:12px; padding-bottom:90px; }
+  .card { background:#fff; border:1px solid var(--borde); border-radius:12px; padding:14px; margin-bottom:10px; }
+  .btn { display:inline-block; border:none; border-radius:10px; padding:12px 18px; font-size:16px; font-weight:600; cursor:pointer; background:var(--rojo); color:#fff; }
+  .btn:disabled { opacity:.45; }
+  .btn.sec { background:#fff; color:var(--txt); border:1px solid var(--borde); }
+  .btn.mini { padding:6px 10px; font-size:14px; }
+  .chip { display:inline-block; font-size:12px; font-weight:600; border-radius:99px; padding:2px 10px; background:var(--gris); color:var(--txt2); }
+  .chip.enviada,.chip.en_revision { background:#fef3c7; color:var(--ambar); }
+  .chip.autorizada,.chip.aprobada,.chip.modificada { background:#dcfce7; color:var(--verde); }
+  .chip.rechazada,.chip.cancelada { background:#fee2e2; color:var(--rojo); }
+  .chip.enviada_proveedor,.chip.cerrada { background:#dbeafe; color:#1d4ed8; }
+  .cat-h { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:16px 4px 6px; }
+  .item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--gris); }
+  .item:last-child { border-bottom:none; }
+  .item .info { flex:1; min-width:0; }
+  .item .n { font-weight:600; font-size:15px; }
+  .item .d { font-size:12.5px; color:var(--txt2); }
+  .step { display:flex; align-items:center; gap:6px; }
+  .step button { width:40px; height:40px; border-radius:10px; border:1px solid var(--borde); background:#fff; font-size:20px; font-weight:700; color:var(--rojo); cursor:pointer; }
+  .step input { width:44px; height:40px; text-align:center; border:1px solid var(--borde); border-radius:10px; font-size:16px; font-weight:700; }
+  .totalbar { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--borde); padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; max-width:100%; z-index:10; }
+  .totalbar .t { font-size:14px; }
+  .totalbar .t b { font-size:17px; display:block; }
+  .presu { font-size:12.5px; color:var(--txt2); }
+  .presu.rojo { color:var(--rojo); font-weight:700; }
+  .buscador { width:100%; padding:11px 14px; border:1px solid var(--borde); border-radius:10px; font-size:16px; margin-bottom:4px; }
+  .nav { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .msg { text-align:center; padding:40px 16px; color:var(--txt2); }
+  .ok-big { text-align:center; padding:36px 16px; }
+  .ok-big .f { font-size:26px; font-weight:800; color:var(--verde); margin:8px 0; }
+  .evento { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--gris); font-size:14px; }
+  .evento .ts { color:var(--txt2); font-size:12px; white-space:nowrap; }
+  table.oc { width:100%; border-collapse:collapse; font-size:14px; }
+  table.oc th, table.oc td { border:1px solid var(--borde); padding:6px 8px; text-align:left; }
+  table.oc th { background:var(--gris); font-size:12.5px; }
+  .der { text-align:right; }
+  .linea-res { border:1px solid var(--borde); border-radius:10px; padding:10px; margin:8px 0; }
+  .linea-res select, .linea-res input[type=number], .linea-res input[type=text] { padding:8px; border:1px solid var(--borde); border-radius:8px; font-size:15px; }
+  .aviso { background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:10px 12px; font-size:14px; margin-bottom:10px; }
+  @media print {
+    header, .no-print, .totalbar { display:none !important; }
+    body { background:#fff; } main { padding:0; max-width:100%; }
+    .card { border:none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛒 Compras LEM</h1>
+  <div class="u" id="hUser"></div>
+</header>
+<main id="app"><div class="msg">Cargando…</div></main>
+
+<script>
+const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
+const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
+const $ = (id) => document.getElementById(id);
+const app = () => $('app');
+const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
+const S = { token: store.get() || null, perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
+const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function api(accion, datos) {
+  const r = await fetch(API, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: S.token, accion, datos: datos || {} })
+  });
+  if (r.status === 401) { store.del(); S.token = null; vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
+  const j = await r.json();
+  if (j.error) { alert('⚠️ ' + (j.detalle || j.error)); throw new Error(j.error); }
+  return j;
+}
+
+/* ── Login ─────────────────────────────────────────────── */
+function vLogin(msj) {
+  app().innerHTML = '<div class="msg" style="padding-top:70px">' +
+    '<div style="font-size:46px">🛒</div><h2 style="color:var(--txt);margin:10px 0 4px">Compras Grupo LEM</h2>' +
+    '<p style="margin-bottom:20px">' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p>' +
+    (CLIENT_ID.indexOf('__') === 0
+      ? '<div class="aviso">Falta configurar el Client ID de Google (lo pone el administrador en el workflow de n8n).</div>'
+      : '<div id="gbtn" style="display:flex;justify-content:center"></div>') + '</div>';
+  if (CLIENT_ID.indexOf('__') !== 0 && window.google) {
+    google.accounts.id.initialize({ client_id: CLIENT_ID, callback: (resp) => {
+      S.token = resp.credential; store.set(S.token); arrancar();
+    }});
+    google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
+  }
+}
+
+async function arrancar() {
+  try {
+    const p = await api('perfil');
+    S.perfil = p;
+    $('hUser').textContent = p.usuario;
+    router();
+  } catch (e) { /* vLogin ya se mostró en 401 */ }
+}
+
+/* ── Router ────────────────────────────────────────────── */
+function nav() {
+  const p = S.perfil; const esG = p.roles.includes('gerente') || p.roles.includes('admin');
+  const esA = p.aprueba_proveedores.length > 0 || p.roles.includes('admin');
+  let h = '<div class="nav no-print">';
+  if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
+                                        '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>';
+  if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button>';
+  return h + '</div>';
+}
+function router() {
+  const h = location.hash.slice(1) || (S.perfil.aprueba_proveedores.length ? 'bandeja' : 'captura');
+  if (h === 'captura') vCaptura();
+  else if (h === 'pedidos') vPedidos();
+  else if (h === 'bandeja') vBandeja();
+  else if (h.startsWith('req-')) vDetalle('requisicion', h.slice(4));
+  else if (h.startsWith('oc-')) vOC(h.slice(3));
+  else vCaptura();
+}
+window.addEventListener('hashchange', () => S.perfil && router());
+
+/* ── Captura del gerente ───────────────────────────────── */
+async function vCaptura() {
+  const suc = S.perfil.sucursales[0];
+  if (!suc) { app().innerHTML = nav() + '<div class="msg">Tu usuario no tiene sucursal asignada para pedir.</div>'; return; }
+  if (!S.cat) {
+    app().innerHTML = nav() + '<div class="msg">Cargando catálogo…</div>';
+    S.cat = await api('catalogo', { branch_id: suc.branch_id });
+  }
+  const grupos = {};
+  S.cat.catalogo.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
+  let h = nav() + '<div class="card"><b>' + esc(suc.nombre) + '</b>' +
+    (S.cat.presupuesto ? '<div class="presu" id="presuTxt"></div>' : '<div class="presu">Sin presupuesto asignado (informativo)</div>') + '</div>' +
+    '<input class="buscador no-print" id="busca" placeholder="Buscar insumo…" oninput="filtrar()">';
+  for (const g in grupos) {
+    h += '<div class="cat-h" data-cat="1">' + esc(g) + '</div><div class="card">';
+    grupos[g].forEach(i => {
+      const v = S.carrito[i.proveedor_insumo_id] || 0;
+      h += '<div class="item" data-n="' + esc(i.insumo.toLowerCase()) + '">' +
+        '<div class="info"><div class="n">' + esc(i.insumo) + '</div>' +
+        '<div class="d">' + esc(i.presentacion || i.proveedor) + (i.precio ? ' · ' + money(i.precio) + (i.unidad ? '/' + esc(i.unidad) : '') : ' · precio no especificado') + '</div></div>' +
+        '<div class="step">' +
+        '<button onclick="mas(' + i.proveedor_insumo_id + ',-1)">−</button>' +
+        '<input inputmode="numeric" id="q' + i.proveedor_insumo_id + '" value="' + v + '" onchange="setQ(' + i.proveedor_insumo_id + ',this.value)">' +
+        '<button onclick="mas(' + i.proveedor_insumo_id + ',1)">+</button></div></div>';
+    });
+    h += '</div>';
+  }
+  h += '<div class="totalbar no-print"><div class="t"><span class="presu" id="tLineas"></span><b id="tTotal"></b></div>' +
+       '<button class="btn" id="btnEnviar" onclick="enviar()">Enviar pedido</button></div>';
+  app().innerHTML = h;
+  pintarTotal();
+}
+function filtrar() {
+  const q = $('busca').value.toLowerCase();
+  document.querySelectorAll('.item[data-n]').forEach(el => { el.style.display = el.dataset.n.includes(q) ? '' : 'none'; });
+}
+function precioDe(id) {
+  const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === id);
+  return it && it.precio ? Number(it.precio) * Number(it.fraccion || 1) : 0;
+}
+async function tocarPrimera() {
+  if (S.reqId || S._iniciando) return;
+  S._iniciando = true; S.t0 = Date.now();
+  try { const r = await api('iniciar', { branch_id: S.perfil.sucursales[0].branch_id }); S.reqId = r.req_id; S.folio = r.folio; }
+  finally { S._iniciando = false; }
+}
+function mas(id, d) { setQ(id, (S.carrito[id] || 0) + d); }
+function setQ(id, v) {
+  v = Math.max(0, Math.round(Number(v) || 0));
+  if (v > 0) S.carrito[id] = v; else delete S.carrito[id];
+  const inp = $('q' + id); if (inp) inp.value = v;
+  if (v > 0) tocarPrimera();
+  pintarTotal();
+}
+function pintarTotal() {
+  let total = 0, n = 0;
+  for (const id in S.carrito) { total += precioDe(Number(id)) * S.carrito[id]; n++; }
+  if ($('tTotal')) { $('tTotal').textContent = money(total); $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's'); $('btnEnviar').disabled = n === 0; }
+  const pb = $('presuTxt');
+  if (pb && S.cat.presupuesto) {
+    const p = Number(S.cat.presupuesto), pc = Math.round(total / p * 100);
+    pb.textContent = 'Presupuesto: ' + money(p) + ' · llevas ' + money(total) + ' (' + pc + '%)';
+    pb.className = 'presu' + (total > p ? ' rojo' : '');
+  }
+}
+async function enviar() {
+  if (!S.reqId) await tocarPrimera();
+  const lineas = [];
+  for (const id in S.carrito) lineas.push({ proveedor_insumo_id: Number(id), cantidad: S.carrito[id] });
+  $('btnEnviar').disabled = true;
+  const r = await api('enviar', { req_id: S.reqId, lineas });
+  const seg = S.t0 ? Math.round((Date.now() - S.t0) / 1000) : null;
+  app().innerHTML = nav() + '<div class="card ok-big">✅<div class="f">' + esc(S.folio) + '</div>' +
+    '<p>Pedido enviado con ' + r.lineas + ' insumos.' + (seg !== null ? '<br>Tardaste <b>' + seg + ' segundos</b>.' : '') + '</p>' +
+    '<p style="margin-top:14px"><button class="btn sec" onclick="location.hash=\'pedidos\'">Ver mis pedidos</button></p></div>';
+  S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null;
+}
+
+/* ── Mis pedidos ───────────────────────────────────────── */
+async function vPedidos() {
+  app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
+  const suc = S.perfil.sucursales[0];
+  const r = await api('mis_requisiciones', { branch_id: suc.branch_id });
+  let h = nav();
+  if (!r.requisiciones.length) h += '<div class="msg">Sin pedidos en los últimos 90 días.</div>';
+  r.requisiciones.forEach(q => {
+    h += '<div class="card" onclick="location.hash=\'req-' + q.req_id + '\'" style="cursor:pointer">' +
+      '<b>' + esc(q.folio) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' +
+      '<div class="d" style="font-size:13px;color:var(--txt2)">' + fecha(q.creada_el) + ' · ' + q.lineas + ' líneas' +
+      (q.ocs.length ? ' · OCs: ' + q.ocs.map(o => esc(o.folio)).join(', ') : '') + '</div></div>';
+  });
+  app().innerHTML = h;
+}
+
+/* ── Bandeja del aprobador ─────────────────────────────── */
+async function vBandeja() {
+  app().innerHTML = nav() + '<div class="msg">Cargando bandeja…</div>';
+  const r = await api('bandeja');
+  let h = nav();
+  if (!r.bandeja.length) { app().innerHTML = h + '<div class="msg">🎉 Bandeja vacía: nada pendiente de tus proveedores.</div>'; return; }
+  r.bandeja.forEach(q => {
+    let total = 0;
+    h += '<div class="card"><b>' + esc(q.folio) + '</b> · ' + esc(q.sucursal) +
+      ' <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' +
+      (q.extraordinaria ? ' <span class="chip rechazada">extraordinaria</span>' : '') +
+      '<div style="font-size:13px;color:var(--txt2)">' + fecha(q.creada_el) + ' · ' + esc(q.creada_por) + '</div>';
+    (q.lineas || []).forEach(l => {
+      const imp = (l.precio || 0) * (l.fraccion || 1) * l.solicitada; total += imp;
+      const idl = 'r' + l.req_linea_id;
+      h += '<div class="linea-res" data-linea="' + l.req_linea_id + '">' +
+        '<div><b>' + esc(l.insumo) + '</b> <span style="color:var(--txt2);font-size:13px">' + esc(l.presentacion || '') + ' · ' + esc(l.proveedor) + '</span></div>' +
+        '<div style="font-size:14px;margin:4px 0">Pidió <b>' + l.solicitada + '</b>' + (l.precio ? ' · ' + money(imp) : '') +
+        (l.estado_linea !== 'pendiente' ? ' <span class="chip ' + esc(l.estado_linea) + '">' + esc(l.estado_linea) + '</span>' : '') + '</div>' +
+        (l.estado_linea === 'pendiente'
+          ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
+            '<select id="' + idl + 'a" onchange="$(\'' + idl + 'c\').style.display=this.value===\'modificar\'?\'\':\'none\';$(\'' + idl + 'm\').style.display=this.value===\'rechazar\'?\'\':\'none\'">' +
+            '<option value="aprobar">✔ Aprobar</option><option value="modificar">✎ Modificar</option><option value="rechazar">✗ Rechazar</option></select>' +
+            '<input type="number" id="' + idl + 'c" value="' + l.solicitada + '" min="0" style="width:70px;display:none">' +
+            '<input type="text" id="' + idl + 'm" placeholder="Motivo del rechazo" style="flex:1;display:none">' +
+            '</div>'
+          : '') + '</div>';
+    });
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">' +
+      '<div class="presu">Total solicitado: <b>' + money(total) + '</b>' + (q.presupuesto ? ' / presupuesto ' + money(q.presupuesto) : '') + '</div>' +
+      '<button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div>' +
+      '<div class="no-print" style="margin-top:6px"><a href="#req-' + q.req_id + '" style="font-size:13px">Ver historial completo →</a></div></div>';
+  });
+  app().innerHTML = h;
+}
+async function autorizar(reqId, btn) {
+  const resoluciones = [];
+  document.querySelectorAll('.linea-res[data-linea]').forEach(el => {
+    const id = Number(el.dataset.linea);
+    const sel = $('r' + id + 'a'); if (!sel) return;
+    const a = sel.value;
+    if (a === 'aprobar') resoluciones.push({ req_linea_id: id, accion: 'aprobar' });
+    else if (a === 'modificar') resoluciones.push({ req_linea_id: id, accion: 'modificar', cantidad: Number($('r' + id + 'c').value) });
+    else resoluciones.push({ req_linea_id: id, accion: 'rechazar', motivo: $('r' + id + 'm').value });
+  });
+  const falta = resoluciones.find(r => r.accion === 'rechazar' && !r.motivo.trim());
+  if (falta) { alert('Todo rechazo necesita motivo.'); return; }
+  btn.disabled = true;
+  const r = await api('resolver', { req_id: reqId, resoluciones });
+  let h = '<div class="card ok-big">✅<p>Requisición resuelta.</p>';
+  if (r.ocs.length) {
+    h += '<p style="margin-top:8px">Órdenes de compra generadas:</p>';
+    r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a></p>'; });
+  } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro aprobador).</p>';
+  h += '<p style="margin-top:14px"><button class="btn sec" onclick="vBandeja()">Volver a la bandeja</button></p></div>';
+  app().innerHTML = nav() + h;
+}
+
+/* ── Detalle + timeline ────────────────────────────────── */
+async function vDetalle(tipo, id) {
+  app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
+  const d = await api('detalle', { tipo, id: Number(id) });
+  let h = nav() + '<div class="card"><b style="font-size:18px">' + esc(d.folio) + '</b> <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span>' +
+    '<div style="font-size:13px;color:var(--txt2)">' + esc(d.sucursal) + ' · ' + esc(d.creada_por || '') + '</div></div><div class="card">';
+  (d.lineas || []).forEach(l => {
+    h += '<div class="item"><div class="info"><div class="n">' + esc(l.insumo) + '</div><div class="d">' + esc(l.proveedor || '') +
+      (l.motivo_rechazo ? ' · ✗ ' + esc(l.motivo_rechazo) : '') + '</div></div>' +
+      '<div style="text-align:right"><b>' + (l.aprobada != null ? l.aprobada : l.solicitada) + '</b>' +
+      (l.aprobada != null && Number(l.aprobada) !== Number(l.solicitada) ? '<div class="d" style="text-decoration:line-through">' + l.solicitada + '</div>' : '') +
+      ' <span class="chip ' + esc(l.estado_linea) + '">' + esc(l.estado_linea) + '</span></div></div>';
+  });
+  h += '</div><div class="card"><div class="cat-h" style="margin-top:0">Historial</div>';
+  (d.eventos || []).forEach(e => {
+    h += '<div class="evento"><span class="ts">' + fecha(e.ts) + '</span><div><b>' + esc(e.evento) + '</b> — ' + esc(e.usuario) +
+      (e.despues && e.despues.motivo ? '<div style="color:var(--txt2)">' + esc(e.despues.motivo) + '</div>' : '') + '</div></div>';
+  });
+  h += '</div>';
+  app().innerHTML = h;
+}
+
+/* ── Orden de compra (imprimible) ──────────────────────── */
+async function vOC(id) {
+  app().innerHTML = nav() + '<div class="msg">Cargando OC…</div>';
+  const d = await api('detalle', { tipo: 'oc', id: Number(id) });
+  let h = nav() + '<div class="card">' +
+    '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">' +
+    '<div><b style="font-size:20px">Orden de Compra</b><div style="font-size:22px;font-weight:800;color:var(--rojo)">' + esc(d.folio) + '</div></div>' +
+    '<div style="text-align:right;font-size:13px"><b>Operadora de Franquicias LEM</b><br>Doña Tota · Chihuahua<br>' + new Date(d.creada_el).toLocaleDateString('es-MX') + '</div></div>' +
+    '<hr style="border:none;border-top:1px solid var(--borde);margin:10px 0">' +
+    '<div style="font-size:14px"><b>Proveedor:</b> ' + esc(d.proveedor) + (d.proveedor_rfc ? ' (' + esc(d.proveedor_rfc) + ')' : '') +
+    '<br><b>Entregar en:</b> ' + esc(d.sucursal) + '<br><b>Requisición origen:</b> ' + esc(d.req_folio) +
+    ' · <b>Autorizó:</b> ' + esc(d.autorizada_por || '') + ' <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span></div>' +
+    '<table class="oc" style="margin-top:12px"><tr><th>Código</th><th>Insumo</th><th>Presentación</th><th class="der">Cant.</th><th class="der">Importe</th></tr>';
+  (d.lineas || []).forEach(l => {
+    h += '<tr><td>' + esc(l.codigo || '—') + '</td><td>' + esc(l.insumo) + '</td><td>' + esc(l.presentacion || '') + '</td>' +
+      '<td class="der">' + l.cantidad + '</td><td class="der">' + (l.importe ? money(l.importe) : '—') + '</td></tr>';
+  });
+  h += '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th></tr></table>' +
+    '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
+    '<button class="btn" onclick="imprimirOC(' + id + ')">🖨 Imprimir / PDF</button>';
+  if (d.estado === 'autorizada') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'enviada_proveedor\')">📤 Ya la envié al proveedor</button>';
+  if (d.estado === 'enviada_proveedor') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'cerrada\')">Cerrar OC</button>';
+  h += '</div></div>';
+  app().innerHTML = h;
+}
+async function imprimirOC(id) { try { await api('marcar_oc', { oc_id: Number(id), accion_oc: 'pdf_descargado' }); } catch (e) {} window.print(); }
+async function marcarOC(id, acc) { await api('marcar_oc', { oc_id: Number(id), accion_oc: acc }); vOC(id); }
+
+/* ── Arranque ──────────────────────────────────────────── */
+window.addEventListener('load', () => { S.token ? arrancar() : vLogin(); });
+</script>
+</body>
+</html>
