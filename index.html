@@ -70,6 +70,8 @@ const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleuser
 const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
 const $ = (id) => document.getElementById(id);
 const app = () => $('app');
+function aviso(m) { let b = document.getElementById('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
+window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
 const S = { token: store.get() || null, branch: null, perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
@@ -77,10 +79,13 @@ const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', mon
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 async function api(accion, datos) {
-  const r = await fetch(API, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: S.token, accion, datos: datos || {} })
-  });
+  let r;
+  try {
+    r = await fetch(API, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: S.token, accion, datos: datos || {} })
+    });
+  } catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
   if (r.status === 401) { store.del(); S.token = null; vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
   const j = await r.json();
   if (j.error) { alert('⚠️ ' + (j.detalle || j.error)); throw new Error(j.error); }
@@ -96,9 +101,12 @@ function vLogin(msj) {
       ? '<div class="aviso">Falta configurar el Client ID de Google (lo pone el administrador en el workflow de n8n).</div>'
       : '<div id="gbtn" style="display:flex;justify-content:center"></div>') + '</div>';
   if (CLIENT_ID.indexOf('__') !== 0 && window.google) {
-    google.accounts.id.initialize({ client_id: CLIENT_ID, callback: (resp) => {
-      S.token = resp.credential; store.set(S.token); arrancar();
-    }});
+    google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
+      error_callback: (e) => aviso('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Si tu navegador bloquea ventanas emergentes, permítelas para este sitio y reintenta.'),
+      callback: (resp) => {
+        try { S.token = resp.credential; store.set(S.token); arrancar(); }
+        catch (err) { aviso('Falló el arranque tras el login: ' + err.message); }
+      }});
     google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
   }
 }
@@ -110,7 +118,7 @@ async function arrancar() {
     if (S.branch == null && p.sucursales.length) S.branch = p.sucursales[0].branch_id;
     $('hUser').textContent = p.usuario;
     router();
-  } catch (e) { /* vLogin ya se mostró en 401 */ }
+  } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
 }
 
 /* ── Router ────────────────────────────────────────────── */
