@@ -71,7 +71,7 @@ const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
 const $ = (id) => document.getElementById(id);
 const app = () => $('app');
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
-const S = { token: store.get() || null, perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
+const S = { token: store.get() || null, branch: null, perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -107,6 +107,7 @@ async function arrancar() {
   try {
     const p = await api('perfil');
     S.perfil = p;
+    if (S.branch == null && p.sucursales.length) S.branch = p.sucursales[0].branch_id;
     $('hUser').textContent = p.usuario;
     router();
   } catch (e) { /* vLogin ya se mostró en 401 */ }
@@ -134,16 +135,21 @@ function router() {
 window.addEventListener('hashchange', () => S.perfil && router());
 
 /* ── Captura del gerente ───────────────────────────────── */
+function cambiarSuc(v) { S.branch = Number(v); S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
 async function vCaptura() {
-  const suc = S.perfil.sucursales[0];
+  const suc = S.perfil.sucursales.find(s => s.branch_id === S.branch) || S.perfil.sucursales[0];
   if (!suc) { app().innerHTML = nav() + '<div class="msg">Tu usuario no tiene sucursal asignada para pedir.</div>'; return; }
   if (!S.cat) {
     app().innerHTML = nav() + '<div class="msg">Cargando catálogo…</div>';
-    S.cat = await api('catalogo', { branch_id: suc.branch_id });
+    S.cat = await api('catalogo', { branch_id: S.branch });
   }
   const grupos = {};
   S.cat.catalogo.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
-  let h = nav() + '<div class="card"><b>' + esc(suc.nombre) + '</b>' +
+  const selector = S.perfil.sucursales.length > 1
+    ? '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
+      S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
+    : '<b>' + esc(suc.nombre) + '</b>';
+  let h = nav() + '<div class="card">' + selector +
     (S.cat.presupuesto ? '<div class="presu" id="presuTxt"></div>' : '<div class="presu">Sin presupuesto asignado (informativo)</div>') + '</div>' +
     '<input class="buscador no-print" id="busca" placeholder="Buscar insumo…" oninput="filtrar()">';
   for (const g in grupos) {
@@ -176,7 +182,7 @@ function precioDe(id) {
 async function tocarPrimera() {
   if (S.reqId || S._iniciando) return;
   S._iniciando = true; S.t0 = Date.now();
-  try { const r = await api('iniciar', { branch_id: S.perfil.sucursales[0].branch_id }); S.reqId = r.req_id; S.folio = r.folio; }
+  try { const r = await api('iniciar', { branch_id: S.branch }); S.reqId = r.req_id; S.folio = r.folio; }
   finally { S._iniciando = false; }
 }
 function mas(id, d) { setQ(id, (S.carrito[id] || 0) + d); }
@@ -214,8 +220,7 @@ async function enviar() {
 /* ── Mis pedidos ───────────────────────────────────────── */
 async function vPedidos() {
   app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
-  const suc = S.perfil.sucursales[0];
-  const r = await api('mis_requisiciones', { branch_id: suc.branch_id });
+  const r = await api('mis_requisiciones', { branch_id: S.branch });
   let h = nav();
   if (!r.requisiciones.length) h += '<div class="msg">Sin pedidos en los últimos 90 días.</div>';
   r.requisiciones.forEach(q => {
