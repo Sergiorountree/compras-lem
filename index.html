@@ -225,14 +225,14 @@ async function vCaptura() {
     h += '<div class="cat-h">¿A quién le pides?</div><div class="grid2">';
     (S.cat.proveedores || []).forEach(p => {
       const n = Object.keys(S.carrito).filter(id => { const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === Number(id)); return it && it.proveedor_id === p.proveedor_id; }).length;
-      const activo = p.insumos > 0;
       const sp = subPorProv()[p.proveedor_id] || { sub: 0 };
       const pres = p.presupuesto ? Number(p.presupuesto) : null;
+      const activo = p.insumos > 0 && !!pres;
       const pct = pres ? Math.min(sp.sub / pres * 100, 100) : 0;
       h += '<button class="tile' + (activo ? '' : ' off') + (pres && sp.sub > pres ? ' excedido' : '') + '" ' + (activo ? 'onclick="abrirProv(' + p.proveedor_id + ')"' : 'disabled') + '>' +
         '<div class="tn">' + esc(p.nombre_corto) + '</div>' +
-        '<div class="td">' + (activo ? p.insumos + ' insumos' : 'catálogo pendiente') + '</div>' +
-        (pres ? '<div class="td" style="margin-top:6px">Presupuesto ' + money(pres) + '</div><div class="barra' + (sp.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : '')) + '" style="margin:4px 0"><div style="width:' + pct + '%"></div></div><div class="td">' + (sp.sub ? money(sp.sub) + ' sin IVA' : 'sin pedido aún') + '</div>' : (activo ? '<div class="td" style="margin-top:6px;color:var(--ambar)">sin presupuesto asignado</div>' : '')) +
+        '<div class="td">' + (p.insumos > 0 ? p.insumos + ' insumos' : 'catálogo pendiente') + '</div>' +
+        (pres ? '<div class="td" style="margin-top:6px">Presupuesto ' + money(pres) + '</div><div class="barra' + (sp.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : '')) + '" style="margin:4px 0"><div style="width:' + pct + '%"></div></div><div class="td">' + (sp.sub ? money(sp.sub) + ' sin IVA' : 'sin pedido aún') + '</div>' : (p.insumos > 0 ? '<div class="td" style="margin-top:6px;color:var(--rojo);font-weight:600">Sin presupuesto asignado — no se puede pedir</div>' : '')) +
         (n ? '<div class="tb">' + n + ' en el pedido</div>' : '') + '</button>';
     });
     h += '</div>';
@@ -316,7 +316,8 @@ function pintarTotal() {
   const provs = S.cat.proveedores || [];
   let n = 0; for (const k in porProv) n += porProv[k].n;
   const excedidos = provs.filter(p => p.presupuesto && porProv[p.proveedor_id] && porProv[p.proveedor_id].sub > Number(p.presupuesto));
-  let bloqueado = n === 0 || excedidos.length > 0;
+  const sinPres = provs.filter(p => !p.presupuesto && porProv[p.proveedor_id]);
+  let bloqueado = n === 0 || excedidos.length > 0 || sinPres.length > 0;
   if (S.prov) {
     const p = provs.find(x => x.proveedor_id === S.prov) || {};
     const e = porProv[S.prov] || { sub: 0, iva: 0, n: 0 };
@@ -328,7 +329,7 @@ function pintarTotal() {
       $('rPres').textContent = money(pres); $('rBarraFill').style.width = Math.min(pct, 100) + '%';
       $('rBarra').className = 'barra' + (e.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : ''));
       $('rAviso').innerHTML = e.sub > pres ? '<b style="color:var(--rojo)">Te pasas por ' + money(e.sub - pres) + '</b> — ajusta cantidades.' : 'Llevas ' + Math.round(pct) + '% · te quedan ' + money(pres - e.sub);
-    } else { $('rPres').textContent = 'sin asignar'; $('rBarraFill').style.width = '0%'; $('rBarra').className = 'barra'; $('rAviso').textContent = 'Este proveedor no tiene presupuesto asignado para la sucursal.'; }
+    } else { $('rPres').textContent = 'sin asignar'; $('rBarraFill').style.width = '0%'; $('rBarra').className = 'barra'; $('rAviso').innerHTML = '<b style="color:var(--rojo)">Sin presupuesto asignado</b> — no se puede pedir a este proveedor hasta que administración lo asigne.'; }
   } else {
     let sub = 0, iva = 0; for (const k in porProv) { sub += porProv[k].sub; iva += porProv[k].iva; }
     $('rTitulo').textContent = 'Pedido completo';
