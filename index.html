@@ -61,6 +61,26 @@
   .tile .td { font-size:12.5px; color:var(--txt2); }
   .tile .tb { font-size:12px; font-weight:700; color:var(--rojo); }
   .tile.off { opacity:.5; cursor:not-allowed; }
+  .layout { display:block; }
+  .resumen .res-row { display:flex; justify-content:space-between; align-items:baseline; font-size:14px; padding:3px 0; }
+  .resumen .res-row.total { font-weight:700; font-size:18px; border-top:1px solid var(--borde); margin-top:4px; padding-top:8px; }
+  .barra { height:8px; background:var(--gris); border-radius:99px; overflow:hidden; margin:6px 0 2px; }
+  .barra > div { height:100%; background:var(--verde); transition:width .2s; }
+  .barra.ambar > div { background:var(--ambar); }
+  .barra.rojo > div { background:var(--rojo); }
+  .item .d .sin { color:var(--txt); font-weight:600; }
+  .item .d .con { color:var(--txt2); }
+  @media (min-width: 900px) {
+    main { max-width:1040px; }
+    .layout { display:grid; grid-template-columns:1fr 310px; gap:16px; align-items:start; }
+    .resumen { position:sticky; top:66px; }
+  }
+  @media (max-width: 899px) {
+    .resumen { position:fixed; bottom:0; left:0; right:0; margin:0; border-radius:14px 14px 0 0; box-shadow:0 -2px 14px rgba(0,0,0,.10); padding:10px 14px; z-index:10; }
+    .resumen .res-row { font-size:13px; padding:1px 0; }
+    .resumen .res-row.total { font-size:16px; padding-top:5px; }
+    main { padding-bottom:230px; }
+  }
   .aviso { background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:10px 12px; font-size:14px; margin-bottom:10px; }
   @media print {
     header, .no-print, .totalbar { display:none !important; }
@@ -196,8 +216,7 @@ async function vCaptura() {
     ? '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
       S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
     : '<b>' + esc(suc.nombre) + '</b>';
-  let h = nav() + '<div class="card">' + selector +
-    (S.cat.presupuesto ? '<div class="presu" id="presuTxt"></div>' : '<div class="presu">Sin presupuesto asignado (informativo)</div>') + '</div>';
+  let h = '<div class="card">' + selector + '</div>';
   const prov = (S.cat.proveedores || []).find(p => p.proveedor_id === S.prov);
   if (!prov) {
     h += '<div class="cat-h">¿A quién le pides?</div><div class="grid2">';
@@ -220,9 +239,13 @@ async function vCaptura() {
       h += '<div class="cat-h" data-cat="1">' + esc(g) + '</div><div class="card">';
       grupos[g].forEach(i => {
         const v = S.carrito[i.proveedor_insumo_id] || 0;
+        const u = i.unidad ? '/' + esc(i.unidad) : '';
+        const precioTxt = i.precio
+          ? '<span class="sin">' + money(i.precio) + u + ' sin IVA</span> · <span class="con">' + money(conIva(i.precio, i.tasa_iva)) + u + ' c/IVA' + (Number(i.tasa_iva) === 0 ? ' (0%)' : '') + '</span>'
+          : 'precio no especificado';
         h += '<div class="item" data-n="' + esc(i.insumo.toLowerCase()) + '">' +
           '<div class="info"><div class="n">' + esc(i.insumo) + '</div>' +
-          '<div class="d">' + esc(i.presentacion || '') + (i.precio ? ' · ' + money(conIva(i.precio, i.tasa_iva)) + (i.unidad ? '/' + esc(i.unidad) : '') + ' c/IVA' + (Number(i.tasa_iva) === 0 ? ' (0%)' : '') : ' · precio no especificado') + '</div></div>' +
+          '<div class="d">' + esc(i.presentacion || '') + '</div><div class="d">' + precioTxt + '</div></div>' +
           '<div class="step">' +
           '<button onclick="mas(' + i.proveedor_insumo_id + ',-1)">−</button>' +
           '<input inputmode="numeric" id="q' + i.proveedor_insumo_id + '" value="' + v + '" onchange="setQ(' + i.proveedor_insumo_id + ',this.value)">' +
@@ -231,10 +254,19 @@ async function vCaptura() {
       h += '</div>';
     }
   }
-  h += '<div class="totalbar no-print"><div class="t"><span class="presu" id="tLineas"></span><b id="tTotal"></b></div>' +
-       '<button class="btn" id="btnEnviar" onclick="enviar()">Enviar pedido</button></div>';
-  app().innerHTML = h;
+  app().innerHTML = nav() + '<div class="layout"><div>' + h + '</div>' + resumenHtml() + '</div>';
   pintarTotal();
+}
+function resumenHtml() {
+  return '<div class="card resumen no-print" id="resumen">' +
+    '<div class="res-row"><span>Presupuesto (sin IVA)</span><b id="rPres">—</b></div>' +
+    '<div class="barra" id="rBarra"><div id="rBarraFill" style="width:0%"></div></div>' +
+    '<div class="presu" id="rAviso"></div>' +
+    '<div class="res-row" style="margin-top:6px"><span>Subtotal (sin IVA)</span><b id="rSub">$0</b></div>' +
+    '<div class="res-row"><span>IVA</span><b id="rIva">$0</b></div>' +
+    '<div class="res-row total"><span>Total</span><b id="rTot">$0</b></div>' +
+    '<div class="presu" id="tLineas" style="margin-top:4px"></div>' +
+    '<button class="btn" id="btnEnviar" onclick="enviar()" style="width:100%;margin-top:8px">Enviar pedido</button></div>';
 }
 function abrirProv(id) { S.prov = Number(id); vCaptura(); }
 function filtrar() {
@@ -243,7 +275,7 @@ function filtrar() {
 }
 function precioDe(id) {
   const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === id);
-  return it && it.precio ? conIva(it.precio, it.tasa_iva) * Number(it.fraccion || 1) : 0;
+  return it && it.precio ? Number(it.precio) * Number(it.fraccion || 1) : 0;
 }
 async function tocarPrimera() {
   if (S.reqId || S._iniciando) return;
@@ -260,15 +292,30 @@ function setQ(id, v) {
   pintarTotal();
 }
 function pintarTotal() {
-  let total = 0, n = 0;
-  for (const id in S.carrito) { total += precioDe(Number(id)) * S.carrito[id]; n++; }
-  if ($('tTotal')) { $('tTotal').textContent = money(total) + ' c/IVA'; $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's'); $('btnEnviar').disabled = n === 0; }
-  const pb = $('presuTxt');
-  if (pb && S.cat.presupuesto) {
-    const p = Number(S.cat.presupuesto), pc = Math.round(total / p * 100);
-    pb.textContent = 'Presupuesto: ' + money(p) + ' · llevas ' + money(total) + ' (' + pc + '%)';
-    pb.className = 'presu' + (total > p ? ' rojo' : '');
+  let sub = 0, iva = 0, n = 0;
+  for (const id in S.carrito) {
+    const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === Number(id));
+    if (!it || !it.precio) { n++; continue; }
+    const base = Number(it.precio) * Number(it.fraccion || 1) * S.carrito[id];
+    sub += base; iva += base * Number(it.tasa_iva || 0) / 100; n++;
   }
+  if (!$('rSub')) return;
+  $('rSub').textContent = money(sub); $('rIva').textContent = money(iva); $('rTot').textContent = money(sub + iva);
+  $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's') + ' en el pedido';
+  const pres = S.cat.presupuesto ? Number(S.cat.presupuesto) : null;
+  let bloqueado = n === 0;
+  if (pres) {
+    const pct = sub / pres * 100;
+    $('rPres').textContent = money(pres);
+    $('rBarraFill').style.width = Math.min(pct, 100) + '%';
+    $('rBarra').className = 'barra' + (sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : ''));
+    if (sub > pres) { $('rAviso').innerHTML = '<b style="color:var(--rojo)">Te pasas por ' + money(sub - pres) + '</b> — ajusta cantidades para poder enviar.'; bloqueado = true; }
+    else $('rAviso').textContent = 'Llevas ' + Math.round(pct) + '% del presupuesto · te quedan ' + money(pres - sub);
+  } else {
+    $('rPres').textContent = 'sin asignar'; $('rBarraFill').style.width = '0%'; $('rBarra').className = 'barra';
+    $('rAviso').textContent = 'Administración aún no fija presupuesto para esta sucursal.';
+  }
+  $('btnEnviar').disabled = bloqueado;
 }
 async function enviar() {
   if (!S.reqId) await tocarPrimera();
