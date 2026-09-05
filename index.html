@@ -11,7 +11,7 @@
   body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--gris); color:var(--txt); font-size:16px; }
   header { background:var(--rojo); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
   header h1 { font-size:17px; font-weight:700; }
-  header .u { font-size:12px; opacity:.85; }
+  header .u { font-size:12px; opacity:.85; text-align:right; line-height:1.5; }
   main { max-width:640px; margin:0 auto; padding:12px; padding-bottom:90px; }
   .card { background:#fff; border:1px solid var(--borde); border-radius:12px; padding:14px; margin-bottom:10px; }
   .btn { display:inline-block; border:none; border-radius:10px; padding:12px 18px; font-size:16px; font-weight:600; cursor:pointer; background:var(--rojo); color:#fff; }
@@ -73,7 +73,7 @@ const app = () => $('app');
 function aviso(m) { let b = document.getElementById('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
-const S = { token: store.get() || null, branch: null, perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
+const S = { token: store.get() || null, branch: null, vista: (function(){ try { return localStorage.getItem('lem_vista') || 'admin'; } catch(e){ return 'admin'; } })(), perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -116,15 +116,32 @@ async function arrancar() {
     const p = await api('perfil');
     S.perfil = p;
     if (S.branch == null && p.sucursales.length) S.branch = p.sucursales[0].branch_id;
-    $('hUser').textContent = p.usuario;
+    $('hUser').innerHTML = esc(p.usuario) + (p.roles.includes('admin') ? '<br>' + selectorVista() : '');
     router();
   } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
 }
 
+/* ── Vista (solo admin): ver como gerente / aprobador / admin ─ */
+function esAdmin() { return S.perfil && S.perfil.roles.includes('admin'); }
+function vista() { return esAdmin() ? S.vista : 'propia'; }
+function cambiarVista(v) {
+  S.vista = v; try { localStorage.setItem('lem_vista', v); } catch (e) {}
+  S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null;
+  location.hash = (v === 'aprobador') ? 'bandeja' : 'captura';
+  router();
+}
+function selectorVista() {
+  if (!esAdmin()) return '';
+  const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
+  return '<label style="font-size:12px;opacity:.9">Ver como <select onchange="cambiarVista(this.value)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
+    op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Aprobador') + '</select></label>';
+}
+
 /* ── Router ────────────────────────────────────────────── */
 function nav() {
-  const p = S.perfil; const esG = p.roles.includes('gerente') || p.roles.includes('admin');
-  const esA = p.aprueba_proveedores.length > 0 || p.roles.includes('admin');
+  const p = S.perfil; const vw = vista();
+  const esG = (vw === 'propia') ? (p.roles.includes('gerente')) : (vw !== 'aprobador');
+  const esA = (vw === 'propia') ? (p.aprueba_proveedores.length > 0) : (vw !== 'gerente');
   let h = '<div class="nav no-print">';
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>';
@@ -132,7 +149,7 @@ function nav() {
   return h + '</div>';
 }
 function router() {
-  const h = location.hash.slice(1) || (S.perfil.aprueba_proveedores.length ? 'bandeja' : 'captura');
+  const h = location.hash.slice(1) || ((vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length)) ? 'bandeja' : 'captura');
   if (h === 'captura') vCaptura();
   else if (h === 'pedidos') vPedidos();
   else if (h === 'bandeja') vBandeja();
@@ -154,7 +171,7 @@ async function vCaptura() {
   const grupos = {};
   S.cat.catalogo.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
   const selector = S.perfil.sucursales.length > 1
-    ? '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
+    ? (vista() === 'gerente' ? '<span style="font-size:12px;color:var(--txt2)">Sucursal (como su gerente): </span>' : '') + '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
       S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
     : '<b>' + esc(suc.nombre) + '</b>';
   let h = nav() + '<div class="card">' + selector +
