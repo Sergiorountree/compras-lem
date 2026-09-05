@@ -70,6 +70,11 @@
   .barra > div { height:100%; background:var(--verde); transition:width .2s; }
   .barra.ambar > div { background:var(--ambar); }
   .barra.rojo > div { background:var(--rojo); }
+  .uchip { display:inline-block; background:#fff7ed; color:#9a3412; border:1px solid #fdba74; border-radius:6px; padding:2px 8px; font-size:12px; font-weight:800; letter-spacing:.02em; }
+  .item .lq { color:var(--rojo); font-weight:600; margin-top:3px; }
+  .step { flex-direction:column; align-items:center; gap:2px; }
+  .stepin { display:flex; align-items:center; gap:6px; }
+  .steplbl { font-size:11px; color:var(--txt2); text-transform:uppercase; letter-spacing:.04em; }
   .item .d .sin { color:var(--txt); font-weight:600; }
   .item .d .con { color:var(--txt2); }
   @media (min-width: 900px) {
@@ -107,6 +112,18 @@ function aviso(m) { let b = document.getElementById('avisoErr'); if (!b) { b = d
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
 const S = { token: store.get() || null, branch: null, prov: null, vista: (function(){ try { return localStorage.getItem('lem_vista') || 'admin'; } catch(e){ return 'admin'; } })(), perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
+const UNIDADES = { PZA: ['pieza', 'piezas'], PZ: ['pieza', 'piezas'], KG: ['kilo', 'kilos'], K: ['kilo', 'kilos'], PQ: ['paquete', 'paquetes'], PKT: ['paquete', 'paquetes'], ROL: ['rollo', 'rollos'], BOL: ['bolsa', 'bolsas'], L: ['litro', 'litros'], LT: ['litro', 'litros'], U: ['unidad', 'unidades'] };
+function uDet(u, q) { const k = String(u || 'PZA').toUpperCase(); const p = UNIDADES[k] || [String(u || 'unidad').toLowerCase(), String(u || 'unidades').toLowerCase()]; return Number(q) === 1 ? p[0] : p[1]; }
+function presInfo(i) {
+  const p = String(i.presentacion || '').toLowerCase(); const n = Number(i.fraccion || 1);
+  let tipo = 'pieza';
+  if (p.startsWith('caja')) tipo = 'caja'; else if (p.includes('paq')) tipo = 'paquete'; else if (p.includes('kilo')) tipo = 'kilo'; else if (p.includes('rollo')) tipo = 'rollo'; else if (p.includes('bolsa')) tipo = 'bolsa';
+  else if (n === 1 && String(i.unidad || '').toUpperCase().startsWith('K')) tipo = 'kilo';
+  return { tipo, n, det: uDet(i.unidad, n) };
+}
+const PLURAL = { caja: 'cajas', paquete: 'paquetes', pieza: 'piezas', kilo: 'kilos', rollo: 'rollos', bolsa: 'bolsas' };
+const plural = (t, q) => Number(q) === 1 ? t : (PLURAL[t] || t + 's');
+function chipUnidad(i) { const u = presInfo(i); return '<span class="uchip">' + u.tipo.toUpperCase() + (u.n > 1 ? ' · ' + u.n + ' ' + u.det : '') + '</span>'; }
 const conIva = (p, t) => Number(p || 0) * (1 + Number(t || 0) / 100);
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -246,22 +263,26 @@ async function vCaptura() {
       h += '<div class="cat-h" data-cat="1">' + esc(g) + '</div><div class="card">';
       grupos[g].forEach(i => {
         const v = S.carrito[i.proveedor_insumo_id] || 0;
-        const u = i.unidad ? '/' + esc(i.unidad) : '';
-        const precioTxt = i.precio
-          ? '<span class="sin">' + money(i.precio) + u + ' sin IVA</span> · <span class="con">' + money(conIva(i.precio, i.tasa_iva)) + u + ' c/IVA' + (Number(i.tasa_iva) === 0 ? ' (0%)' : '') + '</span>'
+        const u = presInfo(i);
+        const pPres = i.precio ? Number(i.precio) * u.n : null;
+        const precioTxt = pPres != null
+          ? '<span class="sin">' + money(pPres) + ' ' + (u.tipo === 'kilo' || u.tipo === 'pieza' ? 'por ' + u.tipo : 'la ' + u.tipo) + ' sin IVA</span> · <span class="con">' + money(conIva(pPres, i.tasa_iva)) + ' con IVA' + (Number(i.tasa_iva) === 0 ? ' (0%)' : '') + '</span>' +
+            (u.n > 1 ? '<span class="con"> · ' + money(i.precio) + ' por ' + uDet(i.unidad, 1) + '</span>' : '')
           : 'precio no especificado';
         h += '<div class="item" data-n="' + esc(i.insumo.toLowerCase()) + '">' +
           '<div class="info"><div class="n">' + esc(i.insumo) + '</div>' +
-          '<div class="d">' + esc(i.presentacion || '') + '</div><div class="d">' + precioTxt + '</div></div>' +
-          '<div class="step">' +
+          '<div class="d" style="margin:3px 0">' + chipUnidad(i) + '</div><div class="d">' + precioTxt + '</div>' +
+          '<div class="d lq" id="lq' + i.proveedor_insumo_id + '"></div></div>' +
+          '<div class="step"><div class="stepin">' +
           '<button onclick="mas(' + i.proveedor_insumo_id + ',-1)">−</button>' +
           '<input inputmode="numeric" id="q' + i.proveedor_insumo_id + '" value="' + v + '" onchange="setQ(' + i.proveedor_insumo_id + ',this.value)">' +
-          '<button onclick="mas(' + i.proveedor_insumo_id + ',1)">+</button></div></div>';
+          '<button onclick="mas(' + i.proveedor_insumo_id + ',1)">+</button></div><div class="steplbl">' + plural(u.tipo, 2) + '</div></div></div>';
       });
       h += '</div>';
     }
   }
   app().innerHTML = nav() + '<div class="layout"><div>' + h + '</div>' + resumenHtml() + '</div>';
+  for (const id in S.carrito) { const lq = $('lq' + id); const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === Number(id)); if (lq && it) { const u = presInfo(it), v = S.carrito[id]; lq.innerHTML = '<b>' + v + ' ' + plural(u.tipo, v) + '</b>' + (u.n > 1 ? ' = ' + (v * u.n) + ' ' + uDet(it.unidad, v * u.n) : '') + (it.precio ? ' · ' + money(Number(it.precio) * u.n * v) + ' sin IVA' : ''); } }
   pintarTotal();
 }
 function resumenHtml() {
@@ -296,6 +317,7 @@ function setQ(id, v) {
   v = Math.max(0, Math.round(Number(v) || 0));
   if (v > 0) S.carrito[id] = v; else delete S.carrito[id];
   const inp = $('q' + id); if (inp) inp.value = v;
+  const lq = $('lq' + id); if (lq) { const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === id); if (it && v > 0) { const u = presInfo(it); lq.innerHTML = '<b>' + v + ' ' + plural(u.tipo, v) + '</b>' + (u.n > 1 ? ' = ' + (v * u.n) + ' ' + uDet(it.unidad, v * u.n) : '') + (it.precio ? ' · ' + money(Number(it.precio) * u.n * v) + ' sin IVA' : ''); } else lq.innerHTML = ''; }
   if (v > 0) tocarPrimera();
   pintarTotal();
 }
@@ -390,7 +412,7 @@ async function vBandeja() {
       const idl = 'r' + l.req_linea_id;
       h += '<div class="linea-res" data-linea="' + l.req_linea_id + '">' +
         '<div><b>' + esc(l.insumo) + '</b> <span style="color:var(--txt2);font-size:13px">' + esc(l.presentacion || '') + ' · ' + esc(l.proveedor) + '</span></div>' +
-        '<div style="font-size:14px;margin:4px 0">Pidió <b>' + l.solicitada + '</b>' + (l.precio ? ' · ' + money(imp) : '') +
+        '<div style="font-size:14px;margin:4px 0">Pidió <b>' + l.solicitada + ' ' + plural(presInfo(l).tipo, l.solicitada) + '</b>' + (presInfo(l).n > 1 ? ' (' + (l.solicitada * presInfo(l).n) + ' ' + uDet(l.unidad, 2) + ')' : '') + (l.precio ? ' · ' + money(imp) + ' con IVA' : '') +
         (l.estado_linea !== 'pendiente' ? ' <span class="chip ' + esc(l.estado_linea) + '">' + esc(l.estado_linea) + '</span>' : '') + '</div>' +
         (l.estado_linea === 'pendiente'
           ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
