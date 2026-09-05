@@ -50,6 +50,13 @@
   .der { text-align:right; }
   .linea-res { border:1px solid var(--borde); border-radius:10px; padding:10px; margin:8px 0; }
   .linea-res select, .linea-res input[type=number], .linea-res input[type=text] { padding:8px; border:1px solid var(--borde); border-radius:8px; font-size:15px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tile { background:#fff; border:2px solid var(--borde); border-radius:14px; padding:22px 12px; text-align:center; cursor:pointer; min-height:120px; display:flex; flex-direction:column; justify-content:center; gap:4px; font-family:inherit; }
+  .tile:active { border-color:var(--rojo); }
+  .tile .tn { font-size:17px; font-weight:700; color:var(--txt); }
+  .tile .td { font-size:12.5px; color:var(--txt2); }
+  .tile .tb { font-size:12px; font-weight:700; color:var(--rojo); }
+  .tile.off { opacity:.5; cursor:not-allowed; }
   .aviso { background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:10px 12px; font-size:14px; margin-bottom:10px; }
   @media print {
     header, .no-print, .totalbar { display:none !important; }
@@ -73,7 +80,7 @@ const app = () => $('app');
 function aviso(m) { let b = document.getElementById('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
-const S = { token: store.get() || null, branch: null, vista: (function(){ try { return localStorage.getItem('lem_vista') || 'admin'; } catch(e){ return 'admin'; } })(), perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
+const S = { token: store.get() || null, branch: null, prov: null, vista: (function(){ try { return localStorage.getItem('lem_vista') || 'admin'; } catch(e){ return 'admin'; } })(), perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -161,7 +168,7 @@ function router() {
 window.addEventListener('hashchange', () => S.perfil && router());
 
 /* ── Captura del gerente ───────────────────────────────── */
-function cambiarSuc(v) { S.branch = Number(v); S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
+function cambiarSuc(v) { S.branch = Number(v); S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
 function vElegirGerente() {
   let h = nav() + '<div class="card"><b>¿Qué gerente quieres ser?</b><div class="presu" style="margin-bottom:8px">Verás exactamente lo que ve ese gerente: solo su sucursal.</div>';
   S.perfil.sucursales.forEach(s => {
@@ -169,7 +176,7 @@ function vElegirGerente() {
   });
   app().innerHTML = h + '</div>';
 }
-function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
+function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
 async function vCaptura() {
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   const suc = S.perfil.sucursales.find(s => s.branch_id === S.branch) || S.perfil.sucursales[0];
@@ -178,34 +185,51 @@ async function vCaptura() {
     app().innerHTML = nav() + '<div class="msg">Cargando catálogo…</div>';
     S.cat = await api('catalogo', { branch_id: S.branch });
   }
-  const grupos = {};
-  S.cat.catalogo.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
   const selector = (S.perfil.sucursales.length > 1 && vista() !== 'gerente')
     ? '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
       S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
     : '<b>' + esc(suc.nombre) + '</b>';
   let h = nav() + '<div class="card">' + selector +
-    (S.cat.presupuesto ? '<div class="presu" id="presuTxt"></div>' : '<div class="presu">Sin presupuesto asignado (informativo)</div>') + '</div>' +
-    '<input class="buscador no-print" id="busca" placeholder="Buscar insumo…" oninput="filtrar()">';
-  for (const g in grupos) {
-    h += '<div class="cat-h" data-cat="1">' + esc(g) + '</div><div class="card">';
-    grupos[g].forEach(i => {
-      const v = S.carrito[i.proveedor_insumo_id] || 0;
-      h += '<div class="item" data-n="' + esc(i.insumo.toLowerCase()) + '">' +
-        '<div class="info"><div class="n">' + esc(i.insumo) + '</div>' +
-        '<div class="d">' + esc(i.presentacion || i.proveedor) + (i.precio ? ' · ' + money(i.precio) + (i.unidad ? '/' + esc(i.unidad) : '') : ' · precio no especificado') + '</div></div>' +
-        '<div class="step">' +
-        '<button onclick="mas(' + i.proveedor_insumo_id + ',-1)">−</button>' +
-        '<input inputmode="numeric" id="q' + i.proveedor_insumo_id + '" value="' + v + '" onchange="setQ(' + i.proveedor_insumo_id + ',this.value)">' +
-        '<button onclick="mas(' + i.proveedor_insumo_id + ',1)">+</button></div></div>';
+    (S.cat.presupuesto ? '<div class="presu" id="presuTxt"></div>' : '<div class="presu">Sin presupuesto asignado (informativo)</div>') + '</div>';
+  const prov = (S.cat.proveedores || []).find(p => p.proveedor_id === S.prov);
+  if (!prov) {
+    h += '<div class="cat-h">¿A quién le pides?</div><div class="grid2">';
+    (S.cat.proveedores || []).forEach(p => {
+      const n = Object.keys(S.carrito).filter(id => { const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === Number(id)); return it && it.proveedor_id === p.proveedor_id; }).length;
+      const activo = p.insumos > 0;
+      h += '<button class="tile' + (activo ? '' : ' off') + '" ' + (activo ? 'onclick="abrirProv(' + p.proveedor_id + ')"' : 'disabled') + '>' +
+        '<div class="tn">' + esc(p.nombre_corto) + '</div>' +
+        '<div class="td">' + (activo ? p.insumos + ' insumos' : 'catálogo pendiente') + '</div>' +
+        (n ? '<div class="tb">' + n + ' en el pedido</div>' : '') + '</button>';
     });
     h += '</div>';
+  } else {
+    const items = S.cat.catalogo.filter(i => i.proveedor_id === prov.proveedor_id);
+    const grupos = {};
+    items.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
+    h += '<div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px"><button class="btn mini sec" onclick="S.prov=null;vCaptura()">← Proveedores</button><b style="font-size:17px">' + esc(prov.nombre_corto) + '</b></div>' +
+      '<input class="buscador no-print" id="busca" placeholder="Buscar en ' + esc(prov.nombre_corto) + '…" oninput="filtrar()">';
+    for (const g in grupos) {
+      h += '<div class="cat-h" data-cat="1">' + esc(g) + '</div><div class="card">';
+      grupos[g].forEach(i => {
+        const v = S.carrito[i.proveedor_insumo_id] || 0;
+        h += '<div class="item" data-n="' + esc(i.insumo.toLowerCase()) + '">' +
+          '<div class="info"><div class="n">' + esc(i.insumo) + '</div>' +
+          '<div class="d">' + esc(i.presentacion || '') + (i.precio ? ' · ' + money(i.precio) + (i.unidad ? '/' + esc(i.unidad) : '') : ' · precio no especificado') + '</div></div>' +
+          '<div class="step">' +
+          '<button onclick="mas(' + i.proveedor_insumo_id + ',-1)">−</button>' +
+          '<input inputmode="numeric" id="q' + i.proveedor_insumo_id + '" value="' + v + '" onchange="setQ(' + i.proveedor_insumo_id + ',this.value)">' +
+          '<button onclick="mas(' + i.proveedor_insumo_id + ',1)">+</button></div></div>';
+      });
+      h += '</div>';
+    }
   }
   h += '<div class="totalbar no-print"><div class="t"><span class="presu" id="tLineas"></span><b id="tTotal"></b></div>' +
        '<button class="btn" id="btnEnviar" onclick="enviar()">Enviar pedido</button></div>';
   app().innerHTML = h;
   pintarTotal();
 }
+function abrirProv(id) { S.prov = Number(id); vCaptura(); }
 function filtrar() {
   const q = $('busca').value.toLowerCase();
   document.querySelectorAll('.item[data-n]').forEach(el => { el.style.display = el.dataset.n.includes(q) ? '' : 'none'; });
@@ -249,7 +273,7 @@ async function enviar() {
   app().innerHTML = nav() + '<div class="card ok-big">✅<div class="f">' + esc(S.folio) + '</div>' +
     '<p>Pedido enviado con ' + r.lineas + ' insumos.' + (seg !== null ? '<br>Tardaste <b>' + seg + ' segundos</b>.' : '') + '</p>' +
     '<p style="margin-top:14px"><button class="btn sec" onclick="location.hash=\'pedidos\'">Ver mis pedidos</button></p></div>';
-  S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null;
+  S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.prov = null;
 }
 
 /* ── Mis pedidos ───────────────────────────────────────── */
