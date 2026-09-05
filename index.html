@@ -125,7 +125,7 @@ async function arrancar() {
 function esAdmin() { return S.perfil && S.perfil.roles.includes('admin'); }
 function vista() { return esAdmin() ? S.vista : 'propia'; }
 function cambiarVista(v) {
-  S.vista = v; try { localStorage.setItem('lem_vista', v); } catch (e) {}
+  S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista', v); } catch (e) {}
   S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null;
   location.hash = (v === 'aprobador') ? 'bandeja' : 'captura';
   router();
@@ -146,6 +146,7 @@ function nav() {
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button>';
+  if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
   return h + '</div>';
 }
 function router() {
@@ -161,7 +162,16 @@ window.addEventListener('hashchange', () => S.perfil && router());
 
 /* ── Captura del gerente ───────────────────────────────── */
 function cambiarSuc(v) { S.branch = Number(v); S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
+function vElegirGerente() {
+  let h = nav() + '<div class="card"><b>¿Qué gerente quieres ser?</b><div class="presu" style="margin-bottom:8px">Verás exactamente lo que ve ese gerente: solo su sucursal.</div>';
+  S.perfil.sucursales.forEach(s => {
+    h += '<button class="btn sec" style="display:block;width:100%;text-align:left;margin:6px 0" onclick="elegirGerente(' + s.branch_id + ')">' + esc(s.nombre) + '</button>';
+  });
+  app().innerHTML = h + '</div>';
+}
+function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
 async function vCaptura() {
+  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   const suc = S.perfil.sucursales.find(s => s.branch_id === S.branch) || S.perfil.sucursales[0];
   if (!suc) { app().innerHTML = nav() + '<div class="msg">Tu usuario no tiene sucursal asignada para pedir.</div>'; return; }
   if (!S.cat) {
@@ -170,8 +180,8 @@ async function vCaptura() {
   }
   const grupos = {};
   S.cat.catalogo.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
-  const selector = S.perfil.sucursales.length > 1
-    ? (vista() === 'gerente' ? '<span style="font-size:12px;color:var(--txt2)">Sucursal (como su gerente): </span>' : '') + '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
+  const selector = (S.perfil.sucursales.length > 1 && vista() !== 'gerente')
+    ? '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
       S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
     : '<b>' + esc(suc.nombre) + '</b>';
   let h = nav() + '<div class="card">' + selector +
@@ -244,6 +254,7 @@ async function enviar() {
 
 /* ── Mis pedidos ───────────────────────────────────────── */
 async function vPedidos() {
+  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
   const r = await api('mis_requisiciones', { branch_id: S.branch });
   let h = nav();
