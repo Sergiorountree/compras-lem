@@ -50,6 +50,10 @@
   .der { text-align:right; }
   .linea-res { border:1px solid var(--borde); border-radius:10px; padding:10px; margin:8px 0; }
   .linea-res select, .linea-res input[type=number], .linea-res input[type=text] { padding:8px; border:1px solid var(--borde); border-radius:8px; font-size:15px; }
+  .form { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin-top:10px; }
+  .form label { display:flex; flex-direction:column; font-size:12.5px; color:var(--txt2); gap:3px; }
+  .form input:not([type=checkbox]), .form select { padding:9px; border:1px solid var(--borde); border-radius:8px; font-size:15px; color:var(--txt); }
+  @media (max-width:520px) { .form { grid-template-columns:1fr; } }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .tile { background:#fff; border:2px solid var(--borde); border-radius:14px; padding:22px 12px; text-align:center; cursor:pointer; min-height:120px; display:flex; flex-direction:column; justify-content:center; gap:4px; font-family:inherit; }
   .tile:active { border-color:var(--rojo); }
@@ -153,6 +157,7 @@ function nav() {
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button>';
+  if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button>';
   if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
   return h + '</div>';
 }
@@ -161,6 +166,7 @@ function router() {
   if (h === 'captura') vCaptura();
   else if (h === 'pedidos') vPedidos();
   else if (h === 'bandeja') vBandeja();
+  else if (h === 'catalogo') vCatalogoAdmin();
   else if (h.startsWith('req-')) vDetalle('requisicion', h.slice(4));
   else if (h.startsWith('oc-')) vOC(h.slice(3));
   else vCaptura();
@@ -348,6 +354,72 @@ async function autorizar(reqId, btn) {
   } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro aprobador).</p>';
   h += '<p style="margin-top:14px"><button class="btn sec" onclick="vBandeja()">Volver a la bandeja</button></p></div>';
   app().innerHTML = nav() + h;
+}
+
+/* ── Administración del catálogo (solo admin) ─────────── */
+const CA = { data: null, prov: null, edit: null };
+async function vCatalogoAdmin() {
+  if (vista() !== 'admin') { location.hash = 'captura'; return; }
+  app().innerHTML = nav() + '<div class="msg">Cargando catálogo…</div>';
+  CA.data = await api('admin_catalogo');
+  if (!CA.prov) CA.prov = CA.data.proveedores[0].proveedor_id;
+  pintarCatalogoAdmin();
+}
+function pintarCatalogoAdmin() {
+  const d = CA.data;
+  let h = nav() + '<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
+  d.proveedores.forEach(p => {
+    const cnt = d.insumos.filter(i => i.proveedor_id === p.proveedor_id).length;
+    h += '<button class="btn mini ' + (CA.prov === p.proveedor_id ? '' : 'sec') + '" onclick="CA.prov=' + p.proveedor_id + ';CA.edit=null;pintarCatalogoAdmin()">' + esc(p.nombre_corto) + ' <span style="opacity:.7">(' + cnt + ')</span></button>';
+  });
+  h += '<span style="flex:1"></span><button class="btn mini" onclick="CA.edit={proveedor_id:CA.prov,fraccion:1,activo:true};pintarCatalogoAdmin();window.scrollTo(0,0)">＋ Nuevo insumo</button></div></div>';
+  if (CA.edit) h += formInsumo(CA.edit);
+  const items = d.insumos.filter(i => i.proveedor_id === CA.prov);
+  if (!items.length && !CA.edit) h += '<div class="msg">Este proveedor no tiene insumos todavía. Usa "＋ Nuevo insumo".</div>';
+  const grupos = {};
+  items.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
+  for (const g in grupos) {
+    h += '<div class="cat-h">' + esc(g) + '</div><div class="card">';
+    grupos[g].forEach(i => {
+      h += '<div class="item" style="cursor:pointer' + (i.activo ? '' : ';opacity:.45') + '" onclick="editarInsumo(' + i.proveedor_insumo_id + ')">' +
+        '<div class="info"><div class="n">' + esc(i.nombre) + (i.activo ? '' : ' <span class="chip">inactivo</span>') + '</div>' +
+        '<div class="d">' + esc(i.presentacion || 'sin presentación') + ' · ' + (i.fraccion || 1) + ' ' + esc(i.unidad || 'u') + ' por presentación' + (i.codigo ? ' · cód. ' + esc(i.codigo) : '') + '</div></div>' +
+        '<div style="text-align:right"><b>' + (i.precio != null ? money(i.precio) + '/' + esc(i.unidad || 'u') : '—') + '</b>' +
+        '<div class="d" style="font-size:12px;color:var(--txt2)">' + (i.precio != null ? money(i.precio * (i.fraccion || 1)) + ' por presentación' : 'sin precio') + '</div></div></div>';
+    });
+    h += '</div>';
+  }
+  app().innerHTML = h;
+}
+function editarInsumo(id) { CA.edit = Object.assign({}, CA.data.insumos.find(i => i.proveedor_insumo_id === id)); pintarCatalogoAdmin(); window.scrollTo(0, 0); }
+function formInsumo(e) {
+  const d = CA.data;
+  const sel = (id, opts, val) => '<select id="' + id + '">' + opts.map(o => '<option value="' + o.v + '"' + (String(o.v) === String(val) ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('') + '</select>';
+  const inp = (id, label, val, extra) => '<label>' + label + '<input id="' + id + '" value="' + esc(val == null ? '' : val) + '" ' + (extra || '') + '></label>';
+  return '<div class="card" style="border-color:var(--rojo)"><b>' + (e.proveedor_insumo_id ? 'Editar insumo' : 'Nuevo insumo') + '</b>' +
+    '<div class="form">' +
+    inp('f_nombre', 'Nombre del producto', e.nombre, 'placeholder="Ej. Pepsi 400 ml"') +
+    '<label>Proveedor' + sel('f_prov', d.proveedores.map(p => ({ v: p.proveedor_id, t: p.nombre_corto })), e.proveedor_id) + '</label>' +
+    '<label>Categoría' + sel('f_concepto', d.conceptos.map(c => ({ v: c.concepto_id, t: c.nombre })), e.concepto_id || 1) + '</label>' +
+    inp('f_unidad', 'Unidad de costo (Kg, PZA, Lt…)', e.unidad, 'placeholder="Kg"') +
+    inp('f_precio', 'Costo por unidad ($)', e.precio, 'type="number" step="0.01" inputmode="decimal" placeholder="118.25"') +
+    inp('f_pres', 'Presentación / embalaje', e.presentacion, 'placeholder="Caja de 12 Kg"') +
+    inp('f_frac', 'Unidades por presentación', e.fraccion || 1, 'type="number" step="0.001" inputmode="decimal"') +
+    inp('f_codigo', 'Código del proveedor (opcional)', e.codigo, 'placeholder="1000"') +
+    '<label><input type="checkbox" id="f_activo"' + (e.activo !== false ? ' checked' : '') + '> Activo (visible para los gerentes)</label>' +
+    '</div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="guardarInsumo()">Guardar</button><button class="btn sec" onclick="CA.edit=null;pintarCatalogoAdmin()">Cancelar</button></div>' +
+    (e.proveedor_insumo_id && e.precio != null ? '<div class="presu" style="margin-top:8px">Precio vigente desde ' + esc(e.precio_desde || '') + '. Si cambias el costo, el anterior se guarda con su vigencia (nunca se borra).</div>' : '') + '</div>';
+}
+async function guardarInsumo() {
+  const datos = {
+    proveedor_insumo_id: CA.edit.proveedor_insumo_id || null,
+    nombre: $('f_nombre').value, proveedor_id: Number($('f_prov').value), concepto_id: Number($('f_concepto').value),
+    unidad: $('f_unidad').value, precio: $('f_precio').value === '' ? null : Number($('f_precio').value),
+    presentacion: $('f_pres').value, fraccion: Number($('f_frac').value) || 1, codigo: $('f_codigo').value, activo: $('f_activo').checked
+  };
+  if (!datos.nombre.trim()) { alert('Falta el nombre del producto.'); return; }
+  const r = await api('admin_guardar_insumo', datos);
+  if (r.ok) { CA.edit = null; CA.prov = datos.proveedor_id; S.cat = null; await vCatalogoAdmin(); }
 }
 
 /* ── Detalle + timeline ────────────────────────────────── */
