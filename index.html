@@ -85,6 +85,7 @@ function aviso(m) { let b = document.getElementById('avisoErr'); if (!b) { b = d
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
 const S = { token: store.get() || null, branch: null, prov: null, vista: (function(){ try { return localStorage.getItem('lem_vista') || 'admin'; } catch(e){ return 'admin'; } })(), perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
+const conIva = (p, t) => Number(p || 0) * (1 + Number(t || 0) / 100);
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -221,7 +222,7 @@ async function vCaptura() {
         const v = S.carrito[i.proveedor_insumo_id] || 0;
         h += '<div class="item" data-n="' + esc(i.insumo.toLowerCase()) + '">' +
           '<div class="info"><div class="n">' + esc(i.insumo) + '</div>' +
-          '<div class="d">' + esc(i.presentacion || '') + (i.precio ? ' · ' + money(i.precio) + (i.unidad ? '/' + esc(i.unidad) : '') : ' · precio no especificado') + '</div></div>' +
+          '<div class="d">' + esc(i.presentacion || '') + (i.precio ? ' · ' + money(conIva(i.precio, i.tasa_iva)) + (i.unidad ? '/' + esc(i.unidad) : '') + ' c/IVA' + (Number(i.tasa_iva) === 0 ? ' (0%)' : '') : ' · precio no especificado') + '</div></div>' +
           '<div class="step">' +
           '<button onclick="mas(' + i.proveedor_insumo_id + ',-1)">−</button>' +
           '<input inputmode="numeric" id="q' + i.proveedor_insumo_id + '" value="' + v + '" onchange="setQ(' + i.proveedor_insumo_id + ',this.value)">' +
@@ -242,7 +243,7 @@ function filtrar() {
 }
 function precioDe(id) {
   const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === id);
-  return it && it.precio ? Number(it.precio) * Number(it.fraccion || 1) : 0;
+  return it && it.precio ? conIva(it.precio, it.tasa_iva) * Number(it.fraccion || 1) : 0;
 }
 async function tocarPrimera() {
   if (S.reqId || S._iniciando) return;
@@ -261,7 +262,7 @@ function setQ(id, v) {
 function pintarTotal() {
   let total = 0, n = 0;
   for (const id in S.carrito) { total += precioDe(Number(id)) * S.carrito[id]; n++; }
-  if ($('tTotal')) { $('tTotal').textContent = money(total); $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's'); $('btnEnviar').disabled = n === 0; }
+  if ($('tTotal')) { $('tTotal').textContent = money(total) + ' c/IVA'; $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's'); $('btnEnviar').disabled = n === 0; }
   const pb = $('presuTxt');
   if (pb && S.cat.presupuesto) {
     const p = Number(S.cat.presupuesto), pc = Math.round(total / p * 100);
@@ -311,7 +312,7 @@ async function vBandeja() {
       (q.extraordinaria ? ' <span class="chip rechazada">extraordinaria</span>' : '') +
       '<div style="font-size:13px;color:var(--txt2)">' + fecha(q.creada_el) + ' · ' + esc(q.creada_por) + '</div>';
     (q.lineas || []).forEach(l => {
-      const imp = (l.precio || 0) * (l.fraccion || 1) * l.solicitada; total += imp;
+      const imp = conIva(l.precio, l.tasa_iva) * (l.fraccion || 1) * l.solicitada; total += imp;
       const idl = 'r' + l.req_linea_id;
       h += '<div class="linea-res" data-linea="' + l.req_linea_id + '">' +
         '<div><b>' + esc(l.insumo) + '</b> <span style="color:var(--txt2);font-size:13px">' + esc(l.presentacion || '') + ' · ' + esc(l.proveedor) + '</span></div>' +
@@ -327,7 +328,7 @@ async function vBandeja() {
           : '') + '</div>';
     });
     h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">' +
-      '<div class="presu">Total solicitado: <b>' + money(total) + '</b>' + (q.presupuesto ? ' / presupuesto ' + money(q.presupuesto) : '') + '</div>' +
+      '<div class="presu">Total solicitado (c/IVA): <b>' + money(total) + '</b>' + (q.presupuesto ? ' / presupuesto ' + money(q.presupuesto) : '') + '</div>' +
       '<button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div>' +
       '<div class="no-print" style="margin-top:6px"><a href="#req-' + q.req_id + '" style="font-size:13px">Ver historial completo →</a></div></div>';
   });
@@ -384,8 +385,8 @@ function pintarCatalogoAdmin() {
       h += '<div class="item" style="cursor:pointer' + (i.activo ? '' : ';opacity:.45') + '" onclick="editarInsumo(' + i.proveedor_insumo_id + ')">' +
         '<div class="info"><div class="n">' + esc(i.nombre) + (i.activo ? '' : ' <span class="chip">inactivo</span>') + '</div>' +
         '<div class="d">' + esc(i.presentacion || 'sin presentación') + ' · ' + (i.fraccion || 1) + ' ' + esc(i.unidad || 'u') + ' por presentación' + (i.codigo ? ' · cód. ' + esc(i.codigo) : '') + '</div></div>' +
-        '<div style="text-align:right"><b>' + (i.precio != null ? money(i.precio) + '/' + esc(i.unidad || 'u') : '—') + '</b>' +
-        '<div class="d" style="font-size:12px;color:var(--txt2)">' + (i.precio != null ? money(i.precio * (i.fraccion || 1)) + ' por presentación' : 'sin precio') + '</div></div></div>';
+        '<div style="text-align:right"><b>' + (i.precio != null ? money(i.precio) + '/' + esc(i.unidad || 'u') : '—') + '</b> <span class="chip">IVA ' + Number(i.tasa_iva || 0) + '%</span>' +
+        '<div class="d" style="font-size:12px;color:var(--txt2)">' + (i.precio != null ? money(conIva(i.precio, i.tasa_iva) * (i.fraccion || 1)) + ' por presentación c/IVA' : 'sin precio') + '</div></div></div>';
     });
     h += '</div>';
   }
@@ -402,7 +403,8 @@ function formInsumo(e) {
     '<label>Proveedor' + sel('f_prov', d.proveedores.map(p => ({ v: p.proveedor_id, t: p.nombre_corto })), e.proveedor_id) + '</label>' +
     '<label>Categoría' + sel('f_concepto', d.conceptos.map(c => ({ v: c.concepto_id, t: c.nombre })), e.concepto_id || 1) + '</label>' +
     inp('f_unidad', 'Unidad de costo (Kg, PZA, Lt…)', e.unidad, 'placeholder="Kg"') +
-    inp('f_precio', 'Costo por unidad ($)', e.precio, 'type="number" step="0.01" inputmode="decimal" placeholder="118.25"') +
+    inp('f_precio', 'Costo por unidad, SIN IVA ($)', e.precio, 'type="number" step="0.01" inputmode="decimal" placeholder="118.25"') +
+    '<label>IVA' + sel('f_iva', [{ v: 16, t: '16 %' }, { v: 0, t: '0 % (exento / tasa cero)' }, { v: 8, t: '8 % (frontera)' }], e.tasa_iva == null ? 16 : e.tasa_iva) + '</label>' +
     inp('f_pres', 'Presentación / embalaje', e.presentacion, 'placeholder="Caja de 12 Kg"') +
     inp('f_frac', 'Unidades por presentación', e.fraccion || 1, 'type="number" step="0.001" inputmode="decimal"') +
     inp('f_codigo', 'Código del proveedor (opcional)', e.codigo, 'placeholder="1000"') +
@@ -415,7 +417,7 @@ async function guardarInsumo() {
     proveedor_insumo_id: CA.edit.proveedor_insumo_id || null,
     nombre: $('f_nombre').value, proveedor_id: Number($('f_prov').value), concepto_id: Number($('f_concepto').value),
     unidad: $('f_unidad').value, precio: $('f_precio').value === '' ? null : Number($('f_precio').value),
-    presentacion: $('f_pres').value, fraccion: Number($('f_frac').value) || 1, codigo: $('f_codigo').value, activo: $('f_activo').checked
+    presentacion: $('f_pres').value, fraccion: Number($('f_frac').value) || 1, codigo: $('f_codigo').value, activo: $('f_activo').checked, tasa_iva: Number($('f_iva').value)
   };
   if (!datos.nombre.trim()) { alert('Falta el nombre del producto.'); return; }
   const r = await api('admin_guardar_insumo', datos);
@@ -456,12 +458,14 @@ async function vOC(id) {
     '<div style="font-size:14px"><b>Proveedor:</b> ' + esc(d.proveedor) + (d.proveedor_rfc ? ' (' + esc(d.proveedor_rfc) + ')' : '') +
     '<br><b>Entregar en:</b> ' + esc(d.sucursal) + '<br><b>Requisición origen:</b> ' + esc(d.req_folio) +
     ' · <b>Autorizó:</b> ' + esc(d.autorizada_por || '') + ' <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span></div>' +
-    '<table class="oc" style="margin-top:12px"><tr><th>Código</th><th>Insumo</th><th>Presentación</th><th class="der">Cant.</th><th class="der">Importe</th></tr>';
+    '<table class="oc" style="margin-top:12px"><tr><th>Código</th><th>Insumo</th><th>Presentación</th><th class="der">Cant.</th><th class="der">Importe</th><th class="der">IVA</th></tr>';
   (d.lineas || []).forEach(l => {
     h += '<tr><td>' + esc(l.codigo || '—') + '</td><td>' + esc(l.insumo) + '</td><td>' + esc(l.presentacion || '') + '</td>' +
-      '<td class="der">' + l.cantidad + '</td><td class="der">' + (l.importe ? money(l.importe) : '—') + '</td></tr>';
+      '<td class="der">' + l.cantidad + '</td><td class="der">' + (l.importe ? money(l.importe) : '—') + '</td><td class="der">' + (l.iva != null ? money(l.iva) + ' <span style="color:var(--txt2);font-size:11px">(' + Number(l.tasa_iva || 0) + '%)</span>' : '—') + '</td></tr>';
   });
-  h += '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th></tr></table>' +
+  h += '<tr><td colspan="4" class="der">Subtotal</td><td class="der">' + money(d.subtotal) + '</td><td></td></tr>' +
+       '<tr><td colspan="4" class="der">IVA</td><td class="der">' + money(d.iva) + '</td><td></td></tr>' +
+       '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th><th></th></tr></table>' +
     '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
     '<button class="btn" onclick="imprimirOC(' + id + ')">🖨 Imprimir / PDF</button>';
   if (d.estado === 'autorizada') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'enviada_proveedor\')">📤 Ya la envié al proveedor</button>';
