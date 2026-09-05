@@ -399,36 +399,60 @@ async function vPedidos() {
 async function vBandeja() {
   app().innerHTML = nav() + '<div class="msg">Cargando bandeja…</div>';
   const r = await api('bandeja');
+  S.bandeja = r.bandeja || [];
   let h = nav();
-  if (!r.bandeja.length) { app().innerHTML = h + '<div class="msg">🎉 Bandeja vacía: nada pendiente de tus proveedores.</div>'; return; }
-  r.bandeja.forEach(q => {
-    let total = 0;
-    h += '<div class="card"><b>' + esc(q.folio) + '</b> · ' + esc(q.sucursal) +
-      ' <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' +
-      (q.extraordinaria ? ' <span class="chip rechazada">extraordinaria</span>' : '') +
-      '<div style="font-size:13px;color:var(--txt2)">' + fecha(q.creada_el) + ' · ' + esc(q.creada_por) + '</div>';
-    (q.lineas || []).forEach(l => {
-      const imp = conIva(l.precio, l.tasa_iva) * (l.fraccion || 1) * l.solicitada; total += imp;
+  if (!S.bandeja.length) { app().innerHTML = h + '<div class="msg">🎉 Bandeja vacía: nada pendiente de tus proveedores.</div>'; return; }
+  h += '<div class="cat-h">Pedidos por revisar (' + S.bandeja.length + ')</div>';
+  S.bandeja.forEach(q => {
+    const lineas = q.lineas || [];
+    let sub = 0; const provs = {};
+    lineas.forEach(l => { const b = Number(l.precio || 0) * Number(l.fraccion || 1) * Number(l.solicitada); sub += b; provs[l.proveedor] = (provs[l.proveedor] || 0) + b; });
+    const pend = lineas.filter(l => l.estado_linea === 'pendiente').length;
+    h += '<div class="card" style="cursor:pointer" onclick="vBandejaDetalle(' + q.req_id + ')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b style="font-size:16px">' + esc(q.sucursal.replace(' Chihuahua', '')) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado === 'enviada' ? 'nuevo' : 'en revisión') + '</span>' + (q.extraordinaria ? ' <span class="chip rechazada">fuera de horario</span>' : '') +
+      '<div style="font-size:12.5px;color:var(--txt2)">' + esc(q.folio) + ' · ' + fecha(q.creada_el) + ' · ' + esc(q.creada_por.split('@')[0]) + '</div></div>' +
+      '<div style="text-align:right"><b style="font-size:16px">' + money(sub) + '</b><div style="font-size:12px;color:var(--txt2)">sin IVA</div></div></div>' +
+      '<div style="font-size:13px;color:var(--txt2);margin-top:6px">' + Object.keys(provs).map(p => esc(p) + ' ' + money(provs[p])).join(' · ') + ' · <b>' + pend + ' línea' + (pend === 1 ? '' : 's') + ' por resolver</b></div></div>';
+  });
+  app().innerHTML = h;
+}
+function vBandejaDetalle(reqId) {
+  const q = (S.bandeja || []).find(x => x.req_id === reqId);
+  if (!q) { vBandeja(); return; }
+  let h = nav() + '<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px"><button class="btn mini sec" onclick="vBandeja()">← Bandeja</button><b style="font-size:17px">' + esc(q.folio) + '</b></div>' +
+    '<div class="card"><b>' + esc(q.sucursal) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' + (q.extraordinaria ? ' <span class="chip rechazada">fuera de horario</span>' : '') +
+    '<div style="font-size:13px;color:var(--txt2)">Pedido por ' + esc(q.creada_por) + ' · ' + fecha(q.creada_el) + '</div></div>';
+  const porProv = {};
+  (q.lineas || []).forEach(l => { (porProv[l.proveedor] = porProv[l.proveedor] || []).push(l); });
+  let total = 0;
+  for (const prov in porProv) {
+    let subP = 0;
+    let bloque = '';
+    porProv[prov].forEach(l => {
+      const u = presInfo(l);
+      const base = Number(l.precio || 0) * u.n * Number(l.solicitada); subP += base;
       const idl = 'r' + l.req_linea_id;
-      h += '<div class="linea-res" data-linea="' + l.req_linea_id + '">' +
-        '<div><b>' + esc(l.insumo) + '</b> <span style="color:var(--txt2);font-size:13px">' + esc(l.presentacion || '') + ' · ' + esc(l.proveedor) + '</span></div>' +
-        '<div style="font-size:14px;margin:4px 0">Pidió <b>' + l.solicitada + ' ' + plural(presInfo(l).tipo, l.solicitada) + '</b>' + (presInfo(l).n > 1 ? ' (' + (l.solicitada * presInfo(l).n) + ' ' + uDet(l.unidad, 2) + ')' : '') + (l.precio ? ' · ' + money(imp) + ' con IVA' : '') +
+      bloque += '<div class="linea-res" data-linea="' + l.req_linea_id + '">' +
+        '<div><b>' + esc(l.insumo) + '</b> ' + chipUnidad(l) + '</div>' +
+        '<div style="font-size:14px;margin:4px 0">Pidió <b>' + l.solicitada + ' ' + plural(u.tipo, l.solicitada) + '</b>' + (u.n > 1 ? ' (' + (l.solicitada * u.n) + ' ' + uDet(l.unidad, 2) + ')' : '') + (l.precio ? ' · ' + money(base) + ' sin IVA' : '') +
         (l.estado_linea !== 'pendiente' ? ' <span class="chip ' + esc(l.estado_linea) + '">' + esc(l.estado_linea) + '</span>' : '') + '</div>' +
         (l.estado_linea === 'pendiente'
           ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
             '<select id="' + idl + 'a" onchange="$(\'' + idl + 'c\').style.display=this.value===\'modificar\'?\'\':\'none\';$(\'' + idl + 'm\').style.display=this.value===\'rechazar\'?\'\':\'none\'">' +
-            '<option value="aprobar">✔ Aprobar</option><option value="modificar">✎ Modificar</option><option value="rechazar">✗ Rechazar</option></select>' +
-            '<input type="number" id="' + idl + 'c" value="' + l.solicitada + '" min="0" style="width:70px;display:none">' +
+            '<option value="aprobar">✔ Aprobar</option><option value="modificar">✎ Cambiar cantidad</option><option value="rechazar">✗ Rechazar</option></select>' +
+            '<input type="number" id="' + idl + 'c" value="' + l.solicitada + '" min="0" style="width:80px;display:none" placeholder="' + plural(u.tipo, 2) + '">' +
             '<input type="text" id="' + idl + 'm" placeholder="Motivo del rechazo" style="flex:1;display:none">' +
             '</div>'
           : '') + '</div>';
     });
-    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">' +
-      '<div class="presu">Total solicitado (c/IVA): <b>' + money(total) + '</b>' + (q.presupuesto ? ' / presupuesto ' + money(q.presupuesto) : '') + '</div>' +
-      '<button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div>' +
-      '<div class="no-print" style="margin-top:6px"><a href="#req-' + q.req_id + '" style="font-size:13px">Ver historial completo →</a></div></div>';
-  });
+    total += subP;
+    h += '<div class="cat-h">' + esc(prov) + ' · ' + money(subP) + ' sin IVA</div><div class="card">' + bloque + '</div>';
+  }
+  h += '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="presu">Total del pedido: <b style="font-size:16px;color:var(--txt)">' + money(total) + '</b> sin IVA</div>' +
+    '<button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div>' +
+    '<div class="no-print" style="margin:4px 0 20px"><a href="#req-' + q.req_id + '" style="font-size:13px">Ver historial completo →</a></div>';
   app().innerHTML = h;
+  window.scrollTo(0, 0);
 }
 async function autorizar(reqId, btn) {
   const resoluciones = [];
