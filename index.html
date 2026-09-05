@@ -60,6 +60,8 @@
   .tile .tn { font-size:17px; font-weight:700; color:var(--txt); }
   .tile .td { font-size:12.5px; color:var(--txt2); }
   .tile .tb { font-size:12px; font-weight:700; color:var(--rojo); }
+  .tile.excedido { border-color:var(--rojo); }
+  .tile .barra { width:100%; }
   .tile.off { opacity:.5; cursor:not-allowed; }
   .layout { display:block; }
   .resumen .res-row { display:flex; justify-content:space-between; align-items:baseline; font-size:14px; padding:3px 0; }
@@ -178,7 +180,7 @@ function nav() {
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button>';
-  if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button>';
+  if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button>';
   if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
   return h + '</div>';
 }
@@ -188,6 +190,7 @@ function router() {
   else if (h === 'pedidos') vPedidos();
   else if (h === 'bandeja') vBandeja();
   else if (h === 'catalogo') vCatalogoAdmin();
+  else if (h === 'presupuestos') vPresupuestosAdmin();
   else if (h.startsWith('req-')) vDetalle('requisicion', h.slice(4));
   else if (h.startsWith('oc-')) vOC(h.slice(3));
   else vCaptura();
@@ -223,9 +226,13 @@ async function vCaptura() {
     (S.cat.proveedores || []).forEach(p => {
       const n = Object.keys(S.carrito).filter(id => { const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === Number(id)); return it && it.proveedor_id === p.proveedor_id; }).length;
       const activo = p.insumos > 0;
-      h += '<button class="tile' + (activo ? '' : ' off') + '" ' + (activo ? 'onclick="abrirProv(' + p.proveedor_id + ')"' : 'disabled') + '>' +
+      const sp = subPorProv()[p.proveedor_id] || { sub: 0 };
+      const pres = p.presupuesto ? Number(p.presupuesto) : null;
+      const pct = pres ? Math.min(sp.sub / pres * 100, 100) : 0;
+      h += '<button class="tile' + (activo ? '' : ' off') + (pres && sp.sub > pres ? ' excedido' : '') + '" ' + (activo ? 'onclick="abrirProv(' + p.proveedor_id + ')"' : 'disabled') + '>' +
         '<div class="tn">' + esc(p.nombre_corto) + '</div>' +
         '<div class="td">' + (activo ? p.insumos + ' insumos' : 'catálogo pendiente') + '</div>' +
+        (pres ? '<div class="td" style="margin-top:6px">Presupuesto ' + money(pres) + '</div><div class="barra' + (sp.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : '')) + '" style="margin:4px 0"><div style="width:' + pct + '%"></div></div><div class="td">' + (sp.sub ? money(sp.sub) + ' sin IVA' : 'sin pedido aún') + '</div>' : (activo ? '<div class="td" style="margin-top:6px;color:var(--ambar)">sin presupuesto asignado</div>' : '')) +
         (n ? '<div class="tb">' + n + ' en el pedido</div>' : '') + '</button>';
     });
     h += '</div>';
@@ -259,6 +266,7 @@ async function vCaptura() {
 }
 function resumenHtml() {
   return '<div class="card resumen no-print" id="resumen">' +
+    '<div class="cat-h" id="rTitulo" style="margin:0 0 6px"></div>' +
     '<div class="res-row"><span>Presupuesto (sin IVA)</span><b id="rPres">—</b></div>' +
     '<div class="barra" id="rBarra"><div id="rBarraFill" style="width:0%"></div></div>' +
     '<div class="presu" id="rAviso"></div>' +
@@ -291,30 +299,48 @@ function setQ(id, v) {
   if (v > 0) tocarPrimera();
   pintarTotal();
 }
-function pintarTotal() {
-  let sub = 0, iva = 0, n = 0;
+function subPorProv() {
+  const m = {};
   for (const id in S.carrito) {
     const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === Number(id));
-    if (!it || !it.precio) { n++; continue; }
-    const base = Number(it.precio) * Number(it.fraccion || 1) * S.carrito[id];
-    sub += base; iva += base * Number(it.tasa_iva || 0) / 100; n++;
+    if (!it) continue;
+    const base = it.precio ? Number(it.precio) * Number(it.fraccion || 1) * S.carrito[id] : 0;
+    const e = m[it.proveedor_id] || (m[it.proveedor_id] = { sub: 0, iva: 0, n: 0 });
+    e.sub += base; e.iva += base * Number(it.tasa_iva || 0) / 100; e.n++;
   }
+  return m;
+}
+function pintarTotal() {
   if (!$('rSub')) return;
-  $('rSub').textContent = money(sub); $('rIva').textContent = money(iva); $('rTot').textContent = money(sub + iva);
-  $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's') + ' en el pedido';
-  const pres = S.cat.presupuesto ? Number(S.cat.presupuesto) : null;
-  let bloqueado = n === 0;
-  if (pres) {
-    const pct = sub / pres * 100;
-    $('rPres').textContent = money(pres);
-    $('rBarraFill').style.width = Math.min(pct, 100) + '%';
-    $('rBarra').className = 'barra' + (sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : ''));
-    if (sub > pres) { $('rAviso').innerHTML = '<b style="color:var(--rojo)">Te pasas por ' + money(sub - pres) + '</b> — ajusta cantidades para poder enviar.'; bloqueado = true; }
-    else $('rAviso').textContent = 'Llevas ' + Math.round(pct) + '% del presupuesto · te quedan ' + money(pres - sub);
+  const porProv = subPorProv();
+  const provs = S.cat.proveedores || [];
+  let n = 0; for (const k in porProv) n += porProv[k].n;
+  const excedidos = provs.filter(p => p.presupuesto && porProv[p.proveedor_id] && porProv[p.proveedor_id].sub > Number(p.presupuesto));
+  let bloqueado = n === 0 || excedidos.length > 0;
+  if (S.prov) {
+    const p = provs.find(x => x.proveedor_id === S.prov) || {};
+    const e = porProv[S.prov] || { sub: 0, iva: 0, n: 0 };
+    $('rTitulo').textContent = p.nombre_corto || '';
+    $('rSub').textContent = money(e.sub); $('rIva').textContent = money(e.iva); $('rTot').textContent = money(e.sub + e.iva);
+    const pres = p.presupuesto ? Number(p.presupuesto) : null;
+    if (pres) {
+      const pct = e.sub / pres * 100;
+      $('rPres').textContent = money(pres); $('rBarraFill').style.width = Math.min(pct, 100) + '%';
+      $('rBarra').className = 'barra' + (e.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : ''));
+      $('rAviso').innerHTML = e.sub > pres ? '<b style="color:var(--rojo)">Te pasas por ' + money(e.sub - pres) + '</b> — ajusta cantidades.' : 'Llevas ' + Math.round(pct) + '% · te quedan ' + money(pres - e.sub);
+    } else { $('rPres').textContent = 'sin asignar'; $('rBarraFill').style.width = '0%'; $('rBarra').className = 'barra'; $('rAviso').textContent = 'Este proveedor no tiene presupuesto asignado para la sucursal.'; }
   } else {
-    $('rPres').textContent = 'sin asignar'; $('rBarraFill').style.width = '0%'; $('rBarra').className = 'barra';
-    $('rAviso').textContent = 'Administración aún no fija presupuesto para esta sucursal.';
+    let sub = 0, iva = 0; for (const k in porProv) { sub += porProv[k].sub; iva += porProv[k].iva; }
+    $('rTitulo').textContent = 'Pedido completo';
+    $('rSub').textContent = money(sub); $('rIva').textContent = money(iva); $('rTot').textContent = money(sub + iva);
+    const conPres = provs.filter(p => p.presupuesto);
+    const totPres = conPres.reduce((a, p) => a + Number(p.presupuesto), 0);
+    $('rPres').textContent = totPres ? money(totPres) + ' (suma)' : 'sin asignar';
+    $('rBarraFill').style.width = (totPres ? Math.min(sub / totPres * 100, 100) : 0) + '%';
+    $('rBarra').className = 'barra' + (excedidos.length ? ' rojo' : '');
+    $('rAviso').innerHTML = excedidos.length ? '<b style="color:var(--rojo)">Rebasas el presupuesto de ' + excedidos.map(p => esc(p.nombre_corto)).join(', ') + '</b>' : (conPres.length ? 'Cada proveedor tiene su propio tope; revisa las barras de los cuadros.' : 'Sin presupuestos asignados para esta sucursal.');
   }
+  $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's') + ' en el pedido';
   $('btnEnviar').disabled = bloqueado;
 }
 async function enviar() {
@@ -469,6 +495,29 @@ async function guardarInsumo() {
   if (!datos.nombre.trim()) { alert('Falta el nombre del producto.'); return; }
   const r = await api('admin_guardar_insumo', datos);
   if (r.ok) { CA.edit = null; CA.prov = datos.proveedor_id; S.cat = null; await vCatalogoAdmin(); }
+}
+
+/* ── Administración de presupuestos (solo admin) ──────── */
+const PA = { data: null };
+async function vPresupuestosAdmin() {
+  if (vista() !== 'admin') { location.hash = 'captura'; return; }
+  app().innerHTML = nav() + '<div class="msg">Cargando presupuestos…</div>';
+  PA.data = await api('admin_presupuestos');
+  const d = PA.data;
+  const val = (b, p) => { const x = d.presupuestos.find(y => y.branch_id === b && y.proveedor_id === p); return x ? Number(x.monto) : ''; };
+  let h = nav() + '<div class="card"><b>Presupuesto por pedido, sin IVA</b><div class="presu">Escribe el monto y sal del campo para guardar. Vacío o 0 = sin tope. Cada cambio guarda el anterior con su vigencia.</div></div>' +
+    '<div class="card" style="overflow-x:auto"><table class="oc"><tr><th>Sucursal</th>' + d.proveedores.map(p => '<th class="der">' + esc(p.nombre_corto) + '</th>').join('') + '</tr>';
+  d.sucursales.forEach(s => {
+    h += '<tr><td>' + esc(s.nombre.replace(' Chihuahua', '')) + '</td>' + d.proveedores.map(p =>
+      '<td class="der"><input type="number" min="0" step="100" inputmode="decimal" value="' + val(s.branch_id, p.proveedor_id) + '" style="width:110px;text-align:right;padding:6px;border:1px solid var(--borde);border-radius:6px" onchange="guardarPresupuesto(' + s.branch_id + ',' + p.proveedor_id + ',this)"></td>').join('') + '</tr>';
+  });
+  h += '</table></div>';
+  app().innerHTML = h;
+}
+async function guardarPresupuesto(b, p, inp) {
+  inp.style.borderColor = 'var(--ambar)';
+  try { await api('admin_guardar_presupuesto', { branch_id: b, proveedor_id: p, monto: inp.value === '' ? null : Number(inp.value) }); inp.style.borderColor = 'var(--verde)'; S.cat = null; }
+  catch (e) { inp.style.borderColor = 'var(--rojo)'; }
 }
 
 /* ── Detalle + timeline ────────────────────────────────── */
