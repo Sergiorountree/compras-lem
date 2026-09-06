@@ -192,7 +192,7 @@ function buildTabs() {
   const bar = $('tabsBar'); bar.style.display = '';
   let tabs;
   if (esGerenteVista()) tabs = [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📈 Eficiencias']];
-  else if (esAdminVista()) tabs = [['panel', '📊 Panel'], ['capturar', '✏️ Capturar'], ['efadm', '📈 Eficiencias'], ['admin', '⚙️ Administración']];
+  else if (esAdminVista()) tabs = [['panel', '📊 Panel'], ['capturar', '✏️ Capturar'], ['efadm', '📈 Eficiencias']];
   else tabs = [['panel', '📊 Panel'], ['efadm', '📈 Eficiencias']];
   if (!S.tab || !tabs.some(t => t[0] === S.tab)) S.tab = tabs[0][0];
   $('tabs').innerHTML = tabs.map(t => '<button class="tab' + (esGerenteVista() ? '' : ' adm-tab') + (S.tab === t[0] ? ' active' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') +
@@ -201,7 +201,7 @@ function buildTabs() {
 function irTab(t) { S.tab = t; buildTabs(); router(); }
 function router() {
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
-  ({ registro: vRegistro, hist: vHistorial, ef: vEficiencia, panel: vPanel, capturar: vCapturar, efadm: vEfAdmin, admin: vAdministracion }[S.tab] || vHistorial)();
+  ({ registro: vRegistro, hist: vHistorial, ef: vEficiencia, panel: vPanel, capturar: vCapturar, efadm: vEfAdmin }[S.tab] || vHistorial)();
 }
 function vElegirGerente() {
   $('tabs').innerHTML = '';
@@ -375,19 +375,7 @@ async function vCapturar() {
   app().innerHTML = h + '<div class="tbl-wrap"><table><thead><tr><th>Producto</th><th>Unidad</th><th style="background:#0d47a1">Saldo Inicial</th><th style="background:#f57f17">Entrada</th><th style="background:#1b5e20">Consumo Dritzline</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
-/* ── ADMIN: Administración ─────────────────────────────── */
-async function vAdministracion() {
-  app().innerHTML = '<div class="loading">Cargando…</div>';
-  const c = await api('inv_config');
-  const rol = (r) => r === 'admin' ? 'Administrador' : r === 'aprobador' ? 'Asesor' : 'Gerente';
-  app().innerHTML = '<div class="adm-header"><h2>⚙️ Administración</h2><p>Sucursales, productos y usuarios del módulo</p></div>' +
-    '<div class="cfg-box" style="background:#fff3e0;border-color:#ffb74d"><h3>🔑 Accesos</h3><p style="font-size:.85rem;color:#5d4037;line-height:1.5">En el portal se entra con la cuenta de Google <strong>@grupolem.com</strong>; los permisos por módulo y sucursal los administra el equipo de sistemas en la base (tabla de usuarios por módulo). La app de captura sigue usando sus cuentas de Firebase.</p></div>' +
-    '<div class="cfg-box"><h3>🏪 Sucursales activas</h3>' + c.sucursales.filter(s => s.activa).map(s => '<div class="item-row"><span>🏪 <b>' + esc(s.corto || corto(s.nombre)) + '</b> <span style="color:var(--mut)">' + esc(s.nombre) + '</span></span><span style="color:var(--mut)">' + (s.gerentes || []).map(esc).join(', ') + '</span></div>').join('') +
-    (c.sucursales.some(s => !s.activa) ? '<h3 style="margin-top:16px;margin-bottom:10px;color:var(--mut)">📦 Inactivas</h3>' + c.sucursales.filter(s => !s.activa).map(s => '<div class="item-row"><span>' + esc(s.nombre) + '</span></div>').join('') : '') + '</div>' +
-    '<div class="cfg-box"><h3>📋 Productos activos</h3>' + c.productos.filter(p => p.activo).map(p => '<div class="item-row"><span><b>' + esc(p.nombre) + '</b> <span style="color:var(--mut)">' + esc(p.categoria) + ' · ' + esc(p.unidad) + (p.categoria === 'guiso' ? ' · ' + p.gpg + ' g/gordita' : '') + '</span></span><span style="color:var(--mut)">' + (p.insumo_id ? '🛒 ligado a Compras' : '—') + (p.producto_pos_id ? ' · 🧾 POS' : '') + '</span></div>').join('') +
-    '<h3 style="margin-top:16px;margin-bottom:10px;color:var(--mut)">📦 Archivados</h3>' + (c.productos.filter(p => !p.activo).map(p => '<div class="item-row"><span>' + esc(p.nombre) + '</span></div>').join('') || '<div style="font-size:.85rem;color:var(--mut)">Ninguno</div>') + '</div>' +
-    '<div class="cfg-box"><h3>👥 Usuarios del módulo</h3>' + c.usuarios.map(u => '<div class="item-row"><span>' + esc(u.usuario) + '</span><span style="color:var(--mut)">' + rol(u.rol) + (u.sucursal_id ? ' · ' + esc(corto(sucNombre(u.sucursal_id))) : '') + '</span></div>').join('') + '</div>';
-}
+/* La configuración (sucursales, productos, usuarios) vivirá en el panel central del portal para todos los módulos. */
 
 /* ── Excel ─────────────────────────────────────────────── */
 async function exportar(branch) {
