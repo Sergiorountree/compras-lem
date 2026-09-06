@@ -185,7 +185,7 @@ function selectorVista() {
   if (!esAdmin()) return '';
   const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
   return '<label style="font-size:12px;opacity:.9">Ver como <select onchange="cambiarVista(this.value)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
-    op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Aprobador') + '</select></label>';
+    op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Asesor') + '</select></label>';
 }
 
 /* ── Router ────────────────────────────────────────────── */
@@ -196,7 +196,7 @@ function nav() {
   let h = '<div class="nav no-print">';
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>';
-  if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button>';
+  if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button>';
   if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button>';
   if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
   return h + '</div>';
@@ -207,6 +207,7 @@ function router() {
   else if (h === 'pedidos') vPedidos();
   else if (h === 'bandeja') vBandeja();
   else if (h === 'catalogo') vCatalogoAdmin();
+  else if (h === 'historial') vHistorialAsesor();
   else if (h === 'presupuestos') vPresupuestosAdmin();
   else if (h.startsWith('req-')) vDetalle('requisicion', h.slice(4));
   else if (h.startsWith('oc-')) vOC(h.slice(3));
@@ -244,12 +245,12 @@ async function vCaptura() {
       const n = Object.keys(S.carrito).filter(id => { const it = S.cat.catalogo.find(x => x.proveedor_insumo_id === Number(id)); return it && it.proveedor_id === p.proveedor_id; }).length;
       const sp = subPorProv()[p.proveedor_id] || { sub: 0 };
       const pres = p.presupuesto ? Number(p.presupuesto) : null;
-      const activo = p.insumos > 0 && !!pres;
+      const activo = p.insumos > 0;
       const pct = pres ? Math.min(sp.sub / pres * 100, 100) : 0;
       h += '<button class="tile' + (activo ? '' : ' off') + (pres && sp.sub > pres ? ' excedido' : '') + '" ' + (activo ? 'onclick="abrirProv(' + p.proveedor_id + ')"' : 'disabled') + '>' +
         '<div class="tn">' + esc(p.nombre_corto) + '</div>' +
         '<div class="td">' + (p.insumos > 0 ? p.insumos + ' insumos' : 'catálogo pendiente') + '</div>' +
-        (pres ? '<div class="td" style="margin-top:6px">Presupuesto ' + money(pres) + '</div><div class="barra' + (sp.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : '')) + '" style="margin:4px 0"><div style="width:' + pct + '%"></div></div><div class="td">' + (sp.sub ? money(sp.sub) + ' sin IVA' : 'sin pedido aún') + '</div>' : (p.insumos > 0 ? '<div class="td" style="margin-top:6px;color:var(--rojo);font-weight:600">Sin presupuesto asignado — no se puede pedir</div>' : '')) +
+        (pres ? '<div class="td" style="margin-top:6px">Presupuesto ' + money(pres) + '</div><div class="barra' + (sp.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : '')) + '" style="margin:4px 0"><div style="width:' + pct + '%"></div></div><div class="td">' + (sp.sub ? money(sp.sub) + ' sin IVA' : 'sin pedido aún') + '</div>' : (p.insumos > 0 ? '<div class="td" style="margin-top:6px;color:var(--ambar)">sin presupuesto asignado</div>' : '')) +
         (n ? '<div class="tb">' + n + ' en el pedido</div>' : '') + '</button>';
     });
     h += '</div>';
@@ -339,7 +340,7 @@ function pintarTotal() {
   let n = 0; for (const k in porProv) n += porProv[k].n;
   const excedidos = provs.filter(p => p.presupuesto && porProv[p.proveedor_id] && porProv[p.proveedor_id].sub > Number(p.presupuesto));
   const sinPres = provs.filter(p => !p.presupuesto && porProv[p.proveedor_id]);
-  let bloqueado = n === 0 || excedidos.length > 0 || sinPres.length > 0;
+  let bloqueado = n === 0;
   if (S.prov) {
     const p = provs.find(x => x.proveedor_id === S.prov) || {};
     const e = porProv[S.prov] || { sub: 0, iva: 0, n: 0 };
@@ -350,8 +351,8 @@ function pintarTotal() {
       const pct = e.sub / pres * 100;
       $('rPres').textContent = money(pres); $('rBarraFill').style.width = Math.min(pct, 100) + '%';
       $('rBarra').className = 'barra' + (e.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : ''));
-      $('rAviso').innerHTML = e.sub > pres ? '<b style="color:var(--rojo)">Te pasas por ' + money(e.sub - pres) + '</b> — ajusta cantidades.' : 'Llevas ' + Math.round(pct) + '% · te quedan ' + money(pres - e.sub);
-    } else { $('rPres').textContent = 'sin asignar'; $('rBarraFill').style.width = '0%'; $('rBarra').className = 'barra'; $('rAviso').innerHTML = '<b style="color:var(--rojo)">Sin presupuesto asignado</b> — no se puede pedir a este proveedor hasta que administración lo asigne.'; }
+      $('rAviso').innerHTML = e.sub > pres ? '<b style="color:var(--rojo)">Te pasas por ' + money(e.sub - pres) + '</b> — puedes enviar; el asesor lo revisará.' : 'Llevas ' + Math.round(pct) + '% · te quedan ' + money(pres - e.sub);
+    } else { $('rPres').textContent = 'sin asignar'; $('rBarraFill').style.width = '0%'; $('rBarra').className = 'barra'; $('rAviso').textContent = 'Sin presupuesto asignado para este proveedor (informativo).'; }
   } else {
     let sub = 0, iva = 0; for (const k in porProv) { sub += porProv[k].sub; iva += porProv[k].iva; }
     $('rTitulo').textContent = 'Pedido completo';
@@ -361,7 +362,7 @@ function pintarTotal() {
     $('rPres').textContent = totPres ? money(totPres) + ' (suma)' : 'sin asignar';
     $('rBarraFill').style.width = (totPres ? Math.min(sub / totPres * 100, 100) : 0) + '%';
     $('rBarra').className = 'barra' + (excedidos.length ? ' rojo' : '');
-    $('rAviso').innerHTML = excedidos.length ? '<b style="color:var(--rojo)">Rebasas el presupuesto de ' + excedidos.map(p => esc(p.nombre_corto)).join(', ') + '</b>' : (conPres.length ? 'Cada proveedor tiene su propio tope; revisa las barras de los cuadros.' : 'Sin presupuestos asignados para esta sucursal.');
+    $('rAviso').innerHTML = excedidos.length ? '<b style="color:var(--rojo)">Rebasas el presupuesto de ' + excedidos.map(p => esc(p.nombre_corto)).join(', ') + '</b> — puedes enviar; el asesor decidirá.' : (conPres.length ? 'Cada proveedor tiene su propio tope; revisa las barras de los cuadros.' : 'Sin presupuestos asignados para esta sucursal.');
   }
   $('tLineas').textContent = n + ' insumo' + (n === 1 ? '' : 's') + ' en el pedido';
   $('btnEnviar').disabled = bloqueado;
@@ -412,7 +413,7 @@ async function vBandeja() {
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div><b style="font-size:16px">' + esc(q.sucursal.replace(' Chihuahua', '')) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado === 'enviada' ? 'nuevo' : 'en revisión') + '</span>' + (q.extraordinaria ? ' <span class="chip rechazada">fuera de horario</span>' : '') +
       '<div style="font-size:12.5px;color:var(--txt2)">' + esc(q.folio) + ' · ' + fecha(q.creada_el) + ' · ' + esc(q.creada_por.split('@')[0]) + '</div></div>' +
       '<div style="text-align:right"><b style="font-size:16px">' + money(sub) + '</b><div style="font-size:12px;color:var(--txt2)">sin IVA</div></div></div>' +
-      '<div style="font-size:13px;color:var(--txt2);margin-top:6px">' + Object.keys(provs).map(p => esc(p) + ' ' + money(provs[p])).join(' · ') + ' · <b>' + pend + ' línea' + (pend === 1 ? '' : 's') + ' por resolver</b></div></div>';
+      '<div style="font-size:13px;color:var(--txt2);margin-top:6px">' + Object.keys(provs).map(p => { const pr = (q.presupuestos || {})[p]; const ex = pr && provs[p] > Number(pr); return esc(p) + ' ' + money(provs[p]) + (ex ? ' <span class="chip rechazada">rebasa ' + money(pr) + '</span>' : (pr ? '' : ' <span class="chip">sin presupuesto</span>')); }).join(' · ') + ' · <b>' + pend + ' línea' + (pend === 1 ? '' : 's') + ' por resolver</b></div></div>';
   });
   app().innerHTML = h;
 }
@@ -446,7 +447,8 @@ function vBandejaDetalle(reqId) {
           : '') + '</div>';
     });
     total += subP;
-    h += '<div class="cat-h">' + esc(prov) + ' · ' + money(subP) + ' sin IVA</div><div class="card">' + bloque + '</div>';
+    const prP = (q.presupuestos || {})[prov];
+    h += '<div class="cat-h">' + esc(prov) + ' · ' + money(subP) + ' sin IVA' + (prP ? (subP > Number(prP) ? ' · <span style="color:var(--rojo)">rebasa el presupuesto de ' + money(prP) + '</span>' : ' · dentro del presupuesto de ' + money(prP)) : ' · sin presupuesto asignado') + '</div><div class="card">' + bloque + '</div>';
   }
   h += '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="presu">Total del pedido: <b style="font-size:16px;color:var(--txt)">' + money(total) + '</b> sin IVA</div>' +
     '<button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div>' +
@@ -472,7 +474,7 @@ async function autorizar(reqId, btn) {
   if (r.ocs.length) {
     h += '<p style="margin-top:8px">Órdenes de compra generadas:</p>';
     r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a></p>'; });
-  } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro aprobador).</p>';
+  } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro asesor).</p>';
   h += '<p style="margin-top:14px"><button class="btn sec" onclick="vBandeja()">Volver a la bandeja</button></p></div>';
   app().innerHTML = nav() + h;
 }
@@ -565,6 +567,23 @@ async function guardarPresupuesto(b, p, inp) {
   inp.style.borderColor = 'var(--ambar)';
   try { await api('admin_guardar_presupuesto', { branch_id: b, proveedor_id: p, monto: inp.value === '' ? null : Number(inp.value) }); inp.style.borderColor = 'var(--verde)'; S.cat = null; }
   catch (e) { inp.style.borderColor = 'var(--rojo)'; }
+}
+
+/* ── Historial del asesor ──────────────────────────────── */
+async function vHistorialAsesor() {
+  app().innerHTML = nav() + '<div class="msg">Cargando historial…</div>';
+  const r = await api('historial_asesor');
+  let h = nav() + '<div class="cat-h">Pedidos resueltos (últimos 90 días)</div>';
+  if (!r.historial.length) h += '<div class="msg">Todavía no hay pedidos resueltos.</div>';
+  r.historial.forEach(q => {
+    h += '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+      '<div><b style="font-size:16px">' + esc(q.sucursal.replace(' Chihuahua', '')) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' +
+      '<div style="font-size:12.5px;color:var(--txt2)">' + esc(q.folio) + ' · pedido ' + fecha(q.creada_el) + (q.resuelta_el ? ' · resuelto ' + fecha(q.resuelta_el) : '') + ' · ' + esc(q.creada_por.split('@')[0]) + '</div></div>' +
+      '<a href="#req-' + q.req_id + '" class="btn mini sec">Ver detalle</a></div>' +
+      '<div style="font-size:13px;color:var(--txt2);margin-top:6px">' + q.lineas + ' líneas · ' + q.aprobadas + ' aprobadas · ' + q.rechazadas + ' rechazadas</div>' +
+      (q.ocs.length ? '<div style="margin-top:6px">' + q.ocs.map(o => '<a href="#oc-' + o.oc_id + '" class="chip ' + esc(o.estado) + '" style="text-decoration:none;margin-right:6px">' + esc(o.folio) + ' · ' + esc(o.proveedor) + ' · ' + money(o.total) + '</a>').join('') + '</div>' : '') + '</div>';
+  });
+  app().innerHTML = h;
 }
 
 /* ── Detalle + timeline ────────────────────────────────── */
