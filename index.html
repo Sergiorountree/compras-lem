@@ -754,7 +754,7 @@ async function vPorPagar() {
   if (!lst.length) h += '<div class="msg">Todavía no hay recepciones.</div>';
   const card = (c) => {
     let x = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div><b style="font-size:16px">' + esc(c.proveedor) + '</b> · ' + esc(c.sucursal.replace(' Chihuahua', '')) + ' <span class="chip ' + esc(c.estado) + '">' + esc(etq(c.estado)) + '</span>' +
-      '<div style="font-size:12.5px;color:var(--txt2)">' + esc(c.folio) + ' · de <a href="#oc-' + esc(String(c.oc_folio)).replace(/.*/, '') + '">' + esc(c.oc_folio) + '</a> · recibido ' + fecha(c.recibido_el) + ' por ' + esc(String(c.recibido_por).split('@')[0]) + (c.completa ? '' : ' · <span class="chip recibida_parcial">parcial</span>') + '</div></div>' +
+      '<div style="font-size:12.5px;color:var(--txt2)">' + esc(c.folio) + ' · de <a href="#oc-' + c.oc_id + '">' + esc(c.oc_folio) + '</a> · recibido ' + fecha(c.recibido_el) + ' por ' + esc(String(c.recibido_por).split('@')[0]) + (c.completa ? '' : ' · <span class="chip recibida_parcial">parcial</span>') + '</div></div>' +
       '<div style="text-align:right"><b style="font-size:17px">' + money(c.total) + '</b><div style="font-size:12px;color:var(--txt2)">' + money(c.subtotal) + ' + IVA ' + money(c.iva) + '</div></div></div>';
     if (c.estado === 'pendiente') {
       x += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="cf-' + c.cxp_id + '" style="padding:8px;border:1px solid var(--borde);border-radius:8px;font-size:14px;max-width:100%">' +
