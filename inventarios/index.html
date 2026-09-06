@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Inventarios · Grupo LEM</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root { --rojo:#B3282D; --gris:#f4f4f5; --borde:#e4e4e7; --txt:#18181b; --txt2:#71717a; --verde:#15803d; --ambar:#b45309; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--gris); color:var(--txt); font-size:16px; }
+  header { background:var(--rojo); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  header h1 { font-size:17px; font-weight:700; }
+  header .u { font-size:12px; opacity:.85; text-align:right; line-height:1.5; }
+  main { max-width:1040px; margin:0 auto; padding:12px; }
+  .card { background:#fff; border:1px solid var(--borde); border-radius:12px; padding:14px; margin-bottom:10px; }
+  .btn { background:var(--rojo); color:#fff; border:none; border-radius:10px; padding:12px 18px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:none; display:inline-block; }
+  .btn.sec { background:#fff; color:var(--txt); border:1px solid var(--borde); }
+  .btn.mini { padding:8px 12px; font-size:13.5px; }
+  .nav { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .msg { text-align:center; padding:40px 16px; color:var(--txt2); }
+  .aviso { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:10px; padding:10px 12px; font-size:14px; }
+  .chip { display:inline-block; font-size:12px; font-weight:600; border-radius:99px; padding:2px 10px; background:var(--gris); color:var(--txt2); }
+  .chip.capturado,.chip.portal { background:#dcfce7; color:var(--verde); }
+  .chip.autogenerado,.chip.editado { background:#fef3c7; color:var(--ambar); }
+  .chip.firebase { background:#dbeafe; color:#1d4ed8; }
+  .cat-h { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:16px 4px 6px; }
+  table.t { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.t th, table.t td { border:1px solid var(--borde); padding:6px 8px; text-align:right; white-space:nowrap; }
+  table.t th { background:var(--gris); font-size:12px; text-align:center; }
+  table.t td:first-child, table.t th:first-child { text-align:left; white-space:normal; }
+  table.t tr.grp td { background:#fafafa; font-weight:700; }
+  .ef { font-weight:800; }
+  .ef.v { color:var(--verde); } .ef.a { color:#b7791f; } .ef.r { color:var(--rojo); }
+  .dia { display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; padding:10px 0; border-bottom:1px solid var(--gris); }
+  .dia:last-child { border-bottom:none; }
+  .dia .f { font-weight:700; font-size:15px; }
+  .dia .d { font-size:12.5px; color:var(--txt2); }
+  .neg { color:var(--rojo); }
+  @media (max-width:640px) { table.t { font-size:12px; } table.t th, table.t td { padding:5px 5px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="/" style="color:#fff;text-decoration:none" title="Volver a los módulos">⌂</a> 📦 Inventarios LEM</h1>
+  <div class="u" id="hUser"></div>
+</header>
+<main id="app"><div class="msg">Cargando…</div></main>
+
+<script>
+const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
+const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
+const APP_CAPTURA = 'https://inventariotota.grupolem.com/';
+const $ = (id) => document.getElementById(id);
+const app = () => $('app');
+function aviso(m) { let b = $('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
+window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
+const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
+const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [] };
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const num = (x, d) => x == null ? '—' : Number(x).toLocaleString('es-MX', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 2 : d });
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fLarga(iso) { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return DIAS[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()]; }
+const fHora = (ts) => ts ? new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+const corto = (n) => String(n || '').replace(' Chihuahua', '');
+function efClass(v) { return v == null ? '' : v >= 95 ? 'v' : v >= 90 ? 'a' : 'r'; }
+function efHtml(v) { return v == null ? '<span class="ef">—</span>' : '<span class="ef ' + efClass(v) + '">' + v + '%</span>'; }
+
+async function api(accion, datos) {
+  let r;
+  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, accion, datos: datos || {} }) }); }
+  catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
+  if (r.status === 401) { store.del(); S.token = null; vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
+  const j = await r.json();
+  if (j.error && j.error !== 'no_existe') { alert('⚠️ ' + (j.detalle || j.error)); throw new Error(j.error); }
+  return j;
+}
+
+/* ── Login ─────────────────────────────────────────────── */
+function vLogin(msj) {
+  app().innerHTML = '<div class="msg" style="padding-top:70px"><div style="font-size:46px">📦</div><h2 style="color:var(--txt);margin:10px 0 4px">Inventarios Grupo LEM</h2>' +
+    '<p style="margin-bottom:20px">' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div>';
+  if (window.google) {
+    google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
+      error_callback: (e) => aviso('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Permite ventanas emergentes para este sitio y reintenta.'),
+      callback: (resp) => { try { S.token = resp.credential; store.set(S.token); arrancar(); } catch (err) { aviso('Falló el arranque tras el login: ' + err.message); } } });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
+  } else { setTimeout(() => vLogin(msj), 400); }
+}
+async function arrancar() {
+  try {
+    const p = await api('perfil');
+    S.perfil = p;
+    const roles = (p.permisos || {}).inventarios || [];
+    if (!roles.length) { app().innerHTML = '<div class="msg">Tu usuario no tiene acceso al módulo de Inventarios.<br><a href="/">Volver a los módulos</a></div>'; $('hUser').textContent = p.usuario; return; }
+    S.rol = roles.includes('admin') ? 'admin' : roles.includes('aprobador') ? 'aprobador' : 'gerente';
+    S.sucursales = p.sucursales || [];
+    if (!S.branch && S.sucursales.length) S.branch = S.sucursales[0].branch_id;
+    $('hUser').textContent = p.usuario + ' · ' + (S.rol === 'gerente' ? 'gerente' : S.rol === 'admin' ? 'administrador' : 'asesor');
+    router();
+  } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
+}
+function nav() {
+  let h = '<div class="nav"><button class="btn mini sec" onclick="location.hash=\'hist\'">📅 Historial</button>';
+  if (S.rol !== 'gerente') h += '<button class="btn mini sec" onclick="location.hash=\'suc\'">📊 Sucursales</button>';
+  h += '<a class="btn mini" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✍️ Capturar inventario de hoy</a></div>';
+  return h;
+}
+function router() {
+  const h = location.hash.slice(1) || (S.rol === 'gerente' ? 'hist' : 'suc');
+  if (h.startsWith('dia-')) vDia(h.slice(4));
+  else if (h === 'suc' && S.rol !== 'gerente') vSucursales();
+  else vHistorial();
+}
+window.addEventListener('hashchange', () => S.perfil && router());
+function selectorSuc() {
+  if (S.sucursales.length <= 1) { const s = S.sucursales[0]; return '<b>' + esc(s ? corto(s.nombre) : '') + '</b>'; }
+  return '<select onchange="S.branch=Number(this.value);router()" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
+    S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>';
+}
+
+/* ── Historial de conteos ──────────────────────────────── */
+async function vHistorial() {
+  app().innerHTML = nav() + '<div class="msg">Cargando conteos…</div>';
+  const r = await api('inv_dias', { branch_id: S.branch, dias: 60 });
+  let h = nav() + '<div class="card">' + selectorSuc() + '<div style="font-size:12.5px;color:var(--txt2);margin-top:6px">Conteos diarios de los últimos 60 días. Los que vienen de la app se sincronizan cada madrugada.</div></div>';
+  if (!r.dias.length) h += '<div class="msg">Esta sucursal no tiene conteos en los últimos 60 días.</div>';
+  else {
+    h += '<div class="card">';
+    r.dias.forEach(d => {
+      h += '<div class="dia" onclick="location.hash=\'dia-' + d.fecha + '\'"><div><div class="f">' + fLarga(d.fecha) + ' <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span>' + (d.tipo === 'general' ? ' <span class="chip">general</span>' : '') + '</div>' +
+        '<div class="d">Guisos: consumió <b>' + num(d.guisos_cons, 1) + ' kg</b>' + (d.guisos_vend != null ? ' · vendió ' + num(d.guisos_vend, 1) + ' kg' : ' · sin venta del POS') + ' · ' + d.productos + ' productos</div></div>' +
+        '<div style="text-align:right"><div style="font-size:11px;color:var(--txt2)">eficiencia guisos</div>' + efHtml(d.ef_guisos) + '</div></div>';
+    });
+    h += '</div>';
+  }
+  app().innerHTML = h;
+}
+
+/* ── Detalle de un día ─────────────────────────────────── */
+async function vDia(fecha) {
+  app().innerHTML = nav() + '<div class="msg">Cargando el día…</div>';
+  const d = await api('inv_dia', { branch_id: S.branch, fecha });
+  if (d.error) { app().innerHTML = nav() + '<div class="msg">No hay conteo del ' + esc(fecha) + ' en esta sucursal.</div>'; return; }
+  const cats = { guiso: { n: 'Guisos', u: 'Kg', f: 1000 }, postre: { n: 'Postres', u: 'pzas', f: 1 }, bebida: { n: 'Bebidas', u: 'pzas', f: 1 } };
+  const tot = {}; Object.keys(cats).forEach(k => tot[k] = { vend: 0, cons: 0 });
+  let h = nav() + '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
+    '<div><b style="font-size:18px">' + fLarga(d.fecha) + '</b> · ' + esc(corto(d.sucursal)) + ' <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span> <span class="chip ' + esc(d.fuente) + '">' + (d.fuente === 'firebase' ? 'app de inventarios' : esc(d.fuente)) + '</span>' +
+    '<div style="font-size:12.5px;color:var(--txt2)">capturado ' + fHora(d.capturado_el) + (d.notas ? ' · ' + esc(d.notas) : '') + '</div></div>' +
+    '<div style="display:flex;gap:6px">' + (d.anterior ? '<a class="btn mini sec" href="#dia-' + d.anterior + '">← ' + fLarga(d.anterior) + '</a>' : '') + (d.siguiente ? '<a class="btn mini sec" href="#dia-' + d.siguiente + '">' + fLarga(d.siguiente) + ' →</a>' : '') + '</div></div></div>';
+  h += '<div class="card" style="overflow-x:auto"><table class="t"><tr><th>Producto</th><th>Saldo inicial</th><th>Entradas</th><th>Baño María</th><th>Refri</th><th>Congelador</th><th>Saldo final</th><th>Consumo real</th><th>Venta POS</th><th>Dif.</th><th>Dif. gorditas</th></tr>';
+  Object.keys(cats).forEach(k => {
+    const ls = d.lineas.filter(l => l.categoria === k); if (!ls.length) return;
+    h += '<tr class="grp"><td colspan="11">' + cats[k].n + ' (' + (k === 'guiso' ? 'gramos' : 'piezas') + ')</td></tr>';
+    ls.forEach(l => {
+      tot[k].cons += Number(l.consumo_real || 0); if (l.dritzline != null) tot[k].vend += Number(l.dritzline);
+      h += '<tr><td>' + esc(l.producto) + '</td><td>' + num(l.saldo_inicial) + '</td><td>' + num(l.entradas) + '</td><td>' + num(l.bano) + '</td><td>' + num(l.refri) + '</td><td>' + num(l.congelador) + '</td><td><b>' + num(l.saldo_final) + '</b></td>' +
+        '<td class="' + (Number(l.consumo_real) < 0 ? 'neg' : '') + '">' + num(l.consumo_real) + '</td><td>' + num(l.dritzline) + '</td><td class="' + (Number(l.diferencia_g) < 0 ? 'neg' : '') + '">' + num(l.diferencia_g) + '</td><td>' + num(l.dif_gorditas) + '</td></tr>';
+    });
+  });
+  h += '</table></div>';
+  h += '<div class="card"><div class="cat-h" style="margin-top:0">Eficiencia del día</div><table class="t"><tr><th></th>' + Object.keys(cats).map(k => '<th>' + cats[k].n + ' (' + cats[k].u + ')</th>').join('') + '</tr>' +
+    '<tr><td>Vendido (POS)</td>' + Object.keys(cats).map(k => '<td>' + num(tot[k].vend / cats[k].f, k === 'guiso' ? 2 : 0) + '</td>').join('') + '</tr>' +
+    '<tr><td>Consumido</td>' + Object.keys(cats).map(k => '<td>' + num(tot[k].cons / cats[k].f, k === 'guiso' ? 2 : 0) + '</td>').join('') + '</tr>' +
+    '<tr><td>Diferencia</td>' + Object.keys(cats).map(k => { const v = (tot[k].vend - tot[k].cons) / cats[k].f; return '<td class="' + (v < 0 ? 'neg' : '') + '">' + num(v, k === 'guiso' ? 2 : 0) + '</td>'; }).join('') + '</tr>' +
+    '<tr><td><b>Eficiencia</b></td>' + Object.keys(cats).map(k => { const e = tot[k].cons > 0 ? Math.round(tot[k].vend / tot[k].cons * 100) : null; return '<td>' + efHtml(e) + '</td>'; }).join('') + '</tr></table>' +
+    '<div style="font-size:12px;color:var(--txt2);margin-top:6px">Eficiencia = vendido según el POS ÷ consumido según el conteo. Verde ≥ 95 %, amarillo ≥ 90 %.</div></div>';
+  app().innerHTML = h;
+}
+
+/* ── Resumen por sucursal (asesor / admin) ─────────────── */
+async function vSucursales() {
+  app().innerHTML = nav() + '<div class="msg">Cargando sucursales…</div>';
+  const r = await api('inv_resumen');
+  const hoy = new Date(); const diasSin = (f) => f ? Math.round((new Date(hoy.toDateString()) - new Date(String(f).slice(0, 10) + 'T00:00:00')) / 86400000) : null;
+  let h = nav() + '<div class="card"><b>Inventarios por sucursal</b><div style="font-size:12.5px;color:var(--txt2)">Últimos 7 días. Toca una sucursal para ver su historial.</div></div><div class="card" style="overflow-x:auto"><table class="t"><tr><th>Sucursal</th><th>Último conteo</th><th>Días capturados (30)</th><th>Consumo guisos 7 d (kg)</th><th>Eficiencia guisos 7 d</th></tr>';
+  r.sucursales.forEach(s => {
+    const ds = diasSin(s.ultimo);
+    h += '<tr style="cursor:pointer" onclick="S.branch=' + s.branch_id + ';location.hash=\'hist\'"><td><b>' + esc(s.corto || corto(s.nombre)) + '</b></td>' +
+      '<td>' + (s.ultimo ? fLarga(s.ultimo) + (ds > 1 ? ' <span class="chip autogenerado">hace ' + ds + ' días</span>' : '') : '<span class="chip">sin conteos</span>') + '</td>' +
+      '<td>' + s.dias_30 + '</td><td>' + num(s.consumo_guisos_7, 1) + '</td><td>' + efHtml(s.ef_guisos_7) + '</td></tr>';
+  });
+  h += '</table></div>';
+  app().innerHTML = h;
+}
+
+window.addEventListener('load', () => { S.token ? arrancar() : vLogin(); });
+</script>
+</body>
+</html>
