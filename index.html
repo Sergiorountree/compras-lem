@@ -497,7 +497,7 @@ async function autorizar(reqId, btn) {
     r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a> <span id="mail-' + o.oc_id + '" class="chip">📧 avisando a Pablo…</span></p>'; });
     setTimeout(() => r.ocs.forEach(async o => {
       const el = document.getElementById('mail-' + o.oc_id); if (!el) return;
-      try { const m = await api('correo_oc', { oc_id: o.oc_id, destino: 'pablo' }); el.textContent = m.ok ? '📧 aviso enviado a Pablo' : '⚠️ ' + (m.detalle || m.error); el.className = 'chip ' + (m.ok ? 'recibida' : 'rechazada'); }
+      try { const m = await api('correo_oc', { oc_id: o.oc_id, destino: 'pablo' }); el.textContent = m.ok ? '📧 enviada a Pablo · en tránsito' : '⚠️ ' + (m.detalle || m.error); el.className = 'chip ' + (m.ok ? 'recibida' : 'rechazada'); }
       catch (e) { el.textContent = '⚠️ no se pudo avisar a Pablo'; el.className = 'chip rechazada'; }
     }), 50);
   } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro asesor).</p>';
@@ -523,7 +523,7 @@ function pintarCatalogoAdmin() {
   });
   h += '<span style="flex:1"></span><button class="btn mini" onclick="CA.edit={proveedor_id:CA.prov,fraccion:1,activo:true};pintarCatalogoAdmin();window.scrollTo(0,0)">＋ Nuevo insumo</button></div></div>';
   const pv = d.proveedores.find(p => p.proveedor_id === CA.prov) || {};
-  h += '<div class="card"><b>Correo de pedidos de ' + esc(pv.nombre_corto || '') + '</b><div class="presu">A este correo se manda la OC (con copia a pfranco@grupolem.com). Varios correos separados por coma. Se guarda al salir del campo.</div>' +
+  h += '<div class="card"><b>Correo de pedidos de ' + esc(pv.nombre_corto || '') + '</b><div class="presu">Todavía no se usa: por ahora Pablo reenvía la OC. Cuando se capture aquí y se active el envío directo, la OC saldrá a este correo con copia a pfranco@grupolem.com.</div>' +
     '<div class="form"><label>Correo(s) del proveedor<input id="pv_mail" value="' + esc(pv.email_pedidos || '') + '" placeholder="pedidos@proveedor.com" onchange="guardarProveedor(' + CA.prov + ')"></label>' +
     '<label>Copia adicional (opcional)<input id="pv_cc" value="' + esc(pv.email_cc || '') + '" placeholder="vendedor@proveedor.com" onchange="guardarProveedor(' + CA.prov + ')"></label></div></div>';
   if (CA.edit) h += formInsumo(CA.edit);
@@ -660,8 +660,9 @@ async function vOC(id) {
        '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th><th></th></tr></table>' +
     '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
     '<button class="btn" onclick="imprimirOC(' + id + ')">🖨 Imprimir / PDF</button>';
+  const CORREO_PROVEEDOR = false; // 5-sep: por ahora Pablo reenvía la OC; activar cuando los proveedores tengan correo en Catálogo
   const puedeMandar = vista() === 'admin' || vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length);
-  if (puedeMandar && (d.estado === 'autorizada' || d.estado === 'enviada_proveedor')) h += '<button class="btn" id="btnCorreo" onclick="correoProveedor(' + id + ', this)">📧 ' + (d.estado === 'autorizada' ? 'Enviar al proveedor por correo' : 'Reenviar al proveedor') + '</button>';
+  if (CORREO_PROVEEDOR && puedeMandar && (d.estado === 'autorizada' || d.estado === 'enviada_proveedor')) h += '<button class="btn" id="btnCorreo" onclick="correoProveedor(' + id + ', this)">📧 ' + (d.estado === 'autorizada' ? 'Enviar al proveedor por correo' : 'Reenviar al proveedor') + '</button>';
   if (puedeMandar && d.estado === 'autorizada') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'enviada_proveedor\')">📤 Ya la envié por otro medio</button>';
   if (puedeMandar && ['enviada_proveedor', 'recibida_parcial', 'recibida'].includes(d.estado)) h += '<button class="btn sec" onclick="if(confirm(\'¿Cerrar la OC? Ya no se podrá recibir nada más.\'))marcarOC(' + id + ',\'cerrada\')">Cerrar OC</button>';
   h += '</div>';
