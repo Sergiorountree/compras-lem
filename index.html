@@ -27,8 +27,25 @@
   .chip.recibida,.chip.conciliada { background:#dcfce7; color:var(--verde); }
   .rec input[type=number] { width:70px; height:42px; text-align:center; border:2px solid var(--borde); border-radius:10px; font-size:18px; font-weight:700; }
   .rec .falta { color:var(--rojo); font-weight:700; }
-  .calc input.inv { width:120px; height:44px; text-align:right; padding:0 10px; border:2px solid var(--borde); border-radius:10px; font-size:18px; font-weight:700; }
-  .calc .cres { margin-top:3px; }
+  .hoja { font-family:Arial,Helvetica,sans-serif; font-size:13px; }
+  .hoja table { border-collapse:collapse; }
+  .hoja th, .hoja td { border:1px solid #9a9a9a; padding:4px 6px; white-space:nowrap; }
+  .hoja th { background:#6d6d6d; color:#fff; font-size:11.5px; font-weight:700; text-align:center; }
+  .hoja th.g { background:#2f5597; }
+  .hoja td.n { text-align:right; }
+  .hoja td.c { text-align:center; }
+  .hoja td.in { background:#fff2cc; padding:2px; }
+  .hoja td.in input { width:86px; border:1px solid #c9a227; border-radius:4px; padding:5px 6px; font-size:14px; font-weight:700; text-align:right; background:#fffbe6; }
+  .hoja td.sug { background:#e2efda; font-weight:700; text-align:center; }
+  .hoja td.fin { background:#c6e0b4; font-weight:800; text-align:center; font-size:14px; }
+  .hoja td.neg { color:#c00; }
+  .hoja .titulo { background:#bdd7ee; font-weight:800; font-size:16px; padding:6px 10px; text-align:center; border:1px solid #9a9a9a; }
+  .hoja .param td { border:1px solid #9a9a9a; padding:4px 8px; }
+  .hoja .param input { width:120px; border:1px solid #c9a227; border-radius:4px; padding:4px 6px; font-size:13px; background:#fffbe6; }
+  .hoja .param td.k { background:#f3f3f3; font-weight:600; }
+  .hoja .bloque { margin-top:14px; }
+  .calcbar { position:sticky; bottom:0; background:#fff; border-top:2px solid var(--rojo); padding:10px 12px; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; z-index:10; margin:10px -12px -12px; }
+  .btn.calcbig { font-size:18px; padding:16px 20px; width:100%; margin:8px 0 12px; box-shadow:0 3px 0 #7a1a1f; }
   .cat-h { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:16px 4px 6px; }
   .item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--gris); }
   .item:last-child { border-bottom:none; }
@@ -204,7 +221,8 @@ function nav() {
   let h = '<div class="nav no-print">';
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>' +
-                                        '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>';
+                                        '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>' +
+                                        '<button class="btn mini" onclick="abrirCalculadora()">🧮 Calculadora</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button><button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button>';
   if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button>';
   if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
@@ -261,7 +279,7 @@ async function vCaptura() {
       const pct = pres ? Math.min(sp.sub / pres * 100, 100) : 0;
       h += '<button class="tile' + (activo ? '' : ' off') + (pres && sp.sub > pres ? ' excedido' : '') + '" ' + (activo ? 'onclick="abrirProv(' + p.proveedor_id + ')"' : 'disabled') + '>' +
         '<div class="tn">' + esc(p.nombre_corto) + '</div>' +
-        '<div class="td">' + (p.insumos > 0 ? p.insumos + ' insumos' : 'catálogo pendiente') + '</div>' +
+        '<div class="td">' + (p.insumos > 0 ? p.insumos + ' insumos' : 'catálogo pendiente') + (p.calculadora ? ' · <b>🧮 calculadora</b>' : '') + '</div>' +
         (pres ? '<div class="td" style="margin-top:6px">Presupuesto ' + money(pres) + '</div><div class="barra' + (sp.sub > pres ? ' rojo' : (pct > 85 ? ' ambar' : '')) + '" style="margin:4px 0"><div style="width:' + pct + '%"></div></div><div class="td">' + (sp.sub ? money(sp.sub) + ' sin IVA' : 'sin pedido aún') + '</div>' : (p.insumos > 0 ? '<div class="td" style="margin-top:6px;color:var(--ambar)">sin presupuesto asignado</div>' : '')) +
         (n ? '<div class="tb">' + n + ' en el pedido</div>' : '') + '</button>';
     });
@@ -270,7 +288,7 @@ async function vCaptura() {
     const items = S.cat.catalogo.filter(i => i.proveedor_id === prov.proveedor_id);
     const grupos = {};
     items.forEach(i => { (grupos[i.concepto] = grupos[i.concepto] || []).push(i); });
-    h += '<div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px"><button class="btn mini sec" onclick="S.prov=null;vCaptura()">← Proveedores</button><b style="font-size:17px">' + esc(prov.nombre_corto) + '</b>' + (prov.calculadora ? ' <button class="btn mini" onclick="vCalculadora()">🧮 Calculadora</button>' : '') + '</div>' +
+    h += '<div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px"><button class="btn mini sec" onclick="S.prov=null;vCaptura()">← Proveedores</button><b style="font-size:17px">' + esc(prov.nombre_corto) + '</b></div>' + (prov.calculadora ? '<button class="btn calcbig" onclick="vCalculadora()">🧮 Abrir la calculadora de pedido</button>' : '') +
       (S.calcNota ? '<div class="card" style="border-color:var(--verde)">✅ ' + esc(S.calcNota) + '</div>' : '') +
       '<input class="buscador no-print" id="busca" placeholder="Buscar en ' + esc(prov.nombre_corto) + '…" oninput="filtrar()">';
     for (const g in grupos) {
@@ -395,81 +413,169 @@ async function enviar() {
   S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.prov = null;
 }
 
-/* ── Calculadora de pedido (CDC) ───────────────────────── */
-const CALC = { data: null, manual: {} };
-const num = (x, d) => Number(x || 0).toLocaleString('es-MX', { maximumFractionDigits: d == null ? 2 : d });
-const fechaCorta = (iso) => new Date(String(iso).slice(0, 10) + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
-async function vCalculadora() {
-  const prov = (S.cat && S.cat.proveedores || []).find(p => p.proveedor_id === S.prov);
+/* ── Calculadora de pedido (CDC) — réplica de la hoja ──── */
+const CALC = { data: null, p: null, vals: {} };
+const num = (x, d) => Number(x || 0).toLocaleString('es-MX', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d });
+const isoDe = (d) => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); };
+const addDias = (iso, n) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() + Number(n)); return isoDe(d); };
+const difDias = (a, b) => Math.round((new Date(String(b).slice(0, 10) + 'T12:00:00') - new Date(String(a).slice(0, 10) + 'T12:00:00')) / 86400000);
+async function abrirCalculadora() {
+  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
+  if (!S.cat) S.cat = await api('catalogo', { branch_id: S.branch });
+  const c = (S.cat.proveedores || []).find(p => p.calculadora);
+  if (!c) { aviso('Ningún proveedor tiene calculadora configurada.'); return; }
+  S.prov = c.proveedor_id; vCalculadora();
+}
+async function vCalculadora(del, al) {
+  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
+  if (!S.cat) S.cat = await api('catalogo', { branch_id: S.branch });
+  const prov = (S.cat.proveedores || []).find(p => p.proveedor_id === S.prov && p.calculadora);
   if (!prov) { vCaptura(); return; }
   app().innerHTML = nav() + '<div class="msg">Calculando el consumo de tu sucursal…</div>';
-  const d = await api('calculadora', { branch_id: S.branch, proveedor_id: S.prov });
+  const d = await api('calculadora', { branch_id: S.branch, proveedor_id: S.prov, del: del || null, al: al || null });
   if (d.error) { aviso('Calculadora: ' + (d.detalle || d.error)); vCaptura(); return; }
-  CALC.data = d; CALC.manual = {};
-  const p = d.parametros;
-  let h = nav() + '<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn mini sec" onclick="vCaptura()">← ' + esc(d.proveedor) + '</button><b style="font-size:17px">🧮 Calculadora de pedido</b></div>' +
-    '<div class="presu" style="margin-top:6px">Consumo real del <b>' + fechaCorta(d.rango.del) + '</b> al <b>' + fechaCorta(d.rango.al) + '</b> (' + p.dias_consumo + ' días). El pedido llega en <b>' + p.dias_proyeccion + ' días</b> y debe alcanzar <b>' + p.dias_cubrir + ' días</b>' + (Number(p.factor_proteccion) > 0 ? ' + ' + p.factor_proteccion + ' de protección' : '') + '.</div>' +
-    '<div class="presu" style="margin-top:4px">Escribe el <b>inventario de hoy</b> de cada guiso (en gramos, como en tu hoja; las gorditas en piezas). Te dice cuántas cajas pedir y puedes ajustar.</div></div>';
-  h += '<div class="card calc">';
-  d.lineas.forEach(l => {
-    const id = l.proveedor_insumo_id, u = presInfo(l);
-    h += '<div class="item"><div class="info"><div class="n">' + esc(l.insumo) + '</div><div class="d">' + chipUnidad(l) + ' · consume <b>' + num(l.promedio) + ' ' + (l.inventario_en === 'gramos' ? 'kg' : 'pzas') + '</b> al día</div><div class="d cres" id="cr' + id + '">Escribe tu inventario</div></div>' +
-      '<div style="text-align:right"><div class="d">inventario hoy (' + l.inventario_en + ')</div><input class="inv" type="number" inputmode="numeric" min="0" id="inv' + id + '" placeholder="0" oninput="pintarCalc()">' +
-      '<div class="step" style="justify-content:flex-end;margin-top:6px"><div class="stepin"><button onclick="calcMas(' + id + ',-1)">−</button><input inputmode="numeric" id="cf' + id + '" value="0" onchange="calcSet(' + id + ',this.value)"><button onclick="calcMas(' + id + ',1)">+</button></div><div class="steplbl">' + plural(u.tipo, 2) + '</div></div></div></div>';
-  });
-  h += '</div><div class="card"><div class="res-row"><span>Cajas a pedir</span><b id="cCajas">0</b></div><div class="res-row"><span>Costo (sin IVA)</span><b id="cCosto">$0</b></div>' +
-    (d.presupuesto ? '<div class="res-row"><span>Presupuesto ' + esc(d.proveedor) + '</span><b>' + money(d.presupuesto) + '</b></div>' : '') + '<div class="presu" id="cAviso"></div>' +
-    '<button class="btn" style="width:100%;margin-top:10px" id="btnPasar" onclick="pasarAlPedido(this)">Pasar al pedido →</button>' +
-    '<div class="presu" style="margin-top:6px">Secos y desechables los agregas a mano en la lista, como siempre.</div></div>';
-  app().innerHTML = h; pintarCalc();
+  const mismo = CALC.data && CALC.p && CALC.data.branch_id === d.branch_id && CALC.data.proveedor_id === d.proveedor_id;
+  CALC.data = d;
+  if (!mismo) {
+    const q = d.parametros;
+    CALC.p = { del: d.rango.del, al: d.rango.al, fecha_inventario: d.fecha_inventario, llega: addDias(d.fecha_inventario, q.dias_proyeccion),
+               factor: Number(q.factor_proteccion || 0), cubrir: Number(q.dias_cubrir), presupuesto_total: d.presupuesto ? Number(d.presupuesto) : 0 };
+    CALC.vals = {};
+  } else { CALC.p.del = d.rango.del; CALC.p.al = d.rango.al; }
+  pintarCalculadora();
 }
-function calcLinea(l, inv) {
-  const p = CALC.data.parametros; const prom = Number(l.consumo) / Number(p.dias_consumo);
-  const invU = l.inventario_en === 'gramos' ? inv / 1000 : inv;
-  const invProy = invU - prom * Number(p.dias_proyeccion);
-  const falta = prom * (Number(p.dias_cubrir) + Number(p.factor_proteccion || 0)) - invProy;
-  return { prom, invProy, falta, sug: falta > 0 ? Math.ceil(falta / Number(l.fraccion)) : 0 };
-}
-function pintarCalc() {
-  if (!CALC.data || !$('cCajas')) return;
-  let cajas = 0, costo = 0;
+function leerCalc() {
+  if (!CALC.data) return;
   CALC.data.lineas.forEach(l => {
-    const id = l.proveedor_insumo_id, raw = $('inv' + id).value, inv = raw === '' ? null : Number(raw), cr = $('cr' + id), cf = $('cf' + id), u = presInfo(l);
-    if (inv == null) { cr.innerHTML = 'Escribe tu inventario'; if (!(id in CALC.manual)) cf.value = 0; }
-    else {
-      const c = calcLinea(l, inv);
-      cr.innerHTML = c.falta > 0 ? 'Te faltan <b>' + num(c.falta) + ' ' + (l.inventario_en === 'gramos' ? 'kg' : 'pzas') + '</b> → pide <b>' + c.sug + ' ' + plural(u.tipo, c.sug) + '</b>' : '<span style="color:var(--verde)">Te alcanza: no hace falta pedir</span>';
-      if (!(id in CALC.manual)) cf.value = c.sug;
-    }
-    const fin = Number(cf.value) || 0; cajas += fin; costo += fin * Number(l.fraccion) * Number(l.precio || 0);
+    const id = l.proveedor_insumo_id, inv = $('inv' + id), mod = $('mod' + id), ped = $('ped' + id);
+    CALC.vals[id] = { inv: inv ? inv.value : '', mod: mod ? mod.value : '', ped: ped ? ped.value : '' };
   });
-  $('cCajas').textContent = cajas; $('cCosto').textContent = money(costo);
-  const pres = CALC.data.presupuesto ? Number(CALC.data.presupuesto) : null;
-  $('cAviso').innerHTML = pres ? (costo > pres ? '<b style="color:var(--rojo)">Te pasas del presupuesto por ' + money(costo - pres) + '</b> (informativo)' : 'Llevas ' + Math.round(costo / pres * 100) + '% del presupuesto') : '';
 }
-function calcSet(id, v) { CALC.manual[id] = true; $('cf' + id).value = Math.max(0, Math.round(Number(v) || 0)); pintarCalc(); }
-function calcMas(id, d) { calcSet(id, (Number($('cf' + id).value) || 0) + d); }
-async function pasarAlPedido(btn) {
-  const lineas = CALC.data.lineas.map(l => {
-    const id = l.proveedor_insumo_id, raw = $('inv' + id).value, inv = raw === '' ? null : Number(raw), fin = Number($('cf' + id).value) || 0;
-    const c = inv == null ? null : calcLinea(l, inv);
-    return { proveedor_insumo_id: id, inventario: inv, modificador: fin - (c ? c.sug : 0) };
+function cambiarRango() {
+  leerCalc();
+  const del = $('p_del').value, al = $('p_al').value;
+  if (!del || !al || del > al) { alert('Revisa las fechas: "Del" debe ser antes de "Al".'); return; }
+  CALC.p.del = del; CALC.p.al = al;
+  vCalculadora(del, al);
+}
+function cambiarParam() {
+  CALC.p.fecha_inventario = $('p_inv').value || CALC.p.fecha_inventario;
+  CALC.p.llega = $('p_llega').value || CALC.p.llega;
+  CALC.p.factor = Number($('p_factor').value) || 0;
+  CALC.p.cubrir = Math.max(1, Number($('p_cubrir').value) || 1);
+  CALC.p.presupuesto_total = Number($('p_pres').value) || 0;
+  recalc();
+}
+function lineaCalc(l, inv, mod, ped) {
+  const p = CALC.p, dias = Math.max(1, difDias(p.del, p.al)), proy = Math.max(0, difDias(p.fecha_inventario, p.llega));
+  const r = { dias, proy, mod: Number(mod) || 0, ped: ped === '' || ped == null ? null : Number(ped) };
+  if (l.consumo != null) {
+    r.prom = Number(l.consumo) / dias; r.consProy = r.prom * proy; r.consPed = r.prom * (p.cubrir + p.factor);
+    if (inv !== '' && inv != null) {
+      const invU = l.inventario_en === 'gramos' ? Number(inv) / 1000 : Number(inv);
+      r.invProy = invU - r.consProy; r.invFinal = r.invProy - r.consPed;
+      r.frac = r.invFinal < 0 ? -r.invFinal / Number(l.fraccion) : 0; r.sug = Math.ceil(r.frac - 1e-9);
+      r.final = Math.max(0, r.sug + r.mod);
+    } else { r.sug = null; r.final = Math.max(0, r.mod); }
+  } else { r.final = Math.max(0, (r.ped || 0) + r.mod); }
+  r.costo = r.final * Number(l.fraccion) * Number(l.precio || 0);
+  return r;
+}
+function pintarCalculadora() {
+  const d = CALC.data, p = CALC.p, dias = Math.max(1, difDias(p.del, p.al)), proy = Math.max(0, difDias(p.fecha_inventario, p.llega));
+  const v = (id) => CALC.vals[id] || { inv: '', mod: '', ped: '' };
+  const pm = d.parametros.pct_max || {};
+  let h = nav() + '<div class="card hoja" style="overflow-x:auto">' +
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><button class="btn mini sec" onclick="leerCalc();vCaptura()">← ' + esc(d.proveedor) + '</button><span style="font-size:15px;font-weight:800">🧮 Calculadora de pedido · ' + esc(d.sucursal.replace(' Chihuahua', '')) + '</span></div>' +
+    '<table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
+      '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
+      '<tr><td class="k">Del</td><td class="in"><input type="date" id="p_del" value="' + p.del + '" onchange="cambiarRango()"></td></tr>' +
+      '<tr><td class="k">Al</td><td class="in"><input type="date" id="p_al" value="' + p.al + '" onchange="cambiarRango()"></td></tr>' +
+      '<tr><td class="k">Días de consumo</td><td class="n"><b id="p_dias">' + dias + '</b></td></tr>' +
+      '<tr><td class="k">Inventario del día:</td><td class="in"><input type="date" id="p_inv" value="' + p.fecha_inventario + '" onchange="cambiarParam()"></td></tr>' +
+      '<tr><td class="k">Día que llega el próximo pedido</td><td class="in"><input type="date" id="p_llega" value="' + p.llega + '" onchange="cambiarParam()"></td></tr>' +
+      '<tr><td class="k"># Días de proyección</td><td class="n"><b id="p_proy">' + proy + '</b></td></tr>' +
+      '<tr><td class="k">Factor de protección (días)</td><td class="in"><input type="number" step="0.5" min="0" id="p_factor" value="' + p.factor + '" onchange="cambiarParam()"></td></tr>' +
+      '<tr><td class="k">Días a cubrir con el pedido</td><td class="in"><input type="number" min="1" id="p_cubrir" value="' + p.cubrir + '" onchange="cambiarParam()"></td></tr></table>' +
+    '</td><td style="border:none;vertical-align:top">' +
+      '<table class="param"><tr><td class="k">Presupuesto Total</td><td class="in"><input type="number" min="0" step="100" id="p_pres" value="' + p.presupuesto_total + '" onchange="cambiarParam()"></td><td style="border:none;font-size:11.5px;color:var(--txt2)">' + (d.presupuesto ? 'sugerido: presupuesto asignado ' + money(d.presupuesto) : 'sin presupuesto asignado') + '</td></tr></table>' +
+      '<table style="margin-top:6px"><tr><th>Concepto</th><th>Total permitido</th><th>Total pedido</th><th>% por concepto</th><th>% Máximo</th></tr>' +
+      Object.keys(pm).map(k => '<tr><td>' + esc(k) + '</td><td class="n" id="cpe_' + k.replace(/\W/g, '') + '"></td><td class="n" id="cpd_' + k.replace(/\W/g, '') + '"></td><td class="n" id="cpp_' + k.replace(/\W/g, '') + '"></td><td class="n">' + num(pm[k], 1) + '%</td></tr>').join('') + '</table>' +
+    '</td></tr></table>';
+  // Bloque Guisos (con consumo)
+  const guisos = d.lineas.filter(l => l.consumo != null), otros = d.lineas.filter(l => l.consumo == null);
+  const conceptosOtros = [...new Set(otros.map(l => l.concepto))];
+  h += '<div class="bloque"><div class="titulo">Guisos · pedido sugerido por consumo</div><table style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Un</th><th>Consumo</th><th class="g">Inventario Final</th><th>Consumo promedio diario</th><th>Consumo días de proyección</th><th>Inventario proyectado</th><th>Consumo periodo de pedido</th><th>Invent. a final de consumo</th><th>Unidad de Medida</th><th>Fracciones a pedir</th><th>Pedido Sugerido</th><th class="g">Modificador manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
+  guisos.forEach(l => { const id = l.proveedor_insumo_id, x = v(id);
+    h += '<tr><td class="n">' + (l.precio != null ? money(l.precio) : '') + '</td><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n" id="con' + id + '">' + num(l.consumo) + '</td>' +
+      '<td class="in"><input type="number" inputmode="numeric" min="0" id="inv' + id + '" value="' + esc(x.inv) + '" placeholder="' + l.inventario_en + '" oninput="recalc()"></td>' +
+      '<td class="n" id="prm' + id + '"></td><td class="n" id="cpr' + id + '"></td><td class="n" id="ipr' + id + '"></td><td class="n" id="cpe' + id + '"></td><td class="n" id="ifc' + id + '"></td>' +
+      '<td class="n">' + num(l.fraccion) + '</td><td class="n" id="frc' + id + '"></td><td class="sug" id="sug' + id + '"></td>' +
+      '<td class="in"><input type="number" inputmode="numeric" id="mod' + id + '" value="' + esc(x.mod) + '" oninput="recalc()"></td>' +
+      '<td class="fin" id="fin' + id + '"></td><td class="n" id="cos' + id + '"></td></tr>'; });
+  h += '<tr><td colspan="15" style="text-align:right;background:#f3f3f3"><b>Total Guisos</b></td><td class="n" id="totGuisos"></td></tr></table></div>';
+  conceptosOtros.forEach(cn => {
+    const cid = cn.replace(/\W/g, '');
+    h += '<div class="bloque"><div class="titulo">' + esc(cn) + '</div><table style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Unidad de Medida</th><th class="g">Pedido de Gerente</th><th class="g">Modificador Manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
+    otros.filter(l => l.concepto === cn).forEach(l => { const id = l.proveedor_insumo_id, x = v(id);
+      h += '<tr><td class="n">' + (l.precio != null ? money(l.precio) : '') + '</td><td><b>' + esc(l.insumo) + '</b>' + (l.presentacion ? ' <span style="color:var(--txt2);font-size:11px">' + esc(l.presentacion) + '</span>' : '') + '</td><td class="n">' + num(l.fraccion) + '</td>' +
+        '<td class="in"><input type="number" inputmode="numeric" min="0" id="ped' + id + '" value="' + esc(x.ped) + '" oninput="recalc()"></td>' +
+        '<td class="in"><input type="number" inputmode="numeric" id="mod' + id + '" value="' + esc(x.mod) + '" oninput="recalc()"></td>' +
+        '<td class="fin" id="fin' + id + '"></td><td class="n" id="cos' + id + '"></td></tr>'; });
+    h += '<tr><td colspan="6" style="text-align:right;background:#f3f3f3"><b>Total ' + esc(cn) + '</b></td><td class="n" id="tot_' + cid + '"></td></tr></table></div>';
   });
-  const sinInv = lineas.filter(l => l.inventario == null).length;
-  if (sinInv && !confirm('Hay ' + sinInv + ' guiso' + (sinInv === 1 ? '' : 's') + ' sin inventario: para esos no se calcula sugerido. ¿Continuar?')) return;
+  h += '<div class="calcbar"><div><div style="font-size:12px;color:var(--txt2)">TOTAL DEL PEDIDO (sin IVA)</div><b style="font-size:20px" id="cTotal">$0</b> <span id="cCajas" style="color:var(--txt2)"></span></div>' +
+    '<button class="btn" style="font-size:17px;padding:14px 22px" id="btnPasar" onclick="pasarAlPedido(this)">Pasar al pedido →</button></div></div>';
+  app().innerHTML = h; recalc();
+}
+function recalc() {
+  const d = CALC.data, p = CALC.p; if (!d || !$('cTotal')) return;
+  const dias = Math.max(1, difDias(p.del, p.al)), proy = Math.max(0, difDias(p.fecha_inventario, p.llega));
+  if ($('p_dias')) $('p_dias').textContent = dias; if ($('p_proy')) $('p_proy').textContent = proy;
+  const porConc = {}; let total = 0, cajas = 0;
+  d.lineas.forEach(l => {
+    const id = l.proveedor_insumo_id, inv = $('inv' + id) ? $('inv' + id).value : '', mod = $('mod' + id) ? $('mod' + id).value : '', ped = $('ped' + id) ? $('ped' + id).value : '';
+    const r = lineaCalc(l, inv, mod, ped);
+    const set = (k, val, cls) => { const el = $(k + id); if (el) { el.textContent = val; if (cls !== undefined) el.className = cls; } };
+    if (l.consumo != null) {
+      set('prm', num(r.prom)); set('cpr', num(r.consProy));
+      if (r.sug != null) {
+        set('ipr', l.inventario_en === 'gramos' ? num(r.invProy * 1000, 0) : num(r.invProy, 0), 'n' + (r.invProy < 0 ? ' neg' : ''));
+        set('cpe', num(r.consPed, 0)); set('ifc', num(r.invFinal), 'n' + (r.invFinal < 0 ? ' neg' : '')); set('frc', num(r.frac)); set('sug', r.sug);
+      } else { set('ipr', ''); set('cpe', num(r.consPed, 0)); set('ifc', ''); set('frc', ''); set('sug', ''); }
+    }
+    set('fin', r.final); set('cos', money(r.costo));
+    porConc[l.concepto] = (porConc[l.concepto] || 0) + r.costo; total += r.costo; cajas += r.final;
+  });
+  const tg = $('totGuisos'); if (tg) tg.textContent = money(porConc['Guisos'] || 0);
+  Object.keys(porConc).forEach(k => { const el = $('tot_' + k.replace(/\W/g, '')); if (el) el.textContent = money(porConc[k]); });
+  const pm = d.parametros.pct_max || {}, pres = Number(p.presupuesto_total) || 0;
+  Object.keys(pm).forEach(k => { const c = k.replace(/\W/g, ''), ped = porConc[k] || 0, perm = pres * Number(pm[k]) / 100;
+    if ($('cpe_' + c)) $('cpe_' + c).textContent = pres ? num(perm, 0) : '—';
+    if ($('cpd_' + c)) { $('cpd_' + c).textContent = num(ped, 0); $('cpd_' + c).className = 'n' + (pres && ped > perm ? ' neg' : ''); }
+    if ($('cpp_' + c)) $('cpp_' + c).textContent = pres ? num(ped / pres * 100, 1) + '%' : '—'; });
+  $('cTotal').textContent = money(total); $('cCajas').textContent = '· ' + cajas + ' unidades de compra';
+}
+async function pasarAlPedido(btn) {
+  const d = CALC.data, p = CALC.p;
+  const lineas = d.lineas.map(l => { const id = l.proveedor_insumo_id; const g = (k) => $(k + id) ? $(k + id).value : '';
+    return { proveedor_insumo_id: id, inventario: g('inv') === '' ? null : Number(g('inv')), modificador: Number(g('mod')) || 0, pedido_gerente: g('ped') === '' ? null : Number(g('ped')) }; });
+  const sinInv = d.lineas.filter(l => l.consumo != null && ($('inv' + l.proveedor_insumo_id).value === '')).length;
+  if (sinInv && !confirm('Hay ' + sinInv + ' guiso' + (sinInv === 1 ? '' : 's') + ' sin inventario final: para esos no se calcula sugerido. ¿Continuar?')) return;
   btn.disabled = true;
-  const r = await api('calculadora_guardar', { branch_id: S.branch, proveedor_id: S.prov, lineas });
+  const parametros = { del: p.del, al: p.al, fecha_inventario: p.fecha_inventario, llega: p.llega, dias_cubrir: p.cubrir, factor_proteccion: p.factor, presupuesto_total: p.presupuesto_total || null };
+  const r = await api('calculadora_guardar', { branch_id: S.branch, proveedor_id: S.prov, parametros, lineas });
   if (r.error) { alert('No se pudo guardar: ' + (r.detalle || r.error)); btn.disabled = false; return; }
   r.lineas.forEach(l => { if (l.final > 0) S.carrito[l.proveedor_insumo_id] = l.final; else delete S.carrito[l.proveedor_insumo_id]; });
-  S.corridaId = r.corrida_id; await tocarPrimera();
-  S.calcNota = 'Calculadora aplicada: ' + r.insumos + ' guiso' + (r.insumos === 1 ? '' : 's') + ' en el pedido por ' + money(r.total) + ' sin IVA. Agrega secos y desechables y envía.';
+  S.corridaId = r.corrida_id; await tocarPrimera(); leerCalc();
+  S.calcNota = 'Calculadora aplicada: ' + r.insumos + ' insumo' + (r.insumos === 1 ? '' : 's') + ' en el pedido por ' + money(r.total) + ' sin IVA. Revisa y envía.';
   vCaptura();
 }
 function calcParamsHtml(cp) {
   let h = '';
   ((cp && cp.proveedores) || []).forEach(pr => {
     const q = pr.parametros || {}, pm = q.pct_max || {};
-    h += '<div class="card"><b>🧮 Calculadora de ' + esc(pr.nombre_corto) + '</b><div class="presu">Parámetros que usa la calculadora del gerente. Iguales para todas las sucursales; cada cambio guarda el anterior con su vigencia.</div>' +
+    h += '<div class="card"><b>🧮 Calculadora de ' + esc(pr.nombre_corto) + ' — valores iniciales</b><div class="presu">Con estos valores se abre la calculadora del gerente (él puede cambiar fechas y días en su pantalla, como en la hoja). Cada cambio guarda el anterior con su vigencia.</div>' +
       '<div class="form"><label>Días de consumo (historial)<input type="number" id="cp_dc" value="' + esc(q.dias_consumo) + '"></label>' +
       '<label>Días hasta que llega el pedido<input type="number" id="cp_dp" value="' + esc(q.dias_proyeccion) + '"></label>' +
       '<label>Días que debe cubrir el pedido<input type="number" id="cp_cu" value="' + esc(q.dias_cubrir) + '"></label>' +
