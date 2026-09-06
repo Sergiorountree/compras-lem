@@ -56,7 +56,7 @@ const app = () => $('app');
 function aviso(m) { let b = $('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
-const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [] };
+const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], vista: (function(){ try { return localStorage.getItem('lem_vista_inv') || 'admin'; } catch(e){ return 'admin'; } })(), gerenteElegido: false };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (x, d) => x == null ? '—' : Number(x).toLocaleString('es-MX', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 2 : d });
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -97,24 +97,47 @@ async function arrancar() {
     S.rol = roles.includes('admin') ? 'admin' : roles.includes('aprobador') ? 'aprobador' : 'gerente';
     S.sucursales = p.sucursales || [];
     if (!S.branch && S.sucursales.length) S.branch = S.sucursales[0].branch_id;
-    $('hUser').textContent = p.usuario + ' · ' + (S.rol === 'gerente' ? 'gerente' : S.rol === 'admin' ? 'administrador' : 'asesor');
+    $('hUser').innerHTML = esc(p.usuario) + ' · ' + (S.rol === 'gerente' ? 'gerente' : S.rol === 'admin' ? 'administrador' : 'asesor') + (S.rol === 'admin' ? '<br>' + selectorVista() : '');
     router();
   } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
 }
+/* ── Vista (solo admin): ver como gerente / asesor / admin ─ */
+function vista() { return S.rol === 'admin' ? S.vista : 'propia'; }
+function esGerenteVista() { return vista() === 'gerente' || (vista() === 'propia' && S.rol === 'gerente'); }
+function cambiarVista(v) {
+  S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista_inv', v); } catch (e) {}
+  if (v !== 'gerente' && S.sucursales.length) S.branch = S.sucursales[0].branch_id;
+  location.hash = (v === 'gerente') ? 'hist' : 'suc';
+  router();
+}
+function selectorVista() {
+  const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
+  return '<label style="font-size:12px;opacity:.9">Ver como <select onchange="cambiarVista(this.value)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
+    op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Asesor') + '</select></label>';
+}
+function vElegirGerente() {
+  let h = nav() + '<div class="card"><b>¿Qué gerente quieres ser?</b><div style="font-size:12.5px;color:var(--txt2);margin-bottom:8px">Verás exactamente lo que ve ese gerente: solo su sucursal.</div>';
+  S.sucursales.forEach(s => { h += '<button class="btn sec" style="display:block;width:100%;text-align:left;margin:6px 0" onclick="elegirGerente(' + s.branch_id + ')">' + esc(corto(s.nombre)) + '</button>'; });
+  app().innerHTML = h + '</div>';
+}
+function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; location.hash = 'hist'; vHistorial(); }
 function nav() {
   let h = '<div class="nav"><button class="btn mini sec" onclick="location.hash=\'hist\'">📅 Historial</button>';
-  if (S.rol !== 'gerente') h += '<button class="btn mini sec" onclick="location.hash=\'suc\'">📊 Sucursales</button>';
-  h += '<a class="btn mini" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✍️ Capturar inventario de hoy</a></div>';
-  return h;
+  if (!esGerenteVista()) h += '<button class="btn mini sec" onclick="location.hash=\'suc\'">📊 Sucursales</button>';
+  h += '<a class="btn mini" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✍️ Capturar inventario de hoy</a>';
+  if (vista() === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;location.hash=\'hist\';router()">↔ Otro gerente</button>';
+  return h + '</div>';
 }
 function router() {
-  const h = location.hash.slice(1) || (S.rol === 'gerente' ? 'hist' : 'suc');
+  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
+  const h = location.hash.slice(1) || (esGerenteVista() ? 'hist' : 'suc');
   if (h.startsWith('dia-')) vDia(h.slice(4));
-  else if (h === 'suc' && S.rol !== 'gerente') vSucursales();
+  else if (h === 'suc' && !esGerenteVista()) vSucursales();
   else vHistorial();
 }
 window.addEventListener('hashchange', () => S.perfil && router());
 function selectorSuc() {
+  if (vista() === 'gerente') { const s = S.sucursales.find(x => x.branch_id === S.branch); return '<b>' + esc(s ? corto(s.nombre) : '') + '</b>'; }
   if (S.sucursales.length <= 1) { const s = S.sucursales[0]; return '<b>' + esc(s ? corto(s.nombre) : '') + '</b>'; }
   return '<select onchange="S.branch=Number(this.value);router()" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
     S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>';
