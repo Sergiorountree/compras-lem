@@ -23,7 +23,7 @@
   .mod a, .mod button { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; margin-top:8px; padding:10px 16px; border-radius:10px; font-size:14.5px; font-weight:700; text-decoration:none; border:none; cursor:pointer; font-family:inherit; }
   .compras { background:#f3eef8; border-color:#dccbea; } .compras a { background:#5b3a86; color:#fff; }
   .nomina { background:#e9f5ee; border-color:#c3e2cf; } .nomina button { background:#2f855a; color:#fff; opacity:.55; cursor:not-allowed; }
-  .inventarios { background:#fbf0e6; border-color:#f0d5bb; } .inventarios button { background:#b5541c; color:#fff; opacity:.55; cursor:not-allowed; }
+  .inventarios { background:#fbf0e6; border-color:#f0d5bb; } .inventarios a { background:#b5541c; color:#fff; }
   .pronto { position:absolute; top:14px; right:14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:#fff; border:1px solid var(--borde); border-radius:99px; padding:3px 9px; color:var(--txt2); }
   footer { text-align:center; color:var(--txt2); font-size:12px; padding:18px; }
 </style>
@@ -47,11 +47,10 @@
       <button type="button" disabled>Ir a Nóminas →</button>
     </div>
     <div class="mod inventarios">
-      <span class="pronto">Próximamente</span>
       <div class="ico">📦</div>
       <h3>Inventarios</h3>
-      <p>Controla existencias, movimientos y niveles de stock.</p>
-      <button type="button" disabled>Ir a Inventarios →</button>
+      <p>Conteos diarios de guisos, postres y bebidas por sucursal, eficiencia contra el POS y captura del día.</p>
+      <a href="/inventarios/">Ir a Inventarios →</a>
     </div>
   </div>
 </main>
