@@ -497,7 +497,8 @@ async function autorizar(reqId, btn) {
     r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a> <span id="mail-' + o.oc_id + '" class="chip">📧 avisando a Pablo…</span></p>'; });
     setTimeout(() => r.ocs.forEach(async o => {
       const el = document.getElementById('mail-' + o.oc_id); if (!el) return;
-      try { const m = await api('correo_oc', { oc_id: o.oc_id, destino: 'pablo' }); el.textContent = m.ok ? '📧 enviada a Pablo · en tránsito' : '⚠️ ' + (m.detalle || m.error); el.className = 'chip ' + (m.ok ? 'recibida' : 'rechazada'); }
+      try { const det = await api('detalle', { tipo: 'oc', id: o.oc_id }); const html = (det.formato && det.formato.tipo === 'gepp') ? htmlOCGepp(det) : null;
+        const m = await api('correo_oc', { oc_id: o.oc_id, destino: 'pablo', html }); el.textContent = m.ok ? '📧 enviada a Pablo · en tránsito' : '⚠️ ' + (m.detalle || m.error); el.className = 'chip ' + (m.ok ? 'recibida' : 'rechazada'); }
       catch (e) { el.textContent = '⚠️ no se pudo avisar a Pablo'; el.className = 'chip rechazada'; }
     }), 50);
   } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro asesor).</p>';
@@ -642,7 +643,12 @@ async function vDetalle(tipo, id) {
 async function vOC(id) {
   app().innerHTML = nav() + '<div class="msg">Cargando OC…</div>';
   const d = await api('detalle', { tipo: 'oc', id: Number(id) });
-  let h = nav() + '<div class="card">' +
+  let h;
+  if (d.formato && d.formato.tipo === 'gepp') {
+    h = nav() + '<div class="card" style="overflow-x:auto">' + htmlOCGepp(d) +
+      '<div class="presu no-print" style="margin-top:8px">Formato de GEPP. Se llenan en automático solo Piezas y Compra; precio pactado e IVA son los del formato del proveedor. Nuestro total real (catálogo): ' + money(d.subtotal) + ' + IVA ' + money(d.iva) + ' = <b>' + money(d.total) + '</b>.</div>';
+  } else {
+  h = nav() + '<div class="card">' +
     '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">' +
     '<div><b style="font-size:20px">Orden de Compra</b><div style="font-size:22px;font-weight:800;color:var(--rojo)">' + esc(d.folio) + '</div></div>' +
     '<div style="text-align:right;font-size:13px"><b>Operadora de Franquicias LEM</b><br>Doña Tota · Chihuahua<br>' + new Date(d.creada_el).toLocaleDateString('es-MX') + '</div></div>' +
@@ -657,8 +663,9 @@ async function vOC(id) {
   });
   h += '<tr><td colspan="4" class="der">Subtotal</td><td class="der">' + money(d.subtotal) + '</td><td></td></tr>' +
        '<tr><td colspan="4" class="der">IVA</td><td class="der">' + money(d.iva) + '</td><td></td></tr>' +
-       '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th><th></th></tr></table>' +
-    '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
+       '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th><th></th></tr></table>';
+  }
+  h += '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
     '<button class="btn" onclick="imprimirOC(' + id + ')">🖨 Imprimir / PDF</button>';
   const CORREO_PROVEEDOR = false; // 5-sep: por ahora Pablo reenvía la OC; activar cuando los proveedores tengan correo en Catálogo
   const puedeMandar = vista() === 'admin' || vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length);
@@ -684,10 +691,59 @@ async function guardarProveedor(pid) {
 async function correoProveedor(id, btn) {
   btn.disabled = true; btn.textContent = '📧 Enviando…';
   try {
-    const r = await api('correo_oc', { oc_id: Number(id), destino: 'proveedor' });
+    const det = await api('detalle', { tipo: 'oc', id: Number(id) }); const html = (det.formato && det.formato.tipo === 'gepp') ? htmlOCGepp(det) : null;
+    const r = await api('correo_oc', { oc_id: Number(id), destino: 'proveedor', html });
     if (r.ok) { alert('Orden enviada a ' + r.enviado_a + (r.cc ? ' con copia a ' + r.cc : '') + ' desde facturas@grupolem.com.'); vOC(id); }
     else { alert('No se envió: ' + (r.detalle || r.error)); btn.disabled = false; btn.textContent = '📧 Enviar al proveedor por correo'; }
   } catch (e) { alert('No se pudo enviar el correo. Revisa que el proveedor tenga correo de pedidos en 📦 Catálogo.'); btn.disabled = false; btn.textContent = '📧 Enviar al proveedor por correo'; }
+}
+
+/* ── Formato de OC de GEPP (Pepsi) ─────────────────────── */
+function htmlOCGepp(d) {
+  const f = d.formato || {}, sd = f.sucursal || {};
+  const fechaOC = new Date(d.creada_el).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const m2 = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const B = 'border:1px solid #222;padding:4px 6px;font-size:12px;';
+  const box = (t, extra) => '<div style="border:1px solid #222;padding:5px 8px;font-size:12.5px;text-align:center;margin-bottom:5px;' + (extra || '') + '">' + t + '</div>';
+  const lineas = (d.lineas || []).filter(l => Number(l.cantidad) > 0);
+  let cajas = 0, total = 0, filas = '';
+  lineas.forEach(l => {
+    const lf = l.formato || {};
+    const compra = Number(l.cantidad), piezas = compra * Number(l.fraccion || 1);
+    const precio = lf.precio_pactado != null ? Number(lf.precio_pactado) : Number(l.precio || 0) * Number(l.fraccion || 1);
+    const monto = precio * compra; cajas += compra; total += monto;
+    filas += '<tr><td style="' + B + 'text-align:center;background:#dce6f1">' + esc(lf.sku || l.codigo || '') + '</td><td style="' + B + 'text-align:center;background:#dce6f1">' + esc(lf.sku || l.codigo || '') + '</td>' +
+      '<td style="' + B + '">' + esc(lf.nombre || l.insumo) + (lf.sku ? '' : ' <span style="color:#c00;font-size:10px">(fuera del formato)</span>') + '</td>' +
+      '<td style="' + B + 'text-align:center;font-weight:700">' + piezas + '</td><td style="' + B + '">' + esc(lf.presentacion || l.presentacion || '') + '</td>' +
+      '<td style="' + B + 'text-align:center;font-weight:700;font-size:14px">' + compra + '</td><td style="' + B + 'text-align:center">' + esc(lf.unidad || 'CAJA') + '</td>' +
+      '<td style="' + B + 'text-align:right">' + m2(precio) + '</td><td style="' + B + '"></td><td style="' + B + 'text-align:center">' + esc(lf.iva || (Number(l.tasa_iva) > 0 ? 'SI' : 'NO')) + '</td><td style="' + B + '"></td>' +
+      '<td style="' + B + 'text-align:right">' + m2(monto) + '</td></tr>';
+  });
+  const th = (t) => '<th style="' + B + 'background:#8a8a8a;color:#fff;text-align:center;font-size:11px">' + t + '</th>';
+  return '<div style="font-family:Arial,Helvetica,sans-serif;color:#111;max-width:980px;border:1px solid #222;padding:8px">' +
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:8px"><tr>' +
+    '<td style="width:90px;padding:4px"><div style="display:inline-block;background:#c0262d;color:#fff;font-weight:900;font-size:11px;line-height:1;padding:6px 6px;border-radius:3px">DOÑA<br>TOTA</div></td>' +
+    '<td style="background:#bdd7ee;text-align:center;font-weight:800;font-size:20px;padding:8px">' + esc(f.titulo || 'ORDEN DE COMPRA DOÑA TOTA FRANQUICIAS') + '</td>' +
+    '<td style="width:170px;background:#e6e6e6;text-align:center;font-weight:800;font-size:14px;padding:8px">FOLIO ' + esc(d.folio) + '</td></tr></table>' +
+    '<table style="width:100%;border-collapse:collapse"><tr><td style="width:50%;vertical-align:top;padding:0 14px 0 4px">' +
+      '<div style="text-align:center;font-weight:700;font-size:11px">DIAS DE PEDIDO</div>' +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:5px"><tr><td style="' + B + 'text-align:center;width:50%">' + fechaOC + '</td><td style="' + B + 'text-align:center">' + esc(sd.dias_pedido || 'no especificado') + '</td></tr></table>' +
+      box('<b style="font-size:19px">' + esc(sd.nombre_formato || d.sucursal) + '</b>') + box(esc(sd.linea_sucursal || 'SUCURSAL DOÑA TOTA ' + d.sucursal.toUpperCase())) +
+      box(esc(sd.ciudad || 'CHIHUAHUA, CHIH')) + box(esc(sd.direccion || 'dirección no especificada')) + box('<b>' + esc(sd.contacto || 'GERENTE EN TURNO') + '</b>', 'background:#e6e6e6') +
+    '</td><td style="width:50%;vertical-align:top;padding:0 4px">' +
+      '<table style="width:100%;border-collapse:separate;border-spacing:0 5px;font-size:12.5px">' +
+      '<tr><td style="text-align:right;padding-right:6px;white-space:nowrap"><b>NUD</b></td><td style="' + B + 'text-align:center;width:110px;font-weight:700">' + esc(sd.codigo_cliente || '—') + '</td><td style="font-size:11px;padding-left:6px">' + esc(f.nota_codigo || '') + '</td></tr>' +
+      '<tr><td style="text-align:right;padding-right:6px">Nombre Comercial:</td><td colspan="2" style="' + B + 'text-align:center;font-weight:800;font-size:15px">' + esc(f.nombre_comercial || d.proveedor) + '</td></tr>' +
+      '<tr><td style="text-align:right;padding-right:6px">Razón Social:</td><td colspan="2" style="' + B + 'text-align:center">' + esc(f.razon_social || d.proveedor) + '</td></tr>' +
+      '<tr><td style="text-align:right;padding-right:6px">Correo:</td><td colspan="2" style="' + B + 'text-align:center">' + esc(f.correo || '') + '</td></tr>' +
+      '<tr><td style="text-align:right;padding-right:6px">Dirección:</td><td colspan="2" style="' + B + 'text-align:center">' + esc(f.direccion || '') + '</td></tr>' +
+      '<tr><td style="text-align:right;padding-right:6px">Dirigido a:</td><td colspan="2" style="' + B + 'text-align:center">' + esc(f.dirigido_a || '') + '</td></tr></table>' +
+    '</td></tr></table>' +
+    '<table style="width:100%;border-collapse:collapse;margin-top:10px"><tr>' + th('SKU<br>PROVEEDOR') + th('SKU') + th('NOMBRE DEL PRODUCTO') + th('Piezas') + th('Presentacion') + th('COMPRA') + th('UNIDAD DE<br>COMPRA') + th('PRECIO<br>PACTADO') + th('ÚLTIMO<br>PRECIO<br>FACTURA') + th('IVA') + th('VIGENCIA DEL<br>PRECIO') + th('MONTO TOTAL') + '</tr>' + filas +
+    '<tr><td colspan="4" style="border:none"></td><td style="' + B + 'background:#bdd7ee;font-weight:700">Total de cajas</td><td style="' + B + 'background:#bdd7ee;text-align:center;font-weight:800">' + cajas + '</td><td colspan="4" style="border:none"></td>' +
+    '<td style="border:none;text-align:right;font-size:11px;padding-right:6px">TOTAL DE COMPRA</td><td style="' + B + 'text-align:right;font-weight:800">' + m2(total) + '</td></tr></table>' +
+    (lineas.length ? '' : '<div style="color:#c00;font-size:12px;margin-top:6px">Sin renglones con cantidad.</div>') +
+    '</div>';
 }
 
 /* ── Recepción del gerente ─────────────────────────────── */
