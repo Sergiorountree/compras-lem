@@ -23,6 +23,10 @@
   .chip.autorizada,.chip.aprobada,.chip.modificada { background:#dcfce7; color:var(--verde); }
   .chip.rechazada,.chip.cancelada { background:#fee2e2; color:var(--rojo); }
   .chip.enviada_proveedor,.chip.cerrada { background:#dbeafe; color:#1d4ed8; }
+  .chip.recibida_parcial,.chip.pendiente { background:#fef3c7; color:var(--ambar); }
+  .chip.recibida,.chip.conciliada { background:#dcfce7; color:var(--verde); }
+  .rec input[type=number] { width:70px; height:42px; text-align:center; border:2px solid var(--borde); border-radius:10px; font-size:18px; font-weight:700; }
+  .rec .falta { color:var(--rojo); font-weight:700; }
   .cat-h { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:16px 4px 6px; }
   .item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--gris); }
   .item:last-child { border-bottom:none; }
@@ -127,6 +131,8 @@ function chipUnidad(i) { const u = presInfo(i); return '<span class="uchip">' + 
 const conIva = (p, t) => Number(p || 0) * (1 + Number(t || 0) / 100);
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+const ETQ = { generada: 'Generada', autorizada: 'Autorizada', enviada_proveedor: 'En tránsito', recibida_parcial: 'Recibida parcial', recibida: 'Recibida', cerrada: 'Cerrada', cancelada: 'Cancelada', pendiente: 'Pendiente', conciliada: 'Conciliada' };
+const etq = (e) => ETQ[e] || e;
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 async function api(accion, datos) {
@@ -195,8 +201,9 @@ function nav() {
   const esA = (vw === 'propia') ? (p.aprueba_proveedores.length > 0) : (vw !== 'gerente');
   let h = '<div class="nav no-print">';
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
-                                        '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>';
-  if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button>';
+                                        '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>' +
+                                        '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>';
+  if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button><button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button>';
   if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button>';
   if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
   return h + '</div>';
@@ -209,6 +216,9 @@ function router() {
   else if (h === 'catalogo') vCatalogoAdmin();
   else if (h === 'historial') vHistorialAsesor();
   else if (h === 'presupuestos') vPresupuestosAdmin();
+  else if (h === 'recibir') vRecibir();
+  else if (h === 'porpagar') vPorPagar();
+  else if (h.startsWith('recibir-')) vRecibirOC(h.slice(8));
   else if (h.startsWith('req-')) vDetalle('requisicion', h.slice(4));
   else if (h.startsWith('oc-')) vOC(h.slice(3));
   else vCaptura();
@@ -389,7 +399,7 @@ async function vPedidos() {
   if (!r.requisiciones.length) h += '<div class="msg">Sin pedidos en los últimos 90 días.</div>';
   r.requisiciones.forEach(q => {
     h += '<div class="card" onclick="location.hash=\'req-' + q.req_id + '\'" style="cursor:pointer">' +
-      '<b>' + esc(q.folio) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' +
+      '<b>' + esc(q.folio) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(etq(q.estado)) + '</span>' +
       '<div class="d" style="font-size:13px;color:var(--txt2)">' + fecha(q.creada_el) + ' · ' + q.lineas + ' líneas' +
       (q.ocs.length ? ' · OCs: ' + q.ocs.map(o => esc(o.folio)).join(', ') : '') + '</div></div>';
   });
@@ -421,7 +431,7 @@ function vBandejaDetalle(reqId) {
   const q = (S.bandeja || []).find(x => x.req_id === reqId);
   if (!q) { vBandeja(); return; }
   let h = nav() + '<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px"><button class="btn mini sec" onclick="vBandeja()">← Bandeja</button><b style="font-size:17px">' + esc(q.folio) + '</b></div>' +
-    '<div class="card"><b>' + esc(q.sucursal) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' + (q.extraordinaria ? ' <span class="chip rechazada">fuera de horario</span>' : '') +
+    '<div class="card"><b>' + esc(q.sucursal) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(etq(q.estado)) + '</span>' + (q.extraordinaria ? ' <span class="chip rechazada">fuera de horario</span>' : '') +
     '<div style="font-size:13px;color:var(--txt2)">Pedido por ' + esc(q.creada_por) + ' · ' + fecha(q.creada_el) + '</div></div>';
   const porProv = {};
   (q.lineas || []).forEach(l => { (porProv[l.proveedor] = porProv[l.proveedor] || []).push(l); });
@@ -484,7 +494,12 @@ async function autorizar(reqId, btn) {
   let h = '<div class="card ok-big">✅<p>Requisición resuelta.</p>';
   if (r.ocs.length) {
     h += '<p style="margin-top:8px">Órdenes de compra generadas:</p>';
-    r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a></p>'; });
+    r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a> <span id="mail-' + o.oc_id + '" class="chip">📧 avisando a Pablo…</span></p>'; });
+    setTimeout(() => r.ocs.forEach(async o => {
+      const el = document.getElementById('mail-' + o.oc_id); if (!el) return;
+      try { const m = await api('correo_oc', { oc_id: o.oc_id, destino: 'pablo' }); el.textContent = m.ok ? '📧 aviso enviado a Pablo' : '⚠️ ' + (m.detalle || m.error); el.className = 'chip ' + (m.ok ? 'recibida' : 'rechazada'); }
+      catch (e) { el.textContent = '⚠️ no se pudo avisar a Pablo'; el.className = 'chip rechazada'; }
+    }), 50);
   } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro asesor).</p>';
   h += '<p style="margin-top:14px"><button class="btn sec" onclick="vBandeja()">Volver a la bandeja</button></p></div>';
   app().innerHTML = nav() + h;
@@ -507,6 +522,10 @@ function pintarCatalogoAdmin() {
     h += '<button class="btn mini ' + (CA.prov === p.proveedor_id ? '' : 'sec') + '" onclick="CA.prov=' + p.proveedor_id + ';CA.edit=null;pintarCatalogoAdmin()">' + esc(p.nombre_corto) + ' <span style="opacity:.7">(' + cnt + ')</span></button>';
   });
   h += '<span style="flex:1"></span><button class="btn mini" onclick="CA.edit={proveedor_id:CA.prov,fraccion:1,activo:true};pintarCatalogoAdmin();window.scrollTo(0,0)">＋ Nuevo insumo</button></div></div>';
+  const pv = d.proveedores.find(p => p.proveedor_id === CA.prov) || {};
+  h += '<div class="card"><b>Correo de pedidos de ' + esc(pv.nombre_corto || '') + '</b><div class="presu">A este correo se manda la OC (con copia a pfranco@grupolem.com). Varios correos separados por coma. Se guarda al salir del campo.</div>' +
+    '<div class="form"><label>Correo(s) del proveedor<input id="pv_mail" value="' + esc(pv.email_pedidos || '') + '" placeholder="pedidos@proveedor.com" onchange="guardarProveedor(' + CA.prov + ')"></label>' +
+    '<label>Copia adicional (opcional)<input id="pv_cc" value="' + esc(pv.email_cc || '') + '" placeholder="vendedor@proveedor.com" onchange="guardarProveedor(' + CA.prov + ')"></label></div></div>';
   if (CA.edit) h += formInsumo(CA.edit);
   const items = d.insumos.filter(i => i.proveedor_id === CA.prov);
   if (!items.length && !CA.edit) h += '<div class="msg">Este proveedor no tiene insumos todavía. Usa "＋ Nuevo insumo".</div>';
@@ -588,7 +607,7 @@ async function vHistorialAsesor() {
   if (!r.historial.length) h += '<div class="msg">Todavía no hay pedidos resueltos.</div>';
   r.historial.forEach(q => {
     h += '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
-      '<div><b style="font-size:16px">' + esc(q.sucursal.replace(' Chihuahua', '')) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(q.estado) + '</span>' +
+      '<div><b style="font-size:16px">' + esc(q.sucursal.replace(' Chihuahua', '')) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(etq(q.estado)) + '</span>' +
       '<div style="font-size:12.5px;color:var(--txt2)">' + esc(q.folio) + ' · pedido ' + fecha(q.creada_el) + (q.resuelta_el ? ' · resuelto ' + fecha(q.resuelta_el) : '') + ' · ' + esc(q.creada_por.split('@')[0]) + '</div></div>' +
       '<a href="#req-' + q.req_id + '" class="btn mini sec">Ver detalle</a></div>' +
       '<div style="font-size:13px;color:var(--txt2);margin-top:6px">' + q.lineas + ' líneas · ' + q.aprobadas + ' aprobadas · ' + q.rechazadas + ' rechazadas</div>' +
@@ -601,7 +620,7 @@ async function vHistorialAsesor() {
 async function vDetalle(tipo, id) {
   app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
   const d = await api('detalle', { tipo, id: Number(id) });
-  let h = nav() + '<div class="card"><b style="font-size:18px">' + esc(d.folio) + '</b> <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span>' +
+  let h = nav() + '<div class="card"><b style="font-size:18px">' + esc(d.folio) + '</b> <span class="chip ' + esc(d.estado) + '">' + esc(etq(d.estado)) + '</span>' +
     '<div style="font-size:13px;color:var(--txt2)">' + esc(d.sucursal) + ' · ' + esc(d.creada_por || '') + '</div></div><div class="card">';
   (d.lineas || []).forEach(l => {
     h += '<div class="item"><div class="info"><div class="n">' + esc(l.insumo) + '</div><div class="d">' + esc(l.proveedor || '') +
@@ -630,7 +649,7 @@ async function vOC(id) {
     '<hr style="border:none;border-top:1px solid var(--borde);margin:10px 0">' +
     '<div style="font-size:14px"><b>Proveedor:</b> ' + esc(d.proveedor) + (d.proveedor_rfc ? ' (' + esc(d.proveedor_rfc) + ')' : '') +
     '<br><b>Entregar en:</b> ' + esc(d.sucursal) + '<br><b>Requisición origen:</b> ' + esc(d.req_folio) +
-    ' · <b>Autorizó:</b> ' + esc(d.autorizada_por || '') + ' <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span></div>' +
+    ' · <b>Autorizó:</b> ' + esc(d.autorizada_por || '') + ' <span class="chip ' + esc(d.estado) + '">' + esc(etq(d.estado)) + '</span></div>' +
     '<table class="oc" style="margin-top:12px"><tr><th>Código</th><th>Insumo</th><th>Presentación</th><th class="der">Cant.</th><th class="der">Importe</th><th class="der">IVA</th></tr>';
   (d.lineas || []).forEach(l => {
     h += '<tr><td>' + esc(l.codigo || '—') + '</td><td>' + esc(l.insumo) + '</td><td>' + esc(l.presentacion || '') + '</td>' +
@@ -641,13 +660,118 @@ async function vOC(id) {
        '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th><th></th></tr></table>' +
     '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
     '<button class="btn" onclick="imprimirOC(' + id + ')">🖨 Imprimir / PDF</button>';
-  if (d.estado === 'autorizada') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'enviada_proveedor\')">📤 Ya la envié al proveedor</button>';
-  if (d.estado === 'enviada_proveedor') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'cerrada\')">Cerrar OC</button>';
-  h += '</div></div>';
+  const puedeMandar = vista() === 'admin' || vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length);
+  if (puedeMandar && (d.estado === 'autorizada' || d.estado === 'enviada_proveedor')) h += '<button class="btn" id="btnCorreo" onclick="correoProveedor(' + id + ', this)">📧 ' + (d.estado === 'autorizada' ? 'Enviar al proveedor por correo' : 'Reenviar al proveedor') + '</button>';
+  if (puedeMandar && d.estado === 'autorizada') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'enviada_proveedor\')">📤 Ya la envié por otro medio</button>';
+  if (puedeMandar && ['enviada_proveedor', 'recibida_parcial', 'recibida'].includes(d.estado)) h += '<button class="btn sec" onclick="if(confirm(\'¿Cerrar la OC? Ya no se podrá recibir nada más.\'))marcarOC(' + id + ',\'cerrada\')">Cerrar OC</button>';
+  h += '</div>';
+  if ((d.eventos || []).length) {
+    h += '<div class="no-print" style="margin-top:14px"><div class="cat-h" style="margin-top:0">Historial</div>';
+    d.eventos.forEach(e => { h += '<div class="evento"><span class="ts">' + fecha(e.ts) + '</span><div><b>' + esc(etq(e.evento)) + '</b> — ' + esc(e.usuario) + (e.despues && e.despues.nota ? '<div style="color:var(--txt2)">' + esc(e.despues.nota) + '</div>' : '') + '</div></div>'; });
+    h += '</div>';
+  }
+  h += '</div>';
   app().innerHTML = h;
 }
 async function imprimirOC(id) { try { await api('marcar_oc', { oc_id: Number(id), accion_oc: 'pdf_descargado' }); } catch (e) {} window.print(); }
 async function marcarOC(id, acc) { await api('marcar_oc', { oc_id: Number(id), accion_oc: acc }); vOC(id); }
+
+async function guardarProveedor(pid) {
+  const r = await api('admin_guardar_proveedor', { proveedor_id: pid, email_pedidos: $('pv_mail').value, email_cc: $('pv_cc').value });
+  if (r.ok) { const p = CA.data.proveedores.find(x => x.proveedor_id === pid); p.email_pedidos = $('pv_mail').value; p.email_cc = $('pv_cc').value; $('pv_mail').style.borderColor = 'var(--verde)'; }
+}
+async function correoProveedor(id, btn) {
+  btn.disabled = true; btn.textContent = '📧 Enviando…';
+  try {
+    const r = await api('correo_oc', { oc_id: Number(id), destino: 'proveedor' });
+    if (r.ok) { alert('Orden enviada a ' + r.enviado_a + (r.cc ? ' con copia a ' + r.cc : '') + ' desde facturas@grupolem.com.'); vOC(id); }
+    else { alert('No se envió: ' + (r.detalle || r.error)); btn.disabled = false; btn.textContent = '📧 Enviar al proveedor por correo'; }
+  } catch (e) { alert('No se pudo enviar el correo. Revisa que el proveedor tenga correo de pedidos en 📦 Catálogo.'); btn.disabled = false; btn.textContent = '📧 Enviar al proveedor por correo'; }
+}
+
+/* ── Recepción del gerente ─────────────────────────────── */
+async function vRecibir() {
+  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
+  app().innerHTML = nav() + '<div class="msg">Buscando pedidos en camino…</div>';
+  const r = await api('ocs_por_recibir', { branch_id: S.branch });
+  S.porRecibir = r.ocs || [];
+  let h = nav() + '<div class="cat-h">Pedidos en camino (' + S.porRecibir.length + ')</div>';
+  if (!S.porRecibir.length) h += '<div class="msg">No hay pedidos en camino. Cuando el asesor autorice y se mande al proveedor, aparecerán aquí.</div>';
+  S.porRecibir.forEach(o => {
+    const tot = o.lineas.length, comp = o.lineas.filter(l => Number(l.recibida) >= Number(l.cantidad)).length;
+    h += '<div class="card" style="cursor:pointer" onclick="location.hash=\'recibir-' + o.oc_id + '\'"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+      '<div><b style="font-size:17px">' + esc(o.proveedor) + '</b> <span class="chip ' + esc(o.estado) + '">' + esc(etq(o.estado)) + '</span><div style="font-size:12.5px;color:var(--txt2)">' + esc(o.folio) + ' · enviada ' + fecha(o.enviada_el) + '</div></div>' +
+      '<div style="text-align:right"><b style="font-size:16px">' + tot + ' producto' + (tot === 1 ? '' : 's') + '</b>' + (comp ? '<div style="font-size:12px;color:var(--txt2)">' + comp + ' ya completos</div>' : '') + '</div></div>' +
+      '<div style="margin-top:8px"><span class="btn mini">📥 Recibir</span></div></div>';
+  });
+  app().innerHTML = h;
+}
+async function vRecibirOC(id) {
+  if (!S.porRecibir) { const r = await api('ocs_por_recibir', { branch_id: S.branch }); S.porRecibir = r.ocs || []; }
+  const o = S.porRecibir.find(x => String(x.oc_id) === String(id));
+  if (!o) { location.hash = 'recibir'; return; }
+  let h = nav() + '<div class="card"><b style="font-size:18px">' + esc(o.proveedor) + '</b> <span class="chip ' + esc(o.estado) + '">' + esc(etq(o.estado)) + '</span><div style="font-size:13px;color:var(--txt2)">' + esc(o.folio) + '</div>' +
+    '<div class="presu" style="margin-top:6px">Escribe cuánto <b>llegó hoy</b> de cada producto. Si llegó todo, usa el botón verde.</div></div><div class="card rec">';
+  o.lineas.forEach(l => {
+    const pend = Number(l.cantidad) - Number(l.recibida);
+    const u = presInfo(l);
+    h += '<div class="item"><div class="info"><div class="n">' + esc(l.insumo) + '</div><div class="d">Pediste <b>' + l.cantidad + ' ' + plural(u.tipo, l.cantidad) + '</b>' + (u.n > 1 ? ' (' + u.n + ' ' + u.det + ' c/u)' : '') + (Number(l.recibida) > 0 ? ' · ya recibiste ' + l.recibida : '') + '</div></div>' +
+      (pend <= 0 ? '<span class="chip recibida">✔ completo</span>' :
+        '<div style="text-align:right"><div class="d">llegaron</div><input type="number" min="0" max="' + pend + '" step="1" inputmode="numeric" value="' + pend + '" data-l="' + l.oc_linea_id + '" data-p="' + pend + '" oninput="pintarFalta(this)"><div class="d falta" id="f-' + l.oc_linea_id + '"></div></div>') + '</div>';
+  });
+  h += '</div><div class="card"><label style="font-size:13px;color:var(--txt2)">Nota (opcional: qué faltó, qué llegó mal)<input id="rec_nota" style="width:100%;padding:10px;border:1px solid var(--borde);border-radius:8px;font-size:15px;margin-top:4px" placeholder="Ej. faltaron 2 cajas de Pepsi 400"></label>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn" style="background:var(--verde)" onclick="recibirTodo(' + o.oc_id + ', this)">✅ Llegó todo</button>' +
+    '<button class="btn sec" onclick="guardarRecepcion(' + o.oc_id + ', this)">💾 Guardar lo que llegó</button><a class="btn sec" href="#recibir">Cancelar</a></div></div>';
+  app().innerHTML = h;
+}
+function pintarFalta(inp) { const p = Number(inp.dataset.p), v = Number(inp.value || 0); const f = $('f-' + inp.dataset.l); if (v > p) { inp.value = p; f.textContent = ''; return; } f.textContent = v < p ? 'faltan ' + (p - v) : ''; }
+function lineasRecepcion() { return Array.from(document.querySelectorAll('.rec input[type=number]')).map(i => ({ oc_linea_id: Number(i.dataset.l), recibida: Number(i.value || 0) })); }
+async function recibirTodo(id, btn) { document.querySelectorAll('.rec input[type=number]').forEach(i => { i.value = i.dataset.p; }); await guardarRecepcion(id, btn); }
+async function guardarRecepcion(id, btn) {
+  const lineas = lineasRecepcion();
+  if (!lineas.some(l => l.recibida > 0)) { alert('No has marcado nada como recibido.'); return; }
+  const faltan = lineas.filter(l => { const i = document.querySelector('.rec input[data-l="' + l.oc_linea_id + '"]'); return Number(i.dataset.p) > l.recibida; }).length;
+  if (faltan && !confirm('Quedan ' + faltan + ' producto' + (faltan === 1 ? '' : 's') + ' con faltante. ¿Guardar así? (podrás recibir el resto después)')) return;
+  btn.disabled = true;
+  const r = await api('recibir_oc', { oc_id: id, lineas, nota: $('rec_nota').value });
+  if (r.error) { alert('No se pudo guardar: ' + (r.detalle || r.error)); btn.disabled = false; return; }
+  S.porRecibir = null;
+  app().innerHTML = nav() + '<div class="card ok-big">' + (r.completa ? '✅<p><b>Pedido recibido completo.</b></p>' : '📦<p><b>Recepción parcial guardada.</b></p><p>Lo que falte lo recibes después desde 📥 Recibir.</p>') +
+    '<p style="margin-top:8px;color:var(--txt2)">Se generó la cuenta por pagar <b>' + esc(r.cxp.folio) + '</b> por ' + money(r.cxp.total) + ' (con IVA) para contabilidad.</p>' +
+    '<p style="margin-top:14px"><a class="btn sec" href="#recibir">Volver a pedidos en camino</a></p></div>';
+}
+
+/* ── Por pagar (asesor / contabilidad) ─────────────────── */
+async function vPorPagar() {
+  app().innerHTML = nav() + '<div class="msg">Cargando cuentas por pagar…</div>';
+  const r = await api('por_pagar');
+  const lst = r.por_pagar || [];
+  const pend = lst.filter(c => c.estado === 'pendiente'), conc = lst.filter(c => c.estado !== 'pendiente');
+  const tot = (a) => a.reduce((x, c) => x + Number(c.total), 0);
+  let h = nav() + '<div class="card"><b>Lo que debemos por lo recibido</b><div class="presu">Cada recepción de sucursal genera una cuenta por pagar. Amárrala a la factura (CFDI) del proveedor: el gasto real es el CFDI.</div>' +
+    '<div style="display:flex;gap:16px;margin-top:8px"><div><div class="d" style="font-size:12px;color:var(--txt2)">Pendientes</div><b style="font-size:18px">' + money(tot(pend)) + '</b> <span style="color:var(--txt2)">(' + pend.length + ')</span></div>' +
+    '<div><div class="d" style="font-size:12px;color:var(--txt2)">Conciliadas</div><b style="font-size:18px">' + money(tot(conc)) + '</b> <span style="color:var(--txt2)">(' + conc.length + ')</span></div></div></div>';
+  if (!lst.length) h += '<div class="msg">Todavía no hay recepciones.</div>';
+  const card = (c) => {
+    let x = '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div><b style="font-size:16px">' + esc(c.proveedor) + '</b> · ' + esc(c.sucursal.replace(' Chihuahua', '')) + ' <span class="chip ' + esc(c.estado) + '">' + esc(etq(c.estado)) + '</span>' +
+      '<div style="font-size:12.5px;color:var(--txt2)">' + esc(c.folio) + ' · de <a href="#oc-' + esc(String(c.oc_folio)).replace(/.*/, '') + '">' + esc(c.oc_folio) + '</a> · recibido ' + fecha(c.recibido_el) + ' por ' + esc(String(c.recibido_por).split('@')[0]) + (c.completa ? '' : ' · <span class="chip recibida_parcial">parcial</span>') + '</div></div>' +
+      '<div style="text-align:right"><b style="font-size:17px">' + money(c.total) + '</b><div style="font-size:12px;color:var(--txt2)">' + money(c.subtotal) + ' + IVA ' + money(c.iva) + '</div></div></div>';
+    if (c.estado === 'pendiente') {
+      x += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="cf-' + c.cxp_id + '" style="padding:8px;border:1px solid var(--borde);border-radius:8px;font-size:14px;max-width:100%">' +
+        '<option value="">— Elegir factura (CFDI) —</option>' + (c.candidatos || []).map(k => '<option value="' + k.uuid + '">' + esc((k.serie || '') + (k.folio || '')) + ' · ' + String(k.fecha).slice(0, 10) + ' · ' + money(k.total) + (Math.abs(Number(k.dif)) < 1 ? ' ✔ cuadra' : ' (dif ' + money(k.dif) + ')') + '</option>').join('') + '</select>' +
+        '<button class="btn mini" onclick="conciliar(' + c.cxp_id + ')">Amarrar</button>' + (!(c.candidatos || []).length ? '<span class="d" style="font-size:12px;color:var(--txt2)">sin facturas de este proveedor en la base todavía</span>' : '') + '</div>';
+    } else if (c.cfdi) {
+      x += '<div style="margin-top:8px;font-size:13px">Factura <b>' + esc((c.cfdi.serie || '') + (c.cfdi.folio || '')) + '</b> · ' + String(c.cfdi.fecha).slice(0, 10) + ' · ' + money(c.cfdi.total) + (Math.abs(Number(c.cfdi.total) - Number(c.total)) >= 1 ? ' <span class="chip rechazada">dif ' + money(Number(c.cfdi.total) - Number(c.total)) + '</span>' : ' <span class="chip recibida">cuadra</span>') +
+        ' <button class="btn mini sec" onclick="desconciliar(' + c.cxp_id + ')">Desamarrar</button></div>';
+    }
+    return x + '</div>';
+  };
+  if (pend.length) { h += '<div class="cat-h">Pendientes de amarrar</div>'; pend.forEach(c => { h += card(c); }); }
+  if (conc.length) { h += '<div class="cat-h">Conciliadas</div>'; conc.forEach(c => { h += card(c); }); }
+  app().innerHTML = h;
+}
+async function conciliar(id) { const u = $('cf-' + id).value; if (!u) { alert('Elige la factura.'); return; } const r = await api('conciliar_cxp', { cxp_id: id, uuid: u }); if (r.error) alert(r.detalle || r.error); vPorPagar(); }
+async function desconciliar(id) { if (!confirm('¿Desamarrar esta cuenta de la factura?')) return; await api('conciliar_cxp', { cxp_id: id, uuid: null }); vPorPagar(); }
 
 /* ── Arranque ──────────────────────────────────────────── */
 window.addEventListener('load', () => { S.token ? arrancar() : vLogin(); });
