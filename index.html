@@ -451,10 +451,21 @@ function vBandejaDetalle(reqId) {
     h += '<div class="cat-h">' + esc(prov) + ' · ' + money(subP) + ' sin IVA' + (prP ? (subP > Number(prP) ? ' · <span style="color:var(--rojo)">rebasa el presupuesto de ' + money(prP) + '</span>' : ' · dentro del presupuesto de ' + money(prP)) : ' · sin presupuesto asignado') + '</div><div class="card">' + bloque + '</div>';
   }
   h += '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="presu">Total del pedido: <b style="font-size:16px;color:var(--txt)">' + money(total) + '</b> sin IVA</div>' +
-    '<button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sec" style="color:var(--rojo);border-color:var(--rojo)" onclick="rechazarTodo(' + q.req_id + ', this)">✗ Rechazar pedido completo</button><button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div></div>' +
     '<div class="no-print" style="margin:4px 0 20px"><a href="#req-' + q.req_id + '" style="font-size:13px">Ver historial completo →</a></div>';
   app().innerHTML = h;
   window.scrollTo(0, 0);
+}
+async function rechazarTodo(reqId, btn) {
+  const motivo = prompt('¿Por qué se rechaza el pedido completo? (obligatorio)');
+  if (motivo === null) return;
+  if (!motivo.trim()) { alert('Escribe el motivo del rechazo.'); return; }
+  const resoluciones = [];
+  document.querySelectorAll('.linea-res[data-linea]').forEach(el => { if ($('r' + el.dataset.linea + 'a')) resoluciones.push({ req_linea_id: Number(el.dataset.linea), accion: 'rechazar', motivo: motivo.trim() }); });
+  if (!resoluciones.length) { alert('No hay líneas pendientes.'); return; }
+  btn.disabled = true;
+  await api('resolver', { req_id: reqId, resoluciones });
+  app().innerHTML = nav() + '<div class="card ok-big">✗<p><b>Pedido rechazado completo.</b></p><p style="color:var(--txt2)">Motivo: ' + esc(motivo.trim()) + '</p><p style="margin-top:14px"><button class="btn sec" onclick="vBandeja()">Volver a la bandeja</button></p></div>';
 }
 async function autorizar(reqId, btn) {
   const resoluciones = [];
