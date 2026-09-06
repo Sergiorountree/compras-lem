@@ -27,9 +27,11 @@
   .chip.recibida,.chip.conciliada { background:#dcfce7; color:var(--verde); }
   .rec input[type=number] { width:70px; height:42px; text-align:center; border:2px solid var(--borde); border-radius:10px; font-size:18px; font-weight:700; }
   .rec .falta { color:var(--rojo); font-weight:700; }
-  .hoja { font-family:Arial,Helvetica,sans-serif; font-size:13px; }
+  body.ancha main { max-width:none; padding:12px 18px 90px; }
+  body.ancha .hoja table.g16 th { white-space:normal; min-width:64px; line-height:1.15; }
+  .hoja { font-family:Arial,Helvetica,sans-serif; font-size:12.5px; }
   .hoja table { border-collapse:collapse; }
-  .hoja th, .hoja td { border:1px solid #9a9a9a; padding:4px 6px; white-space:nowrap; }
+  .hoja th, .hoja td { border:1px solid #9a9a9a; padding:3px 5px; white-space:nowrap; }
   .hoja th { background:#6d6d6d; color:#fff; font-size:11.5px; font-weight:700; text-align:center; }
   .hoja th.g { background:#2f5597; }
   .hoja td.n { text-align:right; }
@@ -229,6 +231,7 @@ function nav() {
   return h + '</div>';
 }
 function router() {
+  document.body.classList.remove('ancha');
   const h = location.hash.slice(1) || ((vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length)) ? 'bandeja' : 'captura');
   if (h === 'captura') vCaptura();
   else if (h === 'pedidos') vPedidos();
@@ -256,6 +259,7 @@ function vElegirGerente() {
 }
 function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
 async function vCaptura() {
+  document.body.classList.remove('ancha');
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   const suc = S.perfil.sucursales.find(s => s.branch_id === S.branch) || S.perfil.sucursales[0];
   if (!suc) { app().innerHTML = nav() + '<div class="msg">Tu usuario no tiene sucursal asignada para pedir.</div>'; return; }
@@ -505,7 +509,7 @@ function pintarCalculadora() {
   // Bloque Guisos (con consumo)
   const guisos = d.lineas.filter(l => l.consumo != null), otros = d.lineas.filter(l => l.consumo == null);
   const conceptosOtros = [...new Set(otros.map(l => l.concepto))];
-  h += '<div class="bloque"><div class="titulo">Guisos · pedido sugerido por consumo</div><table style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Un</th><th>Consumo</th><th class="g">Inventario Final</th><th>Consumo promedio diario</th><th>Consumo días de proyección</th><th>Inventario proyectado</th><th>Consumo periodo de pedido</th><th>Invent. a final de consumo</th><th>Unidad de Medida</th><th>Fracciones a pedir</th><th>Pedido Sugerido</th><th class="g">Modificador manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
+  h += '<div class="bloque"><div class="titulo">Guisos · pedido sugerido por consumo</div><table class="g16" style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Un</th><th>Consumo</th><th class="g">Inventario Final</th><th>Consumo promedio diario</th><th>Consumo días de proyección</th><th>Inventario proyectado</th><th>Consumo periodo de pedido</th><th>Invent. a final de consumo</th><th>Unidad de Medida</th><th>Fracciones a pedir</th><th>Pedido Sugerido</th><th class="g">Modificador manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
   guisos.forEach(l => { const id = l.proveedor_insumo_id, x = v(id);
     h += '<tr><td class="n">' + (l.precio != null ? money(l.precio) : '') + '</td><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n" id="con' + id + '">' + num(l.consumo) + '</td>' +
       '<td class="in"><input type="number" inputmode="numeric" min="0" id="inv' + id + '" value="' + esc(x.inv) + '" placeholder="' + l.inventario_en + '" oninput="recalc()"></td>' +
@@ -526,6 +530,7 @@ function pintarCalculadora() {
   });
   h += '<div class="calcbar"><div><div style="font-size:12px;color:var(--txt2)">TOTAL DEL PEDIDO (sin IVA)</div><b style="font-size:20px" id="cTotal">$0</b> <span id="cCajas" style="color:var(--txt2)"></span></div>' +
     '<button class="btn" style="font-size:17px;padding:14px 22px" id="btnPasar" onclick="pasarAlPedido(this)">Pasar al pedido →</button></div></div>';
+  document.body.classList.add('ancha');
   app().innerHTML = h; recalc();
 }
 function recalc() {
