@@ -2,50 +2,94 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventarios · Grupo LEM</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root { --rojo:#B3282D; --gris:#f4f4f5; --borde:#e4e4e7; --txt:#18181b; --txt2:#71717a; --verde:#15803d; --ambar:#b45309; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--gris); color:var(--txt); font-size:16px; }
-  header { background:var(--rojo); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
-  header h1 { font-size:17px; font-weight:700; }
-  header .u { font-size:12px; opacity:.85; text-align:right; line-height:1.5; }
-  main { max-width:1040px; margin:0 auto; padding:12px; }
-  .card { background:#fff; border:1px solid var(--borde); border-radius:12px; padding:14px; margin-bottom:10px; }
-  .btn { background:var(--rojo); color:#fff; border:none; border-radius:10px; padding:12px 18px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:none; display:inline-block; }
-  .btn.sec { background:#fff; color:var(--txt); border:1px solid var(--borde); }
-  .btn.mini { padding:8px 12px; font-size:13.5px; }
-  .nav { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
-  .msg { text-align:center; padding:40px 16px; color:var(--txt2); }
-  .aviso { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:10px; padding:10px 12px; font-size:14px; }
-  .chip { display:inline-block; font-size:12px; font-weight:600; border-radius:99px; padding:2px 10px; background:var(--gris); color:var(--txt2); }
-  .chip.capturado,.chip.portal { background:#dcfce7; color:var(--verde); }
-  .chip.autogenerado,.chip.editado { background:#fef3c7; color:var(--ambar); }
-  .chip.firebase { background:#dbeafe; color:#1d4ed8; }
-  .cat-h { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:16px 4px 6px; }
-  table.t { width:100%; border-collapse:collapse; font-size:13.5px; }
-  table.t th, table.t td { border:1px solid var(--borde); padding:6px 8px; text-align:right; white-space:nowrap; }
-  table.t th { background:var(--gris); font-size:12px; text-align:center; }
-  table.t td:first-child, table.t th:first-child { text-align:left; white-space:normal; }
-  table.t tr.grp td { background:#fafafa; font-weight:700; }
-  .ef { font-weight:800; }
-  .ef.v { color:var(--verde); } .ef.a { color:#b7791f; } .ef.r { color:var(--rojo); }
-  .dia { display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; padding:10px 0; border-bottom:1px solid var(--gris); }
-  .dia:last-child { border-bottom:none; }
-  .dia .f { font-weight:700; font-size:15px; }
-  .dia .d { font-size:12.5px; color:var(--txt2); }
-  .neg { color:var(--rojo); }
-  @media (max-width:640px) { table.t { font-size:12px; } table.t th, table.t td { padding:5px 5px; } }
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--or:#e07b00;--orl:#f9a825;--bg:#fff8f0;--card:#fff;--bdr:#f0d9b5;--txt:#2d1a00;--mut:#888;--red:#c0392b;--grn:#27ae60;--adm:#4a148c}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:14px}
+nav{background:var(--or);color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px #0003;gap:8px;flex-wrap:wrap}
+nav h1{font-size:.98rem;font-weight:700}
+nav h1 a{color:#fff;text-decoration:none;margin-right:6px}
+.nav-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.role-badge{background:#fff3;border-radius:20px;padding:3px 10px;font-size:.76rem;white-space:nowrap}
+.role-badge select{border:none;border-radius:6px;padding:2px 4px;font-size:.76rem}
+.logout-btn{background:#fff2;border:1px solid #fff5;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.78rem;text-decoration:none}
+.page{padding:14px;max-width:100%;margin:0 auto}
+.login-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh}
+.login-card{background:var(--card);border-radius:16px;padding:30px 26px;box-shadow:0 4px 24px #e07b0022;width:100%;max-width:360px;text-align:center}
+.login-card .logo{font-size:2.6rem;margin-bottom:6px}
+.login-card h2{color:var(--or);font-size:1.2rem;margin-bottom:4px}
+.login-card p{color:var(--mut);font-size:.85rem;margin-bottom:14px}
+.btn{padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.88rem;font-weight:600;transition:all .2s;text-decoration:none;display:inline-block;font-family:inherit}
+.btn-or{background:var(--or);color:#fff}.btn-or:hover{background:#c96e00}
+.btn-sec{background:#eee;color:#444}.btn-sec:hover{background:#ddd}
+.btn-grn{background:var(--grn);color:#fff}.btn-grn:hover{background:#1e8449}
+.btn-adm{background:var(--adm);color:#fff}.btn-adm:hover{background:#380a68}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.tabs-bar{background:var(--bg);padding:9px 14px 0;position:sticky;top:45px;z-index:90}
+.tabs{display:flex;gap:5px;flex-wrap:wrap}
+.tab{padding:7px 13px;border-radius:8px;border:none;cursor:pointer;font-size:.84rem;background:#eee;color:#555;font-weight:600;transition:all .2s;font-family:inherit}
+.tab.active{background:var(--or);color:#fff}
+.tab.adm-tab.active{background:var(--adm)}
+.sec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:7px}
+.sec-header h2{font-size:1rem;font-weight:700}
+.badge{border-radius:8px;padding:3px 11px;font-size:.78rem;font-weight:600}
+.badge-or{background:var(--or);color:#fff}
+.badge-date{background:var(--orl);color:#5a3800}
+.badge-adm{background:var(--adm);color:#fff}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);background:var(--card);margin-bottom:13px}
+table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:700px}
+thead th{background:var(--or);color:#fff;padding:8px 6px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:5}
+thead th:first-child{text-align:left;min-width:150px}
+td{padding:6px 5px;border-bottom:1px solid var(--bdr);vertical-align:middle;text-align:center}
+td:first-child{text-align:left;font-weight:500;white-space:nowrap}
+tr:nth-child(even){background:#fff8f0}
+tr.total-row td{background:var(--orl);font-weight:700}
+.c-yellow{background:#fffde7 !important}
+.c-green{background:#f1f8e9 !important}
+.c-blue{background:#e3f2fd !important}
+.c-calc{background:#fce4ec !important;font-weight:600;color:#880e4f}
+.summary-section{margin-bottom:14px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:.78rem}
+.leg-item{display:flex;align-items:center;gap:5px}
+.leg-dot{width:14px;height:14px;border-radius:3px;border:1px solid #ccc}
+.hist-controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.hist-controls select,.hist-controls input[type=month],.hist-controls input[type=date]{padding:7px 9px;border-radius:8px;border:1px solid var(--bdr);font-size:.85rem;background:#fff;font-family:inherit}
+.hist-entry{background:var(--card);border-radius:10px;border:1px solid var(--bdr);margin-bottom:11px;overflow:hidden}
+.hist-hdr{background:var(--orl);padding:9px 13px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px;flex-wrap:wrap}
+.hist-hdr h3{font-size:.9rem;font-weight:700;color:#5a3800}
+.empty-state{text-align:center;color:var(--mut);padding:34px 20px;font-size:.9rem}
+.action-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
+.adm-header{background:linear-gradient(135deg,var(--adm),#7b1fa2);color:#fff;border-radius:12px;padding:18px;margin-bottom:14px}
+.adm-header h2{font-size:1.1rem;margin-bottom:3px}
+.adm-header p{font-size:.82rem;opacity:.85}
+.suc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:11px;margin-bottom:14px}
+.suc-card{background:var(--card);border-radius:10px;border:1px solid var(--bdr);padding:13px;cursor:pointer;transition:all .2s}
+.suc-card:hover,.suc-card.open{border-color:var(--or);box-shadow:0 2px 12px #e07b0022}
+.suc-card h4{font-size:.9rem;font-weight:700;margin-bottom:5px}
+.suc-card .sc-stat{font-size:.76rem;color:var(--mut)}
+.suc-card .sc-total{font-size:1.1rem;font-weight:700;color:var(--or);margin-top:4px}
+.cfg-box{background:var(--card);border-radius:12px;border:1px solid var(--bdr);padding:16px;margin-bottom:16px}
+.cfg-box h3{font-size:.95rem;font-weight:700;margin-bottom:12px;color:var(--adm)}
+.item-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bdr);flex-wrap:wrap;gap:6px;font-size:.85rem}
+.loading{text-align:center;padding:40px;color:var(--mut)}
+.nota{background:#fff3e0;border-left:3px solid var(--or);padding:9px 12px;border-radius:6px;margin-bottom:12px;font-size:.83rem;color:#5d4037}
+.aviso{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:10px;padding:10px 12px;font-size:14px;margin:8px 14px}
+.eff-tbl{width:100%;border-collapse:collapse;font-size:.82rem;background:var(--card);border-radius:10px;overflow:hidden;border:1px solid var(--bdr);margin-top:4px;min-width:0}
+.eff-tbl td{padding:7px 10px;border:1px solid var(--bdr)}
+@media(max-width:480px){thead th,td{padding:5px 3px;font-size:.76rem}}
 </style>
 </head>
 <body>
-<header>
-  <h1><a href="/" style="color:#fff;text-decoration:none" title="Volver a los módulos">⌂</a> 📦 Inventarios LEM</h1>
-  <div class="u" id="hUser"></div>
-</header>
-<main id="app"><div class="msg">Cargando…</div></main>
+<nav>
+  <h1><a href="/" title="Volver a los módulos">⌂</a>🫓 Inventarios — Grupo LEM</h1>
+  <div class="nav-right" id="navRight"></div>
+</nav>
+<div class="tabs-bar" id="tabsBar" style="display:none"><div class="tabs" id="tabs"></div></div>
+<div class="page" id="app"><div class="loading">Cargando…</div></div>
 
 <script>
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
@@ -53,19 +97,42 @@ const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
 const APP_CAPTURA = 'https://inventariotota.grupolem.com/';
 const $ = (id) => document.getElementById(id);
 const app = () => $('app');
-function aviso(m) { let b = $('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
+function aviso(m) { let b = $('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; document.body.insertBefore(b, $('app')); } b.textContent = '⚠️ ' + m; }
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
-const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], vista: (function(){ try { return localStorage.getItem('lem_vista_inv') || 'admin'; } catch(e){ return 'admin'; } })(), gerenteElegido: false };
+const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], tab: null,
+  vista: (function(){ try { return localStorage.getItem('lem_vista_inv') || 'admin'; } catch(e){ return 'admin'; } })(), gerenteElegido: false,
+  cache: {}, panelOpen: {}, filtroMes: '', filtroSuc: '', efMes: '', capSuc: null, capFecha: '' };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const num = (x, d) => x == null ? '—' : Number(x).toLocaleString('es-MX', { minimumFractionDigits: d == null ? 0 : d, maximumFractionDigits: d == null ? 2 : d });
-const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
-const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-function fLarga(iso) { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return DIAS[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()]; }
-const fHora = (ts) => ts ? new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 const corto = (n) => String(n || '').replace(' Chihuahua', '');
-function efClass(v) { return v == null ? '' : v >= 95 ? 'v' : v >= 90 ? 'a' : 'r'; }
-function efHtml(v) { return v == null ? '<span class="ef">—</span>' : '<span class="ef ' + efClass(v) + '">' + v + '%</span>'; }
+function fmtDate(iso) { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; }
+function fmt(n) { if (n === null || n === undefined || n === '') return ''; const v = parseFloat(n); if (isNaN(v)) return ''; return v % 1 === 0 ? v : parseFloat(v.toFixed(3)); }
+function num(v) { return parseFloat(v) || 0; }
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function effColor(v) { return v === null || v === undefined ? 'var(--mut)' : v >= 95 ? 'var(--grn)' : v >= 90 ? '#f9a825' : 'var(--red)'; }
+const CATS = ['guiso', 'postre', 'bebida'], CAT_LABEL = { guiso: 'Guisos', postre: 'Postres', bebida: 'Bebidas' }, CAT_UNIT = { guiso: 'Kg', postre: 'PZAS', bebida: 'PZAS' }, CAT_ICON = { guiso: '🥩 Guisos', postre: '🍞 Postres', bebida: '🥤 Bebidas' };
+function calcEffLines(lineas) {
+  const c = { guiso: { vend: 0, cons: 0 }, postre: { vend: 0, cons: 0 }, bebida: { vend: 0, cons: 0 } };
+  (lineas || []).forEach(l => { const k = l.categoria; if (!c[k]) return; const f = k === 'guiso' ? 1000 : 1; c[k].vend += num(l.dritzline) / f; c[k].cons += num(l.consumo_real) / f; });
+  return c;
+}
+function effFromDia(d) {
+  const c = { guiso: { vend: num(d.guisos_vend), cons: num(d.guisos_cons) }, postre: { vend: num(d.postre_vend), cons: num(d.postre_cons) }, bebida: { vend: num(d.bebida_vend), cons: num(d.bebida_cons) } };
+  const e = {}; CATS.forEach(k => { e[k] = c[k].cons > 0 ? Math.round(c[k].vend / c[k].cons * 100) : null; }); return e;
+}
+function effHTML(c) {
+  const cell = (x) => '<td>' + x + '</td>', row = (arr) => '<tr>' + arr.map(cell).join('') + '</tr>';
+  return '<table class="eff-tbl">' +
+    row(CATS.map(k => '<strong style="color:#2e7d32">Total ' + CAT_LABEL[k] + ' ' + CAT_UNIT[k] + ' vendidos</strong>')) +
+    row(CATS.map(k => '<span style="font-size:1rem;font-weight:700;color:var(--or)">' + fmt(parseFloat(c[k].vend.toFixed(3))) + '</span> <span style="font-size:.72rem;color:var(--mut)">' + CAT_UNIT[k] + '</span>')) +
+    row(CATS.map(k => '<strong style="color:#1565c0">Total ' + CAT_LABEL[k] + ' ' + CAT_UNIT[k] + ' Consumo</strong>')) +
+    row(CATS.map(k => '<span style="font-size:1rem;font-weight:700;color:#1565c0">' + fmt(parseFloat(c[k].cons.toFixed(3))) + '</span> <span style="font-size:.72rem;color:var(--mut)">' + CAT_UNIT[k] + '</span>')) +
+    row(CATS.map(k => '<strong style="color:#e65100">Diferencia ' + CAT_LABEL[k] + ' ' + CAT_UNIT[k] + '</strong>')) +
+    row(CATS.map(k => { const dif = parseFloat((c[k].vend - c[k].cons).toFixed(3)); return '<span style="font-size:1rem;font-weight:700;color:' + (dif >= 0 ? 'var(--grn)' : 'var(--red)') + '">' + dif + '</span>'; })) +
+    row(CATS.map(k => '<strong style="color:#6a1b9a">Eficiencia ' + CAT_LABEL[k] + '</strong>')) +
+    row(CATS.map(k => { const eff = c[k].cons > 0 ? Math.round(c[k].vend / c[k].cons * 100) : null; return '<span style="font-size:1.3rem;font-weight:700;color:' + effColor(eff) + '">' + (eff !== null ? eff + '%' : '—') + '</span>'; })) +
+    '</table>';
+}
 
 async function api(accion, datos) {
   let r;
@@ -79,8 +146,8 @@ async function api(accion, datos) {
 
 /* ── Login ─────────────────────────────────────────────── */
 function vLogin(msj) {
-  app().innerHTML = '<div class="msg" style="padding-top:70px"><div style="font-size:46px">📦</div><h2 style="color:var(--txt);margin:10px 0 4px">Inventarios Grupo LEM</h2>' +
-    '<p style="margin-bottom:20px">' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div>';
+  $('tabsBar').style.display = 'none'; $('navRight').innerHTML = '';
+  app().innerHTML = '<div class="login-wrap"><div class="login-card"><div class="logo">🫓</div><h2>Grupo LEM — Gorditas</h2><p>Sistema de Inventario Diario</p><p>' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div></div>';
   if (window.google) {
     google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
       error_callback: (e) => aviso('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Permite ventanas emergentes para este sitio y reintenta.'),
@@ -93,119 +160,244 @@ async function arrancar() {
     const p = await api('perfil');
     S.perfil = p;
     const roles = (p.permisos || {}).inventarios || [];
-    if (!roles.length) { app().innerHTML = '<div class="msg">Tu usuario no tiene acceso al módulo de Inventarios.<br><a href="/">Volver a los módulos</a></div>'; $('hUser').textContent = p.usuario; return; }
+    if (!roles.length) { app().innerHTML = '<div class="empty-state">Tu usuario no tiene acceso al módulo de Inventarios.<br><a href="/">Volver a los módulos</a></div>'; return; }
     S.rol = roles.includes('admin') ? 'admin' : roles.includes('aprobador') ? 'aprobador' : 'gerente';
     S.sucursales = p.sucursales || [];
     if (!S.branch && S.sucursales.length) S.branch = S.sucursales[0].branch_id;
-    $('hUser').innerHTML = esc(p.usuario) + ' · ' + (S.rol === 'gerente' ? 'gerente' : S.rol === 'admin' ? 'administrador' : 'asesor') + (S.rol === 'admin' ? '<br>' + selectorVista() : '');
-    router();
+    pintarNav(); buildTabs(); router();
   } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
 }
-/* ── Vista (solo admin): ver como gerente / asesor / admin ─ */
+
+/* ── Vista (solo admin) y navegación ───────────────────── */
 function vista() { return S.rol === 'admin' ? S.vista : 'propia'; }
 function esGerenteVista() { return vista() === 'gerente' || (vista() === 'propia' && S.rol === 'gerente'); }
+function esAdminVista() { return vista() === 'admin' || (vista() === 'propia' && S.rol === 'admin'); }
 function cambiarVista(v) {
   S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista_inv', v); } catch (e) {}
   if (v !== 'gerente' && S.sucursales.length) S.branch = S.sucursales[0].branch_id;
-  location.hash = (v === 'gerente') ? 'hist' : 'suc';
-  router();
+  S.tab = null; pintarNav(); buildTabs(); router();
 }
-function selectorVista() {
-  const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
-  return '<label style="font-size:12px;opacity:.9">Ver como <select onchange="cambiarVista(this.value)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
-    op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Asesor') + '</select></label>';
+function pintarNav() {
+  const rolTxt = esGerenteVista() ? '👤 Gerente' : esAdminVista() ? '👑 Administrador' : '👁 Asesor';
+  let h = '<span class="role-badge">' + rolTxt + (esGerenteVista() && S.branch ? ' — ' + esc(corto(sucNombre(S.branch))) : '') + '</span>';
+  if (S.rol === 'admin') {
+    const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
+    h += '<span class="role-badge">Ver como <select onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Asesor') + '</select></span>';
+  }
+  h += '<span class="role-badge" style="opacity:.8">' + esc(S.perfil.usuario) + '</span><a class="logout-btn" href="/">Portal</a>';
+  $('navRight').innerHTML = h;
 }
-function vElegirGerente() {
-  let h = nav() + '<div class="card"><b>¿Qué gerente quieres ser?</b><div style="font-size:12.5px;color:var(--txt2);margin-bottom:8px">Verás exactamente lo que ve ese gerente: solo su sucursal.</div>';
-  S.sucursales.forEach(s => { h += '<button class="btn sec" style="display:block;width:100%;text-align:left;margin:6px 0" onclick="elegirGerente(' + s.branch_id + ')">' + esc(corto(s.nombre)) + '</button>'; });
-  app().innerHTML = h + '</div>';
+function sucNombre(b) { const s = S.sucursales.find(x => x.branch_id === Number(b)); return s ? s.nombre : ''; }
+function buildTabs() {
+  const bar = $('tabsBar'); bar.style.display = '';
+  let tabs;
+  if (esGerenteVista()) tabs = [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📈 Eficiencias']];
+  else if (esAdminVista()) tabs = [['panel', '📊 Panel'], ['capturar', '✏️ Capturar'], ['efadm', '📈 Eficiencias'], ['admin', '⚙️ Administración']];
+  else tabs = [['panel', '📊 Panel'], ['efadm', '📈 Eficiencias']];
+  if (!S.tab || !tabs.some(t => t[0] === S.tab)) S.tab = tabs[0][0];
+  $('tabs').innerHTML = tabs.map(t => '<button class="tab' + (esGerenteVista() ? '' : ' adm-tab') + (S.tab === t[0] ? ' active' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') +
+    (vista() === 'gerente' && S.gerenteElegido ? '<button class="tab" onclick="S.gerenteElegido=false;S.tab=null;router()">↔ Otro gerente</button>' : '');
 }
-function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; location.hash = 'hist'; vHistorial(); }
-function nav() {
-  let h = '<div class="nav"><button class="btn mini sec" onclick="location.hash=\'hist\'">📅 Historial</button>';
-  if (!esGerenteVista()) h += '<button class="btn mini sec" onclick="location.hash=\'suc\'">📊 Sucursales</button>';
-  h += '<a class="btn mini" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✍️ Capturar inventario de hoy</a>';
-  if (vista() === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;location.hash=\'hist\';router()">↔ Otro gerente</button>';
-  return h + '</div>';
-}
+function irTab(t) { S.tab = t; buildTabs(); router(); }
 function router() {
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
-  const h = location.hash.slice(1) || (esGerenteVista() ? 'hist' : 'suc');
-  if (h.startsWith('dia-')) vDia(h.slice(4));
-  else if (h === 'suc' && !esGerenteVista()) vSucursales();
-  else vHistorial();
+  ({ registro: vRegistro, hist: vHistorial, ef: vEficiencia, panel: vPanel, capturar: vCapturar, efadm: vEfAdmin, admin: vAdministracion }[S.tab] || vHistorial)();
 }
-window.addEventListener('hashchange', () => S.perfil && router());
-function selectorSuc() {
-  if (vista() === 'gerente') { const s = S.sucursales.find(x => x.branch_id === S.branch); return '<b>' + esc(s ? corto(s.nombre) : '') + '</b>'; }
-  if (S.sucursales.length <= 1) { const s = S.sucursales[0]; return '<b>' + esc(s ? corto(s.nombre) : '') + '</b>'; }
-  return '<select onchange="S.branch=Number(this.value);router()" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
-    S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>';
+function vElegirGerente() {
+  $('tabs').innerHTML = '';
+  app().innerHTML = '<div class="cfg-box"><h3>¿Qué gerente quieres ser?</h3><p style="font-size:.83rem;color:var(--mut);margin-bottom:10px">Verás exactamente lo que ve ese gerente: solo su sucursal.</p>' +
+    S.sucursales.map(s => '<button class="btn btn-sec" style="display:block;width:100%;text-align:left;margin:6px 0" onclick="elegirGerente(' + s.branch_id + ')">🏪 ' + esc(corto(s.nombre)) + '</button>').join('') + '</div>';
 }
-
-/* ── Historial de conteos ──────────────────────────────── */
-async function vHistorial() {
-  app().innerHTML = nav() + '<div class="msg">Cargando conteos…</div>';
-  const r = await api('inv_dias', { branch_id: S.branch, dias: 60 });
-  let h = nav() + '<div class="card">' + selectorSuc() + '<div style="font-size:12.5px;color:var(--txt2);margin-top:6px">Conteos diarios de los últimos 60 días. Los que vienen de la app se sincronizan cada madrugada.</div></div>';
-  if (!r.dias.length) h += '<div class="msg">Esta sucursal no tiene conteos en los últimos 60 días.</div>';
-  else {
-    h += '<div class="card">';
-    r.dias.forEach(d => {
-      h += '<div class="dia" onclick="location.hash=\'dia-' + d.fecha + '\'"><div><div class="f">' + fLarga(d.fecha) + ' <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span>' + (d.tipo === 'general' ? ' <span class="chip">general</span>' : '') + '</div>' +
-        '<div class="d">Guisos: consumió <b>' + num(d.guisos_cons, 1) + ' kg</b>' + (d.guisos_vend != null ? ' · vendió ' + num(d.guisos_vend, 1) + ' kg' : ' · sin venta del POS') + ' · ' + d.productos + ' productos</div></div>' +
-        '<div style="text-align:right"><div style="font-size:11px;color:var(--txt2)">eficiencia guisos</div>' + efHtml(d.ef_guisos) + '</div></div>';
-    });
-    h += '</div>';
-  }
-  app().innerHTML = h;
+function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.tab = 'registro'; pintarNav(); buildTabs(); router(); }
+function selectorSucAdmin(id, onchange, todas) {
+  return '<select id="' + id + '" onchange="' + onchange + '">' + (todas ? '<option value="">Todas las sucursales</option>' : '<option value="">-- Selecciona sucursal --</option>') +
+    S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (String(S.filtroSuc) === String(s.branch_id) && todas ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>';
 }
 
-/* ── Detalle de un día ─────────────────────────────────── */
-async function vDia(fecha) {
-  app().innerHTML = nav() + '<div class="msg">Cargando el día…</div>';
-  const d = await api('inv_dia', { branch_id: S.branch, fecha });
-  if (d.error) { app().innerHTML = nav() + '<div class="msg">No hay conteo del ' + esc(fecha) + ' en esta sucursal.</div>'; return; }
-  const cats = { guiso: { n: 'Guisos', u: 'Kg', f: 1000 }, postre: { n: 'Postres', u: 'pzas', f: 1 }, bebida: { n: 'Bebidas', u: 'pzas', f: 1 } };
-  const tot = {}; Object.keys(cats).forEach(k => tot[k] = { vend: 0, cons: 0 });
-  let h = nav() + '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
-    '<div><b style="font-size:18px">' + fLarga(d.fecha) + '</b> · ' + esc(corto(d.sucursal)) + ' <span class="chip ' + esc(d.estado) + '">' + esc(d.estado) + '</span> <span class="chip ' + esc(d.fuente) + '">' + (d.fuente === 'firebase' ? 'app de inventarios' : esc(d.fuente)) + '</span>' +
-    '<div style="font-size:12.5px;color:var(--txt2)">capturado ' + fHora(d.capturado_el) + (d.notas ? ' · ' + esc(d.notas) : '') + '</div></div>' +
-    '<div style="display:flex;gap:6px">' + (d.anterior ? '<a class="btn mini sec" href="#dia-' + d.anterior + '">← ' + fLarga(d.anterior) + '</a>' : '') + (d.siguiente ? '<a class="btn mini sec" href="#dia-' + d.siguiente + '">' + fLarga(d.siguiente) + ' →</a>' : '') + '</div></div></div>';
-  h += '<div class="card" style="overflow-x:auto"><table class="t"><tr><th>Producto</th><th>Saldo inicial</th><th>Entradas</th><th>Baño María</th><th>Refri</th><th>Congelador</th><th>Saldo final</th><th>Consumo real</th><th>Venta POS</th><th>Dif.</th><th>Dif. gorditas</th></tr>';
-  Object.keys(cats).forEach(k => {
+/* ── Datos con caché ───────────────────────────────────── */
+async function diasDe(branch, mes, dias) {
+  const k = branch + '|' + (mes || ('d' + (dias || 60)));
+  if (!S.cache[k]) S.cache[k] = (await api('inv_dias', { branch_id: branch, mes: mes || null, dias: dias || 60 })).dias;
+  return S.cache[k];
+}
+async function diaDe(branch, fecha) {
+  const k = 'dia|' + branch + '|' + fecha;
+  if (!S.cache[k]) S.cache[k] = await api('inv_dia', { branch_id: branch, fecha });
+  return S.cache[k];
+}
+
+/* ── Entrada de historial (colapsable, como la app) ────── */
+function histEntry(d, branch) {
+  const id = 'he_' + branch + '_' + d.fecha.replace(/-/g, '');
+  const auto = d.estado === 'autogenerado' ? '<span style="background:#ffebee;color:#c62828;border:1px solid #ef9a9a;font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px">⚠️ Generado sin captura del gerente</span>' : '';
+  const ed = esAdminVista() ? '<a class="btn btn-adm" style="font-size:.72rem;padding:4px 9px" href="' + APP_CAPTURA + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">✏️ Editar (app)</a>' : '';
+  return '<div class="hist-entry"><div class="hist-hdr" onclick="toggleEntry(\'' + id + '\',' + branch + ',\'' + d.fecha + '\')"><h3>📅 ' + fmtDate(d.fecha) + '</h3>' +
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + auto + ed + '<span style="font-size:.78rem;color:#5a3800;font-weight:700">SF: ' + fmt(d.total_sf) + '</span></div></div>' +
+    '<div id="' + id + '" style="display:none"><div class="loading">Cargando…</div></div></div>';
+}
+async function toggleEntry(id, branch, fecha) {
+  const el = $(id); if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  el.style.display = '';
+  if (el.dataset.ok) return;
+  const d = await diaDe(branch, fecha);
+  if (d.error) { el.innerHTML = '<div class="empty-state">Sin datos</div>'; return; }
+  el.innerHTML = '<div class="tbl-wrap" style="border-radius:0;border:none"><table style="min-width:600px"><thead><tr><th>Producto</th><th>Unidad</th><th>S.Inicial</th><th>Entrada</th><th>Baño María</th><th>Refrigerador</th><th>Congelador</th><th>S.Final</th><th>C.Real</th><th>Dritzline</th><th>Df.Teórica</th><th>Diferencia(g)</th></tr></thead><tbody>' +
+    d.lineas.filter(l => num(l.saldo_final) || num(l.consumo_real) || num(l.bano) || num(l.refri) || num(l.congelador)).map(l =>
+      '<tr><td>' + esc(l.producto) + '</td><td>' + esc(l.unidad) + '</td><td>' + fmt(l.saldo_inicial) + '</td><td>' + fmt(l.entradas) + '</td><td>' + (num(l.bano) || '') + '</td><td>' + (num(l.refri) || '') + '</td><td>' + (num(l.congelador) || '') + '</td>' +
+      '<td class="c-calc">' + fmt(l.saldo_final) + '</td><td class="c-calc">' + fmt(l.consumo_real) + '</td><td class="c-green">' + (l.dritzline != null ? fmt(l.dritzline) : '—') + '</td><td class="c-calc">' + (l.dif_gorditas != null ? l.dif_gorditas : '—') + '</td><td class="c-calc">' + (l.diferencia_g != null ? fmt(l.diferencia_g) : '—') + '</td></tr>').join('') +
+    '</tbody></table></div><div style="padding:10px">' + effHTML(calcEffLines(d.lineas)) + '</div>';
+  el.dataset.ok = '1';
+}
+
+/* ── GERENTE: Registro del día (lectura) ───────────────── */
+async function vRegistro() {
+  app().innerHTML = '<div class="loading">Cargando…</div>';
+  const dias = await diasDe(S.branch, null, 45);
+  const ult = dias[0];
+  let h = '<div class="sec-header"><h2>Registro del Día</h2><div style="display:flex;gap:6px;flex-wrap:wrap"><span class="badge badge-or">' + esc(corto(sucNombre(S.branch))) + '</span><span class="badge badge-date">' + (ult ? fmtDate(ult.fecha) : fmtDate(todayStr())) + '</span></div></div>' +
+    '<div style="background:#e8f5e9;border-left:3px solid #1b5e20;padding:8px 12px;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-size:.85rem;font-weight:600;color:#1b5e20">📆 La captura de hoy se hace en la app:</span><a class="btn btn-or" style="font-size:.8rem;padding:6px 12px" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✍️ Abrir captura</a><span style="font-size:.76rem;color:#5d4037">Lo capturado aparece aquí en la sincronización de la 1:30 am.</span></div>' +
+    '<div class="legend"><div class="leg-item"><div class="leg-dot" style="background:#fffde7"></div> Gerente</div><div class="leg-item"><div class="leg-dot" style="background:#e3f2fd"></div> Admin</div><div class="leg-item"><div class="leg-dot" style="background:#fce4ec"></div> Calculado</div></div>';
+  if (!ult) { app().innerHTML = h + '<div class="empty-state">Esta sucursal no tiene registros recientes.</div>'; return; }
+  const d = await diaDe(S.branch, ult.fecha);
+  const tot = { si: 0, ent: 0, bano: 0, refri: 0, cong: 0, sf: 0, cr: 0, dz: 0 };
+  let rows = '';
+  CATS.forEach(k => {
     const ls = d.lineas.filter(l => l.categoria === k); if (!ls.length) return;
-    h += '<tr class="grp"><td colspan="11">' + cats[k].n + ' (' + (k === 'guiso' ? 'gramos' : 'piezas') + ')</td></tr>';
+    rows += '<tr><td colspan="12" style="background:var(--or);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">' + CAT_ICON[k] + '</td></tr>';
     ls.forEach(l => {
-      tot[k].cons += Number(l.consumo_real || 0); if (l.dritzline != null) tot[k].vend += Number(l.dritzline);
-      h += '<tr><td>' + esc(l.producto) + '</td><td>' + num(l.saldo_inicial) + '</td><td>' + num(l.entradas) + '</td><td>' + num(l.bano) + '</td><td>' + num(l.refri) + '</td><td>' + num(l.congelador) + '</td><td><b>' + num(l.saldo_final) + '</b></td>' +
-        '<td class="' + (Number(l.consumo_real) < 0 ? 'neg' : '') + '">' + num(l.consumo_real) + '</td><td>' + num(l.dritzline) + '</td><td class="' + (Number(l.diferencia_g) < 0 ? 'neg' : '') + '">' + num(l.diferencia_g) + '</td><td>' + num(l.dif_gorditas) + '</td></tr>';
+      tot.si += num(l.saldo_inicial); tot.ent += num(l.entradas); tot.bano += num(l.bano); tot.refri += num(l.refri); tot.cong += num(l.congelador); tot.sf += num(l.saldo_final); tot.cr += num(l.consumo_real); tot.dz += num(l.dritzline);
+      rows += '<tr><td>' + esc(l.producto) + '</td><td>' + esc(l.unidad) + '</td><td class="c-blue">' + fmt(l.saldo_inicial) + '</td><td class="c-blue">' + fmt(l.entradas) + '</td>' +
+        '<td class="c-yellow">' + fmt(l.bano) + '</td><td class="c-yellow">' + fmt(l.refri) + '</td><td class="c-yellow">' + fmt(l.congelador) + '</td>' +
+        '<td class="c-calc">' + fmt(l.saldo_final) + '</td><td class="c-calc">' + fmt(l.consumo_real) + '</td><td class="c-green">' + (l.dritzline != null ? fmt(l.dritzline) : 0) + '</td><td class="c-calc">' + (l.dif_gorditas != null ? l.dif_gorditas : '—') + '</td><td class="c-calc">' + (l.diferencia_g != null ? fmt(l.diferencia_g) : '—') + '</td></tr>';
     });
   });
-  h += '</table></div>';
-  h += '<div class="card"><div class="cat-h" style="margin-top:0">Eficiencia del día</div><table class="t"><tr><th></th>' + Object.keys(cats).map(k => '<th>' + cats[k].n + ' (' + cats[k].u + ')</th>').join('') + '</tr>' +
-    '<tr><td>Vendido (POS)</td>' + Object.keys(cats).map(k => '<td>' + num(tot[k].vend / cats[k].f, k === 'guiso' ? 2 : 0) + '</td>').join('') + '</tr>' +
-    '<tr><td>Consumido</td>' + Object.keys(cats).map(k => '<td>' + num(tot[k].cons / cats[k].f, k === 'guiso' ? 2 : 0) + '</td>').join('') + '</tr>' +
-    '<tr><td>Diferencia</td>' + Object.keys(cats).map(k => { const v = (tot[k].vend - tot[k].cons) / cats[k].f; return '<td class="' + (v < 0 ? 'neg' : '') + '">' + num(v, k === 'guiso' ? 2 : 0) + '</td>'; }).join('') + '</tr>' +
-    '<tr><td><b>Eficiencia</b></td>' + Object.keys(cats).map(k => { const e = tot[k].cons > 0 ? Math.round(tot[k].vend / tot[k].cons * 100) : null; return '<td>' + efHtml(e) + '</td>'; }).join('') + '</tr></table>' +
-    '<div style="font-size:12px;color:var(--txt2);margin-top:6px">Eficiencia = vendido según el POS ÷ consumido según el conteo. Verde ≥ 95 %, amarillo ≥ 90 %.</div></div>';
+  h += '<div class="tbl-wrap"><table><thead><tr><th>Producto</th><th>Unidad</th><th style="background:#827717">Saldo Inicial</th><th style="background:#0d47a1">Entrada</th><th style="background:#f57f17">Baño María</th><th style="background:#f57f17">Refrigerador</th><th style="background:#f57f17">Congelador</th><th style="background:#880e4f">Saldo Final</th><th style="background:#880e4f">Consumo Real</th><th style="background:#1b5e20">Dritzline</th><th style="background:#880e4f">Df. Teórica</th><th style="background:#880e4f">Diferencia (g)</th></tr></thead><tbody>' + rows + '</tbody>' +
+    '<tfoot><tr class="total-row"><td colspan="2">TOTAL</td><td>' + fmt(tot.si) + '</td><td>' + fmt(tot.ent) + '</td><td>' + fmt(tot.bano) + '</td><td>' + fmt(tot.refri) + '</td><td>' + fmt(tot.cong) + '</td><td>' + fmt(tot.sf) + '</td><td>' + fmt(tot.cr) + '</td><td>' + fmt(tot.dz) + '</td><td>—</td><td>—</td></tr></tfoot></table></div>' +
+    '<div class="summary-section"><h3 style="font-size:.88rem;color:var(--mut);font-weight:600;margin-bottom:9px">Eficiencia del Día</h3>' + effHTML(calcEffLines(d.lineas)) + '</div>';
   app().innerHTML = h;
 }
 
-/* ── Resumen por sucursal (asesor / admin) ─────────────── */
-async function vSucursales() {
-  app().innerHTML = nav() + '<div class="msg">Cargando sucursales…</div>';
-  const r = await api('inv_resumen');
-  const hoy = new Date(); const diasSin = (f) => f ? Math.round((new Date(hoy.toDateString()) - new Date(String(f).slice(0, 10) + 'T00:00:00')) / 86400000) : null;
-  let h = nav() + '<div class="card"><b>Inventarios por sucursal</b><div style="font-size:12.5px;color:var(--txt2)">Últimos 7 días. Toca una sucursal para ver su historial.</div></div><div class="card" style="overflow-x:auto"><table class="t"><tr><th>Sucursal</th><th>Último conteo</th><th>Días capturados (30)</th><th>Consumo guisos 7 d (kg)</th><th>Eficiencia guisos 7 d</th></tr>';
-  r.sucursales.forEach(s => {
-    const ds = diasSin(s.ultimo);
-    h += '<tr style="cursor:pointer" onclick="S.branch=' + s.branch_id + ';location.hash=\'hist\'"><td><b>' + esc(s.corto || corto(s.nombre)) + '</b></td>' +
-      '<td>' + (s.ultimo ? fLarga(s.ultimo) + (ds > 1 ? ' <span class="chip autogenerado">hace ' + ds + ' días</span>' : '') : '<span class="chip">sin conteos</span>') + '</td>' +
-      '<td>' + s.dias_30 + '</td><td>' + num(s.consumo_guisos_7, 1) + '</td><td>' + efHtml(s.ef_guisos_7) + '</td></tr>';
-  });
-  h += '</table></div>';
+/* ── Historial (gerente) ───────────────────────────────── */
+async function vHistorial() {
+  app().innerHTML = '<div class="loading">Cargando…</div>';
+  const dias = S.filtroMes ? await diasDe(S.branch, S.filtroMes) : await diasDe(S.branch, null, 400);
+  let h = '<div class="sec-header"><h2>Historial — ' + esc(corto(sucNombre(S.branch))) + '</h2></div>' +
+    '<div class="action-bar"><button class="btn btn-grn" onclick="exportar(' + S.branch + ')">📥 Exportar Excel</button></div>' +
+    '<div class="hist-controls"><input type="month" id="filterMonth" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vHistorial()"><button class="btn btn-sec" onclick="S.filtroMes=\'\';vHistorial()">Ver todos</button></div>';
+  h += dias.length ? dias.map(d => histEntry(d, S.branch)).join('') : '<div class="empty-state">No hay registros.</div>';
   app().innerHTML = h;
+}
+
+/* ── Eficiencias ───────────────────────────────────────── */
+function buildEfHTML(dias, fm) {
+  const rows = dias.map(d => Object.assign({ date: d.fecha }, { g: effFromDia(d).guiso, p: effFromDia(d).postre, b: effFromDia(d).bebida })).filter(r => r.g !== null || r.p !== null || r.b !== null);
+  if (!rows.length) return '<div class="empty-state">No hay datos de eficiencia.</div>';
+  const byMonth = {}; rows.forEach(r => { const m = r.date.substr(0, 7); (byMonth[m] = byMonth[m] || []).push(r); });
+  let months = Object.keys(byMonth).sort((a, b) => b.localeCompare(a));
+  if (fm) months = months.filter(m => m === fm);
+  if (!months.length) return '<div class="empty-state">No hay datos para este período.</div>';
+  const avg = (arr, key) => { const vals = arr.map(r => r[key]).filter(v => v !== null); return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null; };
+  const fmtM = (m) => { const p = m.split('-'); const n = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']; return n[parseInt(p[1]) - 1] + ' ' + p[0]; };
+  const badge = (v) => v === null ? '—' : '<span style="font-weight:700;color:' + effColor(v) + '">' + v + '%</span>';
+  const resumen = '<div class="tbl-wrap" style="margin-bottom:18px"><table style="min-width:400px"><thead><tr style="background:var(--adm)"><th style="background:var(--adm)">Mes</th><th style="background:var(--adm)">Prom. Guisos</th><th style="background:var(--adm)">Prom. Postres</th><th style="background:var(--adm)">Prom. Bebidas</th><th style="background:var(--adm)">Días</th></tr></thead><tbody>' +
+    months.map(m => { const r = byMonth[m]; return '<tr><td style="font-weight:700">' + fmtM(m) + '</td><td>' + badge(avg(r, 'g')) + '</td><td>' + badge(avg(r, 'p')) + '</td><td>' + badge(avg(r, 'b')) + '</td><td style="color:var(--mut)">' + r.length + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  const detalle = months.map(m => { const r = byMonth[m];
+    return '<div style="margin-bottom:20px"><h3 style="font-size:.95rem;font-weight:700;color:var(--adm);margin-bottom:8px">📅 ' + fmtM(m) + '</h3><div class="tbl-wrap"><table style="min-width:400px"><thead><tr><th>Fecha</th><th>Ef. Guisos</th><th>Ef. Postres</th><th>Ef. Bebidas</th></tr></thead><tbody>' +
+      r.map(x => '<tr><td style="font-weight:600">' + fmtDate(x.date) + '</td><td>' + badge(x.g) + '</td><td>' + badge(x.p) + '</td><td>' + badge(x.b) + '</td></tr>').join('') +
+      '</tbody><tfoot><tr style="background:var(--orl);font-weight:700"><td>PROMEDIO MES</td><td>' + badge(avg(r, 'g')) + '</td><td>' + badge(avg(r, 'p')) + '</td><td>' + badge(avg(r, 'b')) + '</td></tr></tfoot></table></div></div>'; }).join('');
+  return '<h3 style="font-size:.95rem;font-weight:700;color:var(--adm);margin-bottom:10px">Cierre por Mes</h3>' + resumen + '<h3 style="font-size:.95rem;font-weight:700;color:var(--or);margin-bottom:10px">Detalle Diario</h3>' + detalle;
+}
+async function vEficiencia() {
+  app().innerHTML = '<div class="loading">Cargando…</div>';
+  const dias = await diasDe(S.branch, null, 400);
+  app().innerHTML = '<div class="sec-header"><h2>📈 Eficiencias</h2><span class="badge badge-or">' + esc(corto(sucNombre(S.branch))) + '</span></div>' +
+    '<div class="hist-controls"><input type="month" id="efMonth" value="' + esc(S.efMes) + '" onchange="S.efMes=this.value;vEficiencia()"><button class="btn btn-sec" onclick="S.efMes=\'\';vEficiencia()">Ver todos</button></div>' + buildEfHTML(dias, S.efMes);
+}
+async function vEfAdmin() {
+  let h = '<div class="sec-header"><h2>📈 Eficiencias</h2></div><div class="hist-controls">' + selectorSucAdmin('efAdmSuc', 'S.filtroSuc=this.value;vEfAdmin()', false).replace('<option value="">-- Selecciona sucursal --</option>', '<option value="">-- Selecciona sucursal --</option>') +
+    '<input type="month" id="efAdmMonth" value="' + esc(S.efMes) + '" onchange="S.efMes=this.value;vEfAdmin()"><button class="btn btn-sec" onclick="S.efMes=\'\';vEfAdmin()">Ver todos</button></div>';
+  if (!S.filtroSuc) { app().innerHTML = h + '<div class="empty-state">Selecciona una sucursal.</div>'; return; }
+  app().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const dias = await diasDe(Number(S.filtroSuc), null, 400);
+  app().innerHTML = h + buildEfHTML(dias, S.efMes);
+  const sel = $('efAdmSuc'); if (sel) sel.value = S.filtroSuc;
+}
+
+/* ── ADMIN: Panel ──────────────────────────────────────── */
+async function vPanel() {
+  app().innerHTML = '<div class="loading">Cargando…</div>';
+  const p = await api('inv_panel', { mes: S.filtroMes || null });
+  const subs = p.sucursales.filter(s => !S.filtroSuc || String(s.branch_id) === String(S.filtroSuc));
+  let alert = '';
+  if (p.autogenerados.length) {
+    alert = '<div style="background:#ffebee;border-left:4px solid #c62828;border-radius:8px;padding:12px 14px;margin-bottom:14px"><div style="font-weight:700;color:#b71c1c;font-size:.9rem;margin-bottom:4px">⚠️ Días generados sin captura del gerente (' + p.autogenerados.length + ')</div><div style="font-size:.76rem;color:#7f4c4c;margin-bottom:6px">Estos días se crearon automáticamente con consumo en cero porque el gerente no capturó a tiempo. Corrígelos con los datos reales.</div>' +
+      p.autogenerados.map(a => { const msg = 'Hola, no se registró el inventario de ' + a.sucursal + ' del ' + fmtDate(a.fecha) + '. El sistema lo generó en ceros. Por favor pasar los datos reales a administración para corregirlo.';
+        return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid #ffcdd2"><span style="font-size:.85rem;font-weight:600;color:#b71c1c">🏪 ' + esc(a.sucursal) + ' — 📅 ' + fmtDate(a.fecha) + '</span><a class="btn btn-adm" style="font-size:.72rem;padding:4px 9px" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✏️ Corregir (app)</a><a href="https://wa.me/?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener" class="btn btn-sec" style="font-size:.72rem;padding:4px 9px">💬 WhatsApp</a></div>'; }).join('') + '</div>';
+  }
+  const cards = subs.map(s => '<div class="suc-card' + (S.panelOpen[s.branch_id] ? ' open' : '') + '" onclick="togglePanel(' + s.branch_id + ')"><h4>🏪 ' + esc(s.corto || corto(s.nombre)) + '</h4><div class="sc-stat">Último: ' + (s.ultimo ? fmtDate(s.ultimo) : 'Sin registros') + '</div><div class="sc-total">' + fmt(s.total_sf) + '</div><div class="sc-stat">' + s.registros + ' registro(s)</div></div>').join('');
+  app().innerHTML = '<div class="adm-header"><h2>👑 Panel Administrador</h2><p>Vista consolidada — Grupo LEM · datos de la app sincronizados cada madrugada</p></div>' +
+    '<div class="action-bar"><button class="btn btn-adm" onclick="exportar(null)">📥 Excel Global</button></div>' +
+    '<div class="hist-controls"><input type="month" id="admFilterMonth" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vPanel()">' + selectorSucAdmin('admFilterSuc', 'S.filtroSuc=this.value;vPanel()', true) + '<button class="btn btn-sec" onclick="S.filtroMes=\'\';S.filtroSuc=\'\';vPanel()">Ver todo</button></div>' +
+    alert + '<div class="suc-grid">' + cards + '</div>' + subs.map(s => '<div id="det_' + s.branch_id + '" style="display:' + (S.panelOpen[s.branch_id] ? '' : 'none') + ';margin-bottom:8px"></div>').join('');
+  for (const s of subs) if (S.panelOpen[s.branch_id]) pintarDetallePanel(s.branch_id);
+}
+async function togglePanel(b) {
+  S.panelOpen[b] = !S.panelOpen[b];
+  const el = $('det_' + b); if (!el) return;
+  el.style.display = S.panelOpen[b] ? '' : 'none';
+  document.querySelectorAll('.suc-card').forEach(c => { if (c.getAttribute('onclick') === 'togglePanel(' + b + ')') c.classList.toggle('open', S.panelOpen[b]); });
+  if (S.panelOpen[b] && !el.dataset.ok) pintarDetallePanel(b);
+}
+async function pintarDetallePanel(b) {
+  const el = $('det_' + b); if (!el) return;
+  el.innerHTML = '<div class="loading">Cargando…</div>';
+  const dias = S.filtroMes ? await diasDe(b, S.filtroMes) : await diasDe(b, null, 60);
+  el.innerHTML = '<h3 style="font-size:.9rem;color:var(--adm);margin:6px 0 8px">🏪 ' + esc(corto(sucNombre(b))) + (S.filtroMes ? '' : ' · últimos 60 días') + '</h3>' + (dias.length ? dias.map(d => histEntry(d, b)).join('') : '<div class="empty-state">Sin registros</div>');
+  el.dataset.ok = '1';
+}
+
+/* ── ADMIN: Capturar (lectura por ahora) ───────────────── */
+async function vCapturar() {
+  let h = '<div class="sec-header"><h2>Captura Administrador</h2><div style="display:flex;gap:6px;flex-wrap:wrap"><span class="badge badge-adm">' + (S.capSuc ? esc(corto(sucNombre(S.capSuc))) : '—') + '</span><span class="badge badge-date">' + (S.capFecha ? fmtDate(S.capFecha) : '') + '</span></div></div>' +
+    '<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center"><select id="admSucSelect" style="padding:8px 12px;border-radius:8px;border:1px solid var(--bdr);font-size:.9rem;background:#fff;max-width:260px"><option value="">-- Selecciona sucursal --</option>' +
+    S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (String(S.capSuc) === String(s.branch_id) ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>' +
+    '<input type="date" id="admDatePicker" value="' + esc(S.capFecha || todayStr()) + '" style="padding:8px 12px;border-radius:8px;border:1px solid var(--bdr);font-size:.9rem;background:#fff"><button class="btn btn-adm" onclick="S.capSuc=$(\'admSucSelect\').value;S.capFecha=$(\'admDatePicker\').value;vCapturar()">📂 Cargar</button></div>' +
+    '<div style="background:#f3e5f5;border-radius:10px;padding:12px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="font-size:.85rem;font-weight:600;color:var(--adm)">✏️ La captura de Saldo Inicial, Entrada y Dritzline se hace por ahora en la app:</span><a class="btn btn-adm" style="font-size:.78rem;padding:6px 10px" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">Abrir app</a><span style="font-size:.76rem;color:#5d4037">Aquí ves lo que quedó guardado ese día.</span></div>';
+  if (!S.capSuc) { app().innerHTML = h + '<div class="empty-state">Selecciona sucursal y fecha, y da clic en Cargar.</div>'; return; }
+  app().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const d = await diaDe(Number(S.capSuc), S.capFecha);
+  if (d.error) { app().innerHTML = h + '<div class="empty-state">No hay registro del ' + fmtDate(S.capFecha) + ' en esa sucursal.</div>'; return; }
+  let rows = '';
+  CATS.forEach(k => { const ls = d.lineas.filter(l => l.categoria === k); if (!ls.length) return;
+    rows += '<tr><td colspan="5" style="background:var(--adm);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">' + CAT_ICON[k] + '</td></tr>';
+    ls.forEach(l => { rows += '<tr><td>' + esc(l.producto) + '</td><td>' + esc(l.unidad) + '</td><td class="c-blue">' + fmt(l.saldo_inicial) + '</td><td class="c-yellow">' + fmt(l.entradas) + '</td><td class="c-green">' + (l.dritzline != null ? fmt(l.dritzline) : '') + '</td></tr>'; }); });
+  app().innerHTML = h + '<div class="tbl-wrap"><table><thead><tr><th>Producto</th><th>Unidad</th><th style="background:#0d47a1">Saldo Inicial</th><th style="background:#f57f17">Entrada</th><th style="background:#1b5e20">Consumo Dritzline</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+/* ── ADMIN: Administración ─────────────────────────────── */
+async function vAdministracion() {
+  app().innerHTML = '<div class="loading">Cargando…</div>';
+  const c = await api('inv_config');
+  const rol = (r) => r === 'admin' ? 'Administrador' : r === 'aprobador' ? 'Asesor' : 'Gerente';
+  app().innerHTML = '<div class="adm-header"><h2>⚙️ Administración</h2><p>Sucursales, productos y usuarios del módulo</p></div>' +
+    '<div class="cfg-box" style="background:#fff3e0;border-color:#ffb74d"><h3>🔑 Accesos</h3><p style="font-size:.85rem;color:#5d4037;line-height:1.5">En el portal se entra con la cuenta de Google <strong>@grupolem.com</strong>; los permisos por módulo y sucursal los administra el equipo de sistemas en la base (tabla de usuarios por módulo). La app de captura sigue usando sus cuentas de Firebase.</p></div>' +
+    '<div class="cfg-box"><h3>🏪 Sucursales activas</h3>' + c.sucursales.filter(s => s.activa).map(s => '<div class="item-row"><span>🏪 <b>' + esc(s.corto || corto(s.nombre)) + '</b> <span style="color:var(--mut)">' + esc(s.nombre) + '</span></span><span style="color:var(--mut)">' + (s.gerentes || []).map(esc).join(', ') + '</span></div>').join('') +
+    (c.sucursales.some(s => !s.activa) ? '<h3 style="margin-top:16px;margin-bottom:10px;color:var(--mut)">📦 Inactivas</h3>' + c.sucursales.filter(s => !s.activa).map(s => '<div class="item-row"><span>' + esc(s.nombre) + '</span></div>').join('') : '') + '</div>' +
+    '<div class="cfg-box"><h3>📋 Productos activos</h3>' + c.productos.filter(p => p.activo).map(p => '<div class="item-row"><span><b>' + esc(p.nombre) + '</b> <span style="color:var(--mut)">' + esc(p.categoria) + ' · ' + esc(p.unidad) + (p.categoria === 'guiso' ? ' · ' + p.gpg + ' g/gordita' : '') + '</span></span><span style="color:var(--mut)">' + (p.insumo_id ? '🛒 ligado a Compras' : '—') + (p.producto_pos_id ? ' · 🧾 POS' : '') + '</span></div>').join('') +
+    '<h3 style="margin-top:16px;margin-bottom:10px;color:var(--mut)">📦 Archivados</h3>' + (c.productos.filter(p => !p.activo).map(p => '<div class="item-row"><span>' + esc(p.nombre) + '</span></div>').join('') || '<div style="font-size:.85rem;color:var(--mut)">Ninguno</div>') + '</div>' +
+    '<div class="cfg-box"><h3>👥 Usuarios del módulo</h3>' + c.usuarios.map(u => '<div class="item-row"><span>' + esc(u.usuario) + '</span><span style="color:var(--mut)">' + rol(u.rol) + (u.sucursal_id ? ' · ' + esc(corto(sucNombre(u.sucursal_id))) : '') + '</span></div>').join('') + '</div>';
+}
+
+/* ── Excel ─────────────────────────────────────────────── */
+async function exportar(branch) {
+  if (!window.XLSX) { alert('La librería de Excel no cargó; recarga la página.'); return; }
+  const r = await api('inv_export', { branch_id: branch, mes: (branch ? S.filtroMes : S.filtroMes) || null });
+  if (!r.filas.length) { alert('No hay datos'); return; }
+  const hdr = ['Sucursal', 'Fecha', 'Producto', 'Unidad', 'Saldo Inicial', 'Entrada', 'Baño María', 'Refrigerador', 'Congelador', 'Saldo Final', 'Consumo Real', 'Dritzline', 'Df. Teórica', 'Diferencia (g)'];
+  const ws = XLSX.utils.aoa_to_sheet([hdr].concat(r.filas)); ws['!cols'] = hdr.map(() => ({ wch: 14 }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+  XLSX.writeFile(wb, (branch ? 'inventario_' + corto(sucNombre(branch)).replace(/\s+/g, '_') : 'inventario_global') + (S.filtroMes ? '_' + S.filtroMes : '') + '_' + todayStr() + '.xlsx');
 }
 
 window.addEventListener('load', () => { S.token ? arrancar() : vLogin(); });
