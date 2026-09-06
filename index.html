@@ -223,8 +223,7 @@ function nav() {
   let h = '<div class="nav no-print">';
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>' +
-                                        '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>' +
-                                        '<button class="btn mini" onclick="abrirCalculadora()">🧮 Calculadora</button>';
+                                        '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button><button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button>';
   if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button>';
   if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
