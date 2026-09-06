@@ -43,6 +43,7 @@
   .hoja td.neg { color:#c00; }
   .hoja .titulo { background:#bdd7ee; font-weight:800; font-size:16px; padding:6px 10px; text-align:center; border:1px solid #9a9a9a; }
   .hoja .param td { border:1px solid #9a9a9a; padding:4px 8px; }
+  .hoja .param td.ro { background:#fff; font-weight:700; text-align:right; }
   .hoja .param input { width:120px; border:1px solid #c9a227; border-radius:4px; padding:4px 6px; font-size:13px; background:#fffbe6; }
   .hoja .param td.k { background:#f3f3f3; font-weight:600; }
   .hoja .bloque { margin-top:14px; }
@@ -225,7 +226,7 @@ function nav() {
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button><button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button>';
-  if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button>';
+  if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button><button class="btn mini sec" onclick="location.hash=\'calcadmin\'">🧮 Calculadora</button>';
   if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
   return h + '</div>';
 }
@@ -239,6 +240,7 @@ function router() {
   else if (h === 'historial') vHistorialAsesor();
   else if (h === 'presupuestos') vPresupuestosAdmin();
   else if (h === 'recibir') vRecibir();
+  else if (h === 'calcadmin') vCalcAdmin();
   else if (h === 'porpagar') vPorPagar();
   else if (h.startsWith('recibir-')) vRecibirOC(h.slice(8));
   else if (h.startsWith('req-')) vDetalle('requisicion', h.slice(4));
@@ -417,35 +419,27 @@ async function enviar() {
 }
 
 /* ── Calculadora de pedido (CDC) — réplica de la hoja ──── */
-const CALC = { data: null, p: null, vals: {} };
+/* Cabecera y consumo promedio: los captura el ADMINISTRADOR por sucursal (🧮 Calculadora en la vista admin).
+   El gerente solo captura Inventario Final, Modificador y Pedido de Gerente. */
+const CALC = { data: null, vals: {} };
 const num = (x, d) => Number(x || 0).toLocaleString('es-MX', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d });
-const isoDe = (d) => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); };
-const addDias = (iso, n) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() + Number(n)); return isoDe(d); };
+const fMx = (iso) => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
 const difDias = (a, b) => Math.round((new Date(String(b).slice(0, 10) + 'T12:00:00') - new Date(String(a).slice(0, 10) + 'T12:00:00')) / 86400000);
-async function abrirCalculadora() {
-  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
-  if (!S.cat) S.cat = await api('catalogo', { branch_id: S.branch });
-  const c = (S.cat.proveedores || []).find(p => p.calculadora);
-  if (!c) { aviso('Ningún proveedor tiene calculadora configurada.'); return; }
-  S.prov = c.proveedor_id; vCalculadora();
-}
-async function vCalculadora(del, al) {
+async function vCalculadora() {
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   if (!S.cat) S.cat = await api('catalogo', { branch_id: S.branch });
   const prov = (S.cat.proveedores || []).find(p => p.proveedor_id === S.prov && p.calculadora);
   if (!prov) { vCaptura(); return; }
-  app().innerHTML = nav() + '<div class="msg">Calculando el consumo de tu sucursal…</div>';
-  const d = await api('calculadora', { branch_id: S.branch, proveedor_id: S.prov, del: del || null, al: al || null });
+  app().innerHTML = nav() + '<div class="msg">Cargando la calculadora de tu sucursal…</div>';
+  const d = await api('calculadora', { branch_id: S.branch, proveedor_id: S.prov });
+  if (d.error === 'sin_config') {
+    app().innerHTML = nav() + '<div class="card"><button class="btn mini sec" onclick="vCaptura()">← ' + esc(prov.nombre_corto) + '</button></div><div class="msg">📋 El administrador todavía no captura las fechas y el consumo de esta sucursal.<br>Cuando lo haga, aquí aparecerá la calculadora.</div>';
+    return;
+  }
   if (d.error) { aviso('Calculadora: ' + (d.detalle || d.error)); vCaptura(); return; }
-  const mismo = CALC.data && CALC.p && CALC.data.branch_id === d.branch_id && CALC.data.proveedor_id === d.proveedor_id;
-  CALC.data = d;
-  if (!mismo) {
-    const q = d.parametros;
-    CALC.p = { del: d.rango.del, al: d.rango.al, fecha_inventario: d.fecha_inventario, llega: addDias(d.fecha_inventario, q.dias_proyeccion),
-               factor: Number(q.factor_proteccion || 0), cubrir: Number(q.dias_cubrir), presupuesto_total: d.presupuesto ? Number(d.presupuesto) : 0 };
-    CALC.vals = {};
-  } else { CALC.p.del = d.rango.del; CALC.p.al = d.rango.al; }
-  pintarCalculadora();
+  const mismo = CALC.data && CALC.data.branch_id === d.branch_id && CALC.data.proveedor_id === d.proveedor_id;
+  if (!mismo) CALC.vals = {};
+  CALC.data = d; pintarCalculadora();
 }
 function leerCalc() {
   if (!CALC.data) return;
@@ -454,26 +448,11 @@ function leerCalc() {
     CALC.vals[id] = { inv: inv ? inv.value : '', mod: mod ? mod.value : '', ped: ped ? ped.value : '' };
   });
 }
-function cambiarRango() {
-  leerCalc();
-  const del = $('p_del').value, al = $('p_al').value;
-  if (!del || !al || del > al) { alert('Revisa las fechas: "Del" debe ser antes de "Al".'); return; }
-  CALC.p.del = del; CALC.p.al = al;
-  vCalculadora(del, al);
-}
-function cambiarParam() {
-  CALC.p.fecha_inventario = $('p_inv').value || CALC.p.fecha_inventario;
-  CALC.p.llega = $('p_llega').value || CALC.p.llega;
-  CALC.p.factor = Number($('p_factor').value) || 0;
-  CALC.p.cubrir = Math.max(1, Number($('p_cubrir').value) || 1);
-  CALC.p.presupuesto_total = Number($('p_pres').value) || 0;
-  recalc();
-}
 function lineaCalc(l, inv, mod, ped) {
-  const p = CALC.p, dias = Math.max(1, difDias(p.del, p.al)), proy = Math.max(0, difDias(p.fecha_inventario, p.llega));
-  const r = { dias, proy, mod: Number(mod) || 0, ped: ped === '' || ped == null ? null : Number(ped) };
-  if (l.consumo != null) {
-    r.prom = Number(l.consumo) / dias; r.consProy = r.prom * proy; r.consPed = r.prom * (p.cubrir + p.factor);
+  const c = CALC.data.config, proy = Number(c.dias_proyeccion), cubrir = Number(c.dias_cubrir), factor = Number(c.factor_proteccion || 0);
+  const r = { mod: Number(mod) || 0, ped: ped === '' || ped == null ? null : Number(ped) };
+  if (l.promedio != null) {
+    r.prom = Number(l.promedio); r.consProy = r.prom * proy; r.consPed = r.prom * (cubrir + factor);
     if (inv !== '' && inv != null) {
       const invU = l.inventario_en === 'gramos' ? Number(inv) / 1000 : Number(inv);
       r.invProy = invU - r.consProy; r.invFinal = r.invProy - r.consPed;
@@ -485,34 +464,31 @@ function lineaCalc(l, inv, mod, ped) {
   return r;
 }
 function pintarCalculadora() {
-  const d = CALC.data, p = CALC.p, dias = Math.max(1, difDias(p.del, p.al)), proy = Math.max(0, difDias(p.fecha_inventario, p.llega));
+  const d = CALC.data, c = d.config, pm = d.parametros.pct_max || {};
   const v = (id) => CALC.vals[id] || { inv: '', mod: '', ped: '' };
-  const pm = d.parametros.pct_max || {};
   let h = nav() + '<div class="card hoja" style="overflow-x:auto">' +
-    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><button class="btn mini sec" onclick="leerCalc();vCaptura()">← ' + esc(d.proveedor) + '</button><span style="font-size:15px;font-weight:800">🧮 Calculadora de pedido · ' + esc(d.sucursal.replace(' Chihuahua', '')) + '</span></div>' +
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><button class="btn mini sec" onclick="leerCalc();vCaptura()">← ' + esc(d.proveedor) + '</button><span style="font-size:15px;font-weight:800">🧮 Calculadora de pedido · ' + esc(d.sucursal.replace(' Chihuahua', '')) + '</span><span class="presu">fechas y consumo capturados por administración el ' + fecha(c.vigente_desde) + '</span></div>' +
     '<table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
       '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
-      '<tr><td class="k">Del</td><td class="in"><input type="date" id="p_del" value="' + p.del + '" onchange="cambiarRango()"></td></tr>' +
-      '<tr><td class="k">Al</td><td class="in"><input type="date" id="p_al" value="' + p.al + '" onchange="cambiarRango()"></td></tr>' +
-      '<tr><td class="k">Días de consumo</td><td class="n"><b id="p_dias">' + dias + '</b></td></tr>' +
-      '<tr><td class="k">Inventario del día:</td><td class="in"><input type="date" id="p_inv" value="' + p.fecha_inventario + '" onchange="cambiarParam()"></td></tr>' +
-      '<tr><td class="k">Día que llega el próximo pedido</td><td class="in"><input type="date" id="p_llega" value="' + p.llega + '" onchange="cambiarParam()"></td></tr>' +
-      '<tr><td class="k"># Días de proyección</td><td class="n"><b id="p_proy">' + proy + '</b></td></tr>' +
-      '<tr><td class="k">Factor de protección (días)</td><td class="in"><input type="number" step="0.5" min="0" id="p_factor" value="' + p.factor + '" onchange="cambiarParam()"></td></tr>' +
-      '<tr><td class="k">Días a cubrir con el pedido</td><td class="in"><input type="number" min="1" id="p_cubrir" value="' + p.cubrir + '" onchange="cambiarParam()"></td></tr></table>' +
+      '<tr><td class="k">Del</td><td class="ro">' + fMx(c.del) + '</td></tr><tr><td class="k">Al</td><td class="ro">' + fMx(c.al) + '</td></tr>' +
+      '<tr><td class="k">Días de consumo</td><td class="ro">' + c.dias_consumo + '</td></tr>' +
+      '<tr><td class="k">Inventario del día:</td><td class="ro">' + fMx(c.fecha_inventario) + '</td></tr>' +
+      '<tr><td class="k">Día que llega el próximo pedido</td><td class="ro">' + fMx(c.llega) + '</td></tr>' +
+      '<tr><td class="k"># Días de proyección</td><td class="ro">' + c.dias_proyeccion + '</td></tr>' +
+      '<tr><td class="k">Factor de protección (días)</td><td class="ro">' + num(c.factor_proteccion, 1) + '</td></tr>' +
+      '<tr><td class="k">Días a cubrir con el pedido</td><td class="ro">' + c.dias_cubrir + '</td></tr></table>' +
     '</td><td style="border:none;vertical-align:top">' +
-      '<table class="param"><tr><td class="k">Presupuesto Total</td><td class="in"><input type="number" min="0" step="100" id="p_pres" value="' + p.presupuesto_total + '" onchange="cambiarParam()"></td><td style="border:none;font-size:11.5px;color:var(--txt2)">' + (d.presupuesto ? 'sugerido: presupuesto asignado ' + money(d.presupuesto) : 'sin presupuesto asignado') + '</td></tr></table>' +
+      '<table class="param"><tr><td class="k">Presupuesto Total</td><td class="ro">' + (c.presupuesto_total ? num(c.presupuesto_total, 0) : '—') + '</td></tr></table>' +
       '<table style="margin-top:6px"><tr><th>Concepto</th><th>Total permitido</th><th>Total pedido</th><th>% por concepto</th><th>% Máximo</th></tr>' +
       Object.keys(pm).map(k => '<tr><td>' + esc(k) + '</td><td class="n" id="cpe_' + k.replace(/\W/g, '') + '"></td><td class="n" id="cpd_' + k.replace(/\W/g, '') + '"></td><td class="n" id="cpp_' + k.replace(/\W/g, '') + '"></td><td class="n">' + num(pm[k], 1) + '%</td></tr>').join('') + '</table>' +
     '</td></tr></table>';
-  // Bloque Guisos (con consumo)
-  const guisos = d.lineas.filter(l => l.consumo != null), otros = d.lineas.filter(l => l.consumo == null);
+  const guisos = d.lineas.filter(l => l.promedio != null), otros = d.lineas.filter(l => l.promedio == null);
   const conceptosOtros = [...new Set(otros.map(l => l.concepto))];
   h += '<div class="bloque"><div class="titulo">Guisos · pedido sugerido por consumo</div><table class="g16" style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Un</th><th>Consumo</th><th class="g">Inventario Final</th><th>Consumo promedio diario</th><th>Consumo días de proyección</th><th>Inventario proyectado</th><th>Consumo periodo de pedido</th><th>Invent. a final de consumo</th><th>Unidad de Medida</th><th>Fracciones a pedir</th><th>Pedido Sugerido</th><th class="g">Modificador manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
   guisos.forEach(l => { const id = l.proveedor_insumo_id, x = v(id);
-    h += '<tr><td class="n">' + (l.precio != null ? money(l.precio) : '') + '</td><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n" id="con' + id + '">' + num(l.consumo) + '</td>' +
+    h += '<tr><td class="n">' + (l.precio != null ? money(l.precio) : '') + '</td><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n">' + num(l.consumo) + '</td>' +
       '<td class="in"><input type="number" inputmode="numeric" min="0" id="inv' + id + '" value="' + esc(x.inv) + '" placeholder="' + l.inventario_en + '" oninput="recalc()"></td>' +
-      '<td class="n" id="prm' + id + '"></td><td class="n" id="cpr' + id + '"></td><td class="n" id="ipr' + id + '"></td><td class="n" id="cpe' + id + '"></td><td class="n" id="ifc' + id + '"></td>' +
+      '<td class="n">' + num(l.promedio) + (l.promedio_manual ? ' <span title="capturado por administración" style="color:var(--txt2)">✎</span>' : '') + '</td><td class="n" id="cpr' + id + '"></td><td class="n" id="ipr' + id + '"></td><td class="n" id="cpe' + id + '"></td><td class="n" id="ifc' + id + '"></td>' +
       '<td class="n">' + num(l.fraccion) + '</td><td class="n" id="frc' + id + '"></td><td class="sug" id="sug' + id + '"></td>' +
       '<td class="in"><input type="number" inputmode="numeric" id="mod' + id + '" value="' + esc(x.mod) + '" oninput="recalc()"></td>' +
       '<td class="fin" id="fin' + id + '"></td><td class="n" id="cos' + id + '"></td></tr>'; });
@@ -533,16 +509,14 @@ function pintarCalculadora() {
   app().innerHTML = h; recalc();
 }
 function recalc() {
-  const d = CALC.data, p = CALC.p; if (!d || !$('cTotal')) return;
-  const dias = Math.max(1, difDias(p.del, p.al)), proy = Math.max(0, difDias(p.fecha_inventario, p.llega));
-  if ($('p_dias')) $('p_dias').textContent = dias; if ($('p_proy')) $('p_proy').textContent = proy;
+  const d = CALC.data; if (!d || !$('cTotal')) return;
   const porConc = {}; let total = 0, cajas = 0;
   d.lineas.forEach(l => {
     const id = l.proveedor_insumo_id, inv = $('inv' + id) ? $('inv' + id).value : '', mod = $('mod' + id) ? $('mod' + id).value : '', ped = $('ped' + id) ? $('ped' + id).value : '';
     const r = lineaCalc(l, inv, mod, ped);
     const set = (k, val, cls) => { const el = $(k + id); if (el) { el.textContent = val; if (cls !== undefined) el.className = cls; } };
-    if (l.consumo != null) {
-      set('prm', num(r.prom)); set('cpr', num(r.consProy));
+    if (l.promedio != null) {
+      set('cpr', num(r.consProy));
       if (r.sug != null) {
         set('ipr', l.inventario_en === 'gramos' ? num(r.invProy * 1000, 0) : num(r.invProy, 0), 'n' + (r.invProy < 0 ? ' neg' : ''));
         set('cpe', num(r.consPed, 0)); set('ifc', num(r.invFinal), 'n' + (r.invFinal < 0 ? ' neg' : '')); set('frc', num(r.frac)); set('sug', r.sug);
@@ -553,7 +527,7 @@ function recalc() {
   });
   const tg = $('totGuisos'); if (tg) tg.textContent = money(porConc['Guisos'] || 0);
   Object.keys(porConc).forEach(k => { const el = $('tot_' + k.replace(/\W/g, '')); if (el) el.textContent = money(porConc[k]); });
-  const pm = d.parametros.pct_max || {}, pres = Number(p.presupuesto_total) || 0;
+  const pm = d.parametros.pct_max || {}, pres = Number(d.config.presupuesto_total) || 0;
   Object.keys(pm).forEach(k => { const c = k.replace(/\W/g, ''), ped = porConc[k] || 0, perm = pres * Number(pm[k]) / 100;
     if ($('cpe_' + c)) $('cpe_' + c).textContent = pres ? num(perm, 0) : '—';
     if ($('cpd_' + c)) { $('cpd_' + c).textContent = num(ped, 0); $('cpd_' + c).className = 'n' + (pres && ped > perm ? ' neg' : ''); }
@@ -561,19 +535,70 @@ function recalc() {
   $('cTotal').textContent = money(total); $('cCajas').textContent = '· ' + cajas + ' unidades de compra';
 }
 async function pasarAlPedido(btn) {
-  const d = CALC.data, p = CALC.p;
+  const d = CALC.data;
   const lineas = d.lineas.map(l => { const id = l.proveedor_insumo_id; const g = (k) => $(k + id) ? $(k + id).value : '';
     return { proveedor_insumo_id: id, inventario: g('inv') === '' ? null : Number(g('inv')), modificador: Number(g('mod')) || 0, pedido_gerente: g('ped') === '' ? null : Number(g('ped')) }; });
-  const sinInv = d.lineas.filter(l => l.consumo != null && ($('inv' + l.proveedor_insumo_id).value === '')).length;
+  const sinInv = d.lineas.filter(l => l.promedio != null && ($('inv' + l.proveedor_insumo_id).value === '')).length;
   if (sinInv && !confirm('Hay ' + sinInv + ' guiso' + (sinInv === 1 ? '' : 's') + ' sin inventario final: para esos no se calcula sugerido. ¿Continuar?')) return;
   btn.disabled = true;
-  const parametros = { del: p.del, al: p.al, fecha_inventario: p.fecha_inventario, llega: p.llega, dias_cubrir: p.cubrir, factor_proteccion: p.factor, presupuesto_total: p.presupuesto_total || null };
-  const r = await api('calculadora_guardar', { branch_id: S.branch, proveedor_id: S.prov, parametros, lineas });
+  const r = await api('calculadora_guardar', { branch_id: S.branch, proveedor_id: S.prov, lineas });
   if (r.error) { alert('No se pudo guardar: ' + (r.detalle || r.error)); btn.disabled = false; return; }
   r.lineas.forEach(l => { if (l.final > 0) S.carrito[l.proveedor_insumo_id] = l.final; else delete S.carrito[l.proveedor_insumo_id]; });
   S.corridaId = r.corrida_id; await tocarPrimera(); leerCalc();
   S.calcNota = 'Calculadora aplicada: ' + r.insumos + ' insumo' + (r.insumos === 1 ? '' : 's') + ' en el pedido por ' + money(r.total) + ' sin IVA. Revisa y envía.';
   vCaptura();
+}
+
+/* ── Administración de la calculadora (fechas, presupuesto total, consumo promedio) ── */
+const CADM = { branch: null, prov: null, data: null };
+async function vCalcAdmin(del, al) {
+  if (vista() !== 'admin') { location.hash = 'captura'; return; }
+  document.body.classList.remove('ancha');
+  app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
+  if (!CADM.prov) { const cp = await api('admin_calc_params'); const p0 = (cp.proveedores || [])[0]; if (!p0) { app().innerHTML = nav() + '<div class="msg">Ningún proveedor tiene calculadora.</div>'; return; } CADM.prov = p0.proveedor_id; CADM.provNombre = p0.nombre_corto; }
+  if (!CADM.branch) CADM.branch = (S.perfil.sucursales[0] || {}).branch_id;
+  const d = await api('admin_calc_config', { branch_id: CADM.branch, proveedor_id: CADM.prov, del: del || null, al: al || null });
+  if (d.error) { aviso('Calculadora: ' + (d.detalle || d.error)); return; }
+  CADM.data = d;
+  const f = d.defaults, cfg = d.config;
+  let h = nav() + '<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">🧮 Calculadora de ' + esc(CADM.provNombre) + ' · datos por sucursal</b>' +
+    '<select onchange="CADM.branch=Number(this.value);vCalcAdmin()" style="font-size:15px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px">' +
+    S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === CADM.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select></div>' +
+    '<div class="presu" style="margin-top:6px">' + (cfg ? 'Vigente desde ' + fecha(cfg.vigente_desde) + ' · capturado por ' + esc(cfg.capturado_por) : '<b style="color:var(--ambar)">Esta sucursal aún no tiene calculadora configurada.</b>') + ' El gerente ve estos datos tal cual y solo captura su inventario.</div></div>';
+  h += '<div class="card hoja"><table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
+    '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
+    '<tr><td class="k">Del</td><td class="in"><input type="date" id="a_del" value="' + f.del + '" onchange="vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)"></td></tr>' +
+    '<tr><td class="k">Al</td><td class="in"><input type="date" id="a_al" value="' + f.al + '" onchange="vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)"></td></tr>' +
+    '<tr><td class="k">Días de consumo</td><td class="ro">' + f.dias_consumo + '</td></tr>' +
+    '<tr><td class="k">Inventario del día:</td><td class="in"><input type="date" id="a_inv" value="' + f.fecha_inventario + '" onchange="admProy()"></td></tr>' +
+    '<tr><td class="k">Día que llega el próximo pedido</td><td class="in"><input type="date" id="a_llega" value="' + f.llega + '" onchange="admProy()"></td></tr>' +
+    '<tr><td class="k"># Días de proyección</td><td class="ro" id="a_proy">' + Math.max(0, difDias(f.fecha_inventario, f.llega)) + '</td></tr>' +
+    '<tr><td class="k">Factor de protección (días)</td><td class="in"><input type="number" step="0.5" min="0" id="a_factor" value="' + f.factor_proteccion + '"></td></tr>' +
+    '<tr><td class="k">Días a cubrir con el pedido</td><td class="in"><input type="number" min="1" id="a_cubrir" value="' + f.dias_cubrir + '"></td></tr></table>' +
+    '</td><td style="border:none;vertical-align:top">' +
+    '<table class="param"><tr><td class="k">Presupuesto Total</td><td class="in"><input type="number" min="0" step="100" id="a_pres" value="' + (f.presupuesto_total || '') + '"></td></tr></table>' +
+    '<div class="presu" style="margin-top:8px">El consumo promedio diario se prellena con las ventas reales del rango (R27). Puedes corregirlo a mano; el valor capturado es el que usa el gerente.</div>' +
+    '</td></tr></table>' +
+    '<div class="bloque"><div class="titulo">Consumo promedio diario · Guisos</div><table style="width:100%"><tr><th>PRODUCTO</th><th>Un</th><th>Consumo del rango</th><th>Promedio diario (ventas)</th><th class="g">Promedio diario capturado</th></tr>';
+  d.lineas.forEach(l => { h += '<tr><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n">' + num(l.consumo) + '</td><td class="n">' + num(l.promedio_sql, 4) + '</td>' +
+    '<td class="in"><input type="number" step="0.0001" min="0" id="a_c' + l.proveedor_insumo_id + '" value="' + (l.promedio_cfg != null ? l.promedio_cfg : l.promedio_sql) + '"></td></tr>'; });
+  h += '</table></div>' +
+    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar para ' + esc((S.perfil.sucursales.find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal') + '</button>' +
+    '<label style="font-size:13px"><input type="checkbox" id="a_todas"> aplicar también fechas y días a <b>todas</b> las sucursales (presupuesto y consumo se quedan por sucursal)</label><span class="presu" id="a_msg"></span></div></div>';
+  app().innerHTML = h;
+}
+function admProy() { const el = $('a_proy'); if (el) el.textContent = Math.max(0, difDias($('a_inv').value, $('a_llega').value)); }
+async function guardarCalcConfig(btn) {
+  const d = CADM.data; const consumos = {};
+  d.lineas.forEach(l => { const v = $('a_c' + l.proveedor_insumo_id).value; if (v !== '') consumos[l.proveedor_insumo_id] = Number(v); });
+  if ($('a_del').value > $('a_al').value) { alert('"Del" debe ser antes de "Al".'); return; }
+  btn.disabled = true;
+  const r = await api('admin_guardar_calc_config', { branch_id: CADM.branch, proveedor_id: CADM.prov, del: $('a_del').value, al: $('a_al').value, fecha_inventario: $('a_inv').value, llega: $('a_llega').value,
+    factor_proteccion: Number($('a_factor').value) || 0, dias_cubrir: Number($('a_cubrir').value) || 1, presupuesto_total: $('a_pres').value === '' ? null : Number($('a_pres').value), consumos, todas: $('a_todas').checked });
+  btn.disabled = false;
+  if (r.error) { alert('No se guardó: ' + (r.detalle || r.error)); return; }
+  $('a_msg').textContent = '✔ Guardado en ' + r.sucursales + ' sucursal' + (r.sucursales === 1 ? '' : 'es') + '.';
+  CALC.data = null;
 }
 function calcParamsHtml(cp) {
   let h = '';
