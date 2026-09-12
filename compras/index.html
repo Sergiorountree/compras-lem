@@ -129,6 +129,29 @@
 </header>
 <main id="app"><div class="msg">Cargando…</div></main>
 
+<script type="module">
+/* ── SQL Connect (Firebase → Postgres directo). Decisión 8/12-sep-2026: las pantallas ya no pasan
+   por n8n para hablar con la base; n8n queda para correos y robots. La sesión de Firebase se abre
+   con la MISMA credencial de Google del botón de entrada (signInWithCredential). ── */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+import { getDataConnect, mutationRef, executeMutation } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-data-connect.js";
+const fbApp = initializeApp({"apiKey": "AIzaSyC1ycKtN1atpb1monWFIJqmR4X5vmpnNoo", "authDomain": "lem-erp.firebaseapp.com", "projectId": "lem-erp", "appId": "1:902179844288:web:e887a0886fa1188da2fd25"});
+const fbAuth = getAuth(fbApp);
+const dc = getDataConnect(fbApp, { connector: "api", location: "us-central1", service: "lem-api" });
+let resolverListo; const listo = new Promise(r => { resolverListo = r; });
+onAuthStateChanged(fbAuth, () => resolverListo());
+window.LEMDC = {
+  listo,
+  usuario: () => fbAuth.currentUser,
+  entrar: (idToken) => signInWithCredential(fbAuth, GoogleAuthProvider.credential(idToken)),
+  salir: () => signOut(fbAuth).catch(() => {}),
+  llamar: async (accion, datos) => {
+    const r = await executeMutation(mutationRef(dc, "Accion", { accion, datos: JSON.stringify(datos || {}) }));
+    return (r && r.data && r.data.r && r.data.r.r) || {};
+  }
+};
+</script>
 <script>
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
@@ -157,15 +180,47 @@ const ETQ = { generada: 'Generada', autorizada: 'Autorizada', enviada_proveedor:
 const etq = (e) => ETQ[e] || e;
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+/* ── API ─────────────────────────────────────────────────
+   Ruta principal: SQL Connect (window.LEMDC, ver módulo arriba). Respaldo: webhook de n8n, que
+   además es la ÚNICA ruta para correo_oc (n8n manda el correo). Forzar n8n para diagnóstico:
+   localStorage.setItem('lem_api', 'n8n'). ── */
+const SOLO_N8N = new Set(['correo_oc']);
+function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
+function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
+async function esperarLEMDC() {
+  if (!window.LEMDC) await new Promise(r => { const t0 = Date.now(); const iv = setInterval(() => { if (window.LEMDC || Date.now() - t0 > 4000) { clearInterval(iv); r(); } }, 50); });
+  if (window.LEMDC) await Promise.race([LEMDC.listo, new Promise(r => setTimeout(r, 4000))]);
+}
 async function api(accion, datos) {
+  const d = conEmpresa(datos);
+  if (!SOLO_N8N.has(accion) && apiForzada() !== 'n8n') {
+    try {
+      await esperarLEMDC();
+      if (window.LEMDC && S.token) {
+        const u = LEMDC.usuario(); const em = emailDeToken(S.token);
+        if (!u || (em && (u.email || '').toLowerCase() !== em)) await LEMDC.entrar(S.token);
+      }
+      if (window.LEMDC && LEMDC.usuario()) {
+        const j = await LEMDC.llamar(accion, d);
+        if (j.error) { alert('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
+        return j;
+      }
+    } catch (e) {
+      if (e && e.negocio) throw e;
+      console.warn('SQL Connect no disponible para ' + accion + ', usando n8n:', e && e.message);
+    }
+  }
+  return apiN8n(accion, d);
+}
+async function apiN8n(accion, datos) {
   let r;
   try {
     r = await fetch(API, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: S.token, accion, datos: conEmpresa(datos) })
+      body: JSON.stringify({ token: S.token, accion, datos: datos || {} })
     });
   } catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
-  if (r.status === 401) { store.del(); S.token = null; vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
+  if (r.status === 401) { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
   const j = await r.json();
   if (j.error) { alert('⚠️ ' + (j.detalle || j.error)); throw new Error(j.error); }
   return j;
