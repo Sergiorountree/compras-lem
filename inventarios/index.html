@@ -162,6 +162,7 @@ function effHTML(c) {
    además es la ÚNICA ruta para correo_oc (n8n manda el correo). Forzar n8n para diagnóstico:
    localStorage.setItem('lem_api', 'n8n'). ── */
 const SOLO_N8N = new Set(['correo_oc']);
+const LECTURAS = new Set(['perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -171,20 +172,31 @@ async function esperarLEMDC() {
 async function api(accion, datos) {
   const d = conEmpresa(datos);
   if (!SOLO_N8N.has(accion) && apiForzada() !== 'n8n') {
+    // 1) ¿Está lista la sesión de SQL Connect? Si no, se usa n8n (todavía no se mandó nada).
+    let listo = false;
     try {
       await esperarLEMDC();
       if (window.LEMDC && S.token) {
         const u = LEMDC.usuario(); const em = emailDeToken(S.token);
         if (!u || (em && (u.email || '').toLowerCase() !== em)) await LEMDC.entrar(S.token);
       }
-      if (window.LEMDC && LEMDC.usuario()) {
+      listo = !!(window.LEMDC && LEMDC.usuario());
+    } catch (e) { console.warn('SQL Connect sin sesión (' + accion + '), usando n8n:', e && e.message); }
+    // 2) Ya con sesión: la llamada va por SQL Connect. Auditoría 12-sep (S04): una ESCRITURA que
+    //    falla por red NO se repite por n8n (pudo haberse ejecutado); solo las lecturas caen a n8n.
+    if (listo) {
+      try {
         const j = await LEMDC.llamar(accion, d);
         if (j.error && j.error !== 'no_existe') { alert('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
         return j;
+      } catch (e) {
+        if (e && e.negocio) throw e;
+        if (!LECTURAS.has(accion)) {
+          aviso('No se pudo confirmar "' + accion + '" (' + ((e && e.message) || 'sin respuesta') + '). Revisa el estado antes de volver a intentarlo.');
+          throw e;
+        }
+        console.warn('SQL Connect falló en la lectura ' + accion + ', usando n8n:', e && e.message);
       }
-    } catch (e) {
-      if (e && e.negocio) throw e;
-      console.warn('SQL Connect no disponible para ' + accion + ', usando n8n:', e && e.message);
     }
   }
   return apiN8n(accion, d);
