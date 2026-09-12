@@ -4,13 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grupo LEM · Módulos</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root { --rojo:#B3282D; --gris:#f4f4f5; --borde:#e4e4e7; --txt:#18181b; --txt2:#71717a; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--gris); color:var(--txt); min-height:100vh; display:flex; flex-direction:column; }
-  header { background:var(--rojo); color:#fff; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; }
+  header { background:var(--rojo); color:#fff; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
   header h1 { font-size:18px; font-weight:800; letter-spacing:.2px; }
-  header .s { font-size:12px; opacity:.85; }
+  header .s { font-size:12px; opacity:.9; text-align:right; }
+  header button { background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.4); border-radius:8px; padding:5px 10px; font-size:12px; cursor:pointer; margin-left:8px; }
   main { max-width:1100px; margin:0 auto; padding:28px 18px 60px; width:100%; flex:1; }
   .hola { margin-bottom:22px; }
   .hola h2 { font-size:24px; font-weight:800; }
@@ -20,40 +22,116 @@
   .mod .ico { font-size:34px; line-height:1; }
   .mod h3 { font-size:21px; font-weight:800; margin-top:6px; }
   .mod p { color:#3f3f46; font-size:14.5px; line-height:1.4; flex:1; }
-  .mod a, .mod button { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; margin-top:8px; padding:10px 16px; border-radius:10px; font-size:14.5px; font-weight:700; text-decoration:none; border:none; cursor:pointer; font-family:inherit; }
+  .mod a { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; margin-top:8px; padding:10px 16px; border-radius:10px; font-size:14.5px; font-weight:700; text-decoration:none; }
   .compras { background:#f3eef8; border-color:#dccbea; } .compras a { background:#5b3a86; color:#fff; }
-  .nomina { background:#e9f5ee; border-color:#c3e2cf; } .nomina button { background:#2f855a; color:#fff; opacity:.55; cursor:not-allowed; }
+  .nomina { background:#e9f5ee; border-color:#c3e2cf; } .nomina a { background:#2f855a; color:#fff; }
   .inventarios { background:#fbf0e6; border-color:#f0d5bb; } .inventarios a { background:#b5541c; color:#fff; }
-  .pronto { position:absolute; top:14px; right:14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:#fff; border:1px solid var(--borde); border-radius:99px; padding:3px 9px; color:var(--txt2); }
+  .etq { position:absolute; top:14px; right:14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:#fff; border:1px solid var(--borde); border-radius:99px; padding:3px 8px; color:var(--txt2); }
+  .login { text-align:center; padding-top:70px; }
+  .login .ico { font-size:46px; }
+  .login h2 { font-size:22px; margin:10px 0 4px; }
+  .login p { color:var(--txt2); margin-bottom:20px; }
+  .msg { text-align:center; color:var(--txt2); padding:60px 0; }
+  .aviso { background:#fff3cd; border:1px solid #ffe08a; color:#664d03; border-radius:10px; padding:12px 14px; margin:14px auto; max-width:560px; font-size:14px; }
   footer { text-align:center; color:var(--txt2); font-size:12px; padding:18px; }
 </style>
 </head>
 <body>
-<header><h1>Grupo LEM</h1><div class="s">ERP modular · Doña Tota</div></header>
-<main>
-  <div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div>
-  <div class="grid">
-    <div class="mod compras">
-      <div class="ico">🛒</div>
-      <h3>Compras</h3>
-      <p>Gestiona proveedores, pedidos de sucursal, órdenes de compra y recepciones.</p>
-      <a href="/compras/">Ir a Compras →</a>
-    </div>
-    <div class="mod nomina">
-      <span class="pronto">Próximamente</span>
-      <div class="ico">👥</div>
-      <h3>Nóminas</h3>
-      <p>Administra sueldos, prestaciones y recibos de nómina.</p>
-      <button type="button" disabled>Ir a Nóminas →</button>
-    </div>
-    <div class="mod inventarios">
-      <div class="ico">📦</div>
-      <h3>Inventarios</h3>
-      <p>Conteos diarios de guisos, postres y bebidas por sucursal, eficiencia contra el POS y captura del día.</p>
-      <a href="/inventarios/">Ir a Inventarios →</a>
-    </div>
-  </div>
-</main>
-<footer>Grupo LEM · Operadora de Franquicias LEM · uso interno</footer>
+<header><h1>Grupo LEM</h1><div class="s" id="hUser">ERP modular</div></header>
+<main id="app"><div class="msg">Cargando…</div></main>
+<footer>Grupo LEM · uso interno</footer>
+
+<script type="module">
+/* SQL Connect: misma sesión de Firebase que los módulos (ver /compras/). */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+import { getDataConnect, mutationRef, executeMutation } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-data-connect.js";
+const fbApp = initializeApp({"apiKey": "AIzaSyC1ycKtN1atpb1monWFIJqmR4X5vmpnNoo", "authDomain": "lem-erp.firebaseapp.com", "projectId": "lem-erp", "appId": "1:902179844288:web:e887a0886fa1188da2fd25"});
+const fbAuth = getAuth(fbApp);
+const dc = getDataConnect(fbApp, { connector: "api", location: "us-central1", service: "lem-api" });
+let resolverListo; const listo = new Promise(r => { resolverListo = r; });
+onAuthStateChanged(fbAuth, () => resolverListo());
+window.LEMDC = {
+  listo,
+  usuario: () => fbAuth.currentUser,
+  entrar: (idToken) => signInWithCredential(fbAuth, GoogleAuthProvider.credential(idToken)),
+  salir: () => signOut(fbAuth).catch(() => {}),
+  llamar: async (accion, datos) => {
+    const r = await executeMutation(mutationRef(dc, "Accion", { accion, datos: JSON.stringify(datos || {}) }));
+    return (r && r.data && r.data.r && r.data.r.r) || {};
+  }
+};
+</script>
+<script>
+/* ── Portal con puerta de entrada (12-sep-2026, a petición de Sergio): primero la cuenta de Google,
+   después SOLO los módulos que ese usuario tiene permitidos en lem.usuarios_modulos. ── */
+const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
+const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
+const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
+const S = { token: store.get() || null, perfil: null };
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
+async function esperarLEMDC() {
+  if (!window.LEMDC) await new Promise(r => { const t0 = Date.now(); const iv = setInterval(() => { if (window.LEMDC || Date.now() - t0 > 4000) { clearInterval(iv); r(); } }, 50); });
+  if (window.LEMDC) await Promise.race([LEMDC.listo, new Promise(r => setTimeout(r, 4000))]);
+}
+async function apiN8n(accion, datos) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, accion, datos: datos || {} }) });
+  if (r.status === 401) { const e = new Error('401'); e.expirada = true; throw e; }
+  return await r.json();
+}
+async function api(accion, datos) {
+  try {
+    await esperarLEMDC();
+    if (window.LEMDC && S.token) {
+      const u = LEMDC.usuario(); const em = emailDeToken(S.token);
+      if (!u || (em && (u.email || '').toLowerCase() !== em)) await LEMDC.entrar(S.token);
+    }
+    if (window.LEMDC && LEMDC.usuario()) return await LEMDC.llamar(accion, datos);
+  } catch (e) { console.warn('SQL Connect no disponible, usando n8n:', e && e.message); }
+  return apiN8n(accion, datos);
+}
+const MODULOS = {
+  compras:     { clase: 'compras',     ico: '🛒', titulo: 'Compras',     texto: 'Gestiona proveedores, pedidos de sucursal, órdenes de compra y recepciones.', href: '/compras/', boton: 'Ir a Compras →' },
+  inventarios: { clase: 'inventarios', ico: '📦', titulo: 'Inventarios', texto: 'Conteos diarios de guisos, postres y bebidas por sucursal, eficiencia contra el POS y captura del día.', href: '/inventarios/', boton: 'Ir a Inventarios →' },
+  nominas:     { clase: 'nomina',      ico: '👥', titulo: 'Nóminas',     texto: 'Pre-nómina semanal, horarios, vacaciones y bajas. Hoy se captura en la app actual; pronto aquí mismo.', href: 'https://nomina.grupolem.com', boton: 'Ir a Nóminas →', etiqueta: 'App actual' }
+};
+function vLogin(msj) {
+  $('hUser').innerHTML = 'ERP modular';
+  $('app').innerHTML = '<div class="login"><div class="ico">🏢</div><h2>Grupo LEM</h2><p>' + esc(msj || 'Entra con tu cuenta @grupolem.com para ver tus módulos') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div>';
+  if (window.google) {
+    google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
+      error_callback: (e) => aviso('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Si tu navegador bloquea ventanas emergentes, permítelas para este sitio y reintenta.'),
+      callback: (resp) => { S.token = resp.credential; store.set(S.token); arrancar(); } });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
+  } else { setTimeout(() => vLogin(msj), 400); }
+}
+function aviso(t) { const d = document.createElement('div'); d.className = 'aviso'; d.textContent = t; $('app').prepend(d); }
+function salir() { store.del(); S.token = null; S.perfil = null; if (window.LEMDC) LEMDC.salir(); vLogin('Sesión cerrada.'); }
+function pintar(p) {
+  const mods = (p.modulos || []).filter(m => MODULOS[m]);
+  $('hUser').innerHTML = esc(p.usuario) + '<button onclick="salir()">Salir</button>';
+  if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; return; }
+  let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div class="grid">';
+  for (const k of ['compras', 'nominas', 'inventarios']) {
+    if (!mods.includes(k)) continue; const m = MODULOS[k];
+    h += '<div class="mod ' + m.clase + '">' + (m.etiqueta ? '<span class="etq">' + m.etiqueta + '</span>' : '') + '<div class="ico">' + m.ico + '</div><h3>' + m.titulo + '</h3><p>' + m.texto + '</p><a href="' + m.href + '">' + m.boton + '</a></div>';
+  }
+  $('app').innerHTML = h + '</div>';
+}
+async function arrancar() {
+  $('app').innerHTML = '<div class="msg">Cargando tus módulos…</div>';
+  try {
+    const p = await api('perfil');
+    if (p && p.error) { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin(p.error === 'sin_acceso' ? 'Tu cuenta no tiene acceso al portal. Pide acceso al administrador.' : ('No se pudo cargar tu perfil: ' + (p.detalle || p.error))); return; }
+    S.perfil = p; pintar(p);
+  } catch (e) {
+    store.del(); S.token = null; if (window.LEMDC) LEMDC.salir();
+    vLogin(e && e.expirada ? 'Tu sesión expiró — vuelve a entrar.' : 'No se pudo conectar (' + ((e && e.message) || 'error') + '). Reintenta.');
+  }
+}
+if (S.token) arrancar(); else vLogin();
+</script>
 </body>
 </html>
