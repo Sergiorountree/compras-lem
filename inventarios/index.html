@@ -136,7 +136,7 @@ function effHTML(c) {
 
 async function api(accion, datos) {
   let r;
-  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, accion, datos: datos || {} }) }); }
+  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, accion, datos: conEmpresa(datos) }) }); }
   catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
   if (r.status === 401) { store.del(); S.token = null; vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
   const j = await r.json();
@@ -162,7 +162,7 @@ async function arrancar() {
     const roles = (p.permisos || {}).inventarios || [];
     if (!roles.length) { app().innerHTML = '<div class="empty-state">Tu usuario no tiene acceso al módulo de Inventarios.<br><a href="/">Volver a los módulos</a></div>'; return; }
     S.rol = roles.includes('admin') ? 'admin' : roles.includes('aprobador') ? 'aprobador' : 'gerente';
-    S.sucursales = p.sucursales || [];
+    fijarEmpresa();
     if (!S.branch && S.sucursales.length) S.branch = S.sucursales[0].branch_id;
     pintarNav(); buildTabs(); router();
   } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
@@ -184,8 +184,31 @@ function pintarNav() {
     const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
     h += '<span class="role-badge">Ver como <select onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Asesor') + '</select></span>';
   }
+  h += selectorEmpresa();
   h += '<span class="role-badge" style="opacity:.8">' + esc(S.perfil.usuario) + '</span><a class="logout-btn" href="/">Portal</a>';
   $('navRight').innerHTML = h;
+}
+/* ── Multiempresa (11-sep-2026): selector solo si el usuario tiene más de una empresa ── */
+function fijarEmpresa() {
+  const p = S.perfil || {}; const emps = p.empresas || [];
+  if (emps.length <= 1) { S.empresa = null; S.sucursales = p.sucursales || []; return; }
+  let e = null; try { e = Number(localStorage.getItem('lem_empresa')) || null; } catch (x) {}
+  if (!emps.some(x => x.empresa_id === e)) e = emps[0].empresa_id;
+  S.empresa = e;
+  S.sucursales = (p.sucursales || []).filter(s => s.empresa_id === S.empresa);
+  if (!S.sucursales.some(s => s.branch_id === S.branch)) S.branch = (S.sucursales[0] || {}).branch_id || null;
+}
+function conEmpresa(datos) { const d = Object.assign({}, datos || {}); if (S.empresa && d.empresa_id == null) d.empresa_id = S.empresa; return d; }
+function selectorEmpresa() {
+  const emps = (S.perfil && S.perfil.empresas) || [];
+  if (emps.length <= 1) return '';
+  return '<span class="role-badge">Empresa <select onchange="cambiarEmpresa(this.value)">' +
+    emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></span>';
+}
+function cambiarEmpresa(v) {
+  try { localStorage.setItem('lem_empresa', String(Number(v))); } catch (e) {}
+  S.branch = null; S.gerenteElegido = false; S.filtroSuc = ''; S.capSuc = null;
+  fijarEmpresa(); pintarNav(); buildTabs(); router();
 }
 function sucNombre(b) { const s = S.sucursales.find(x => x.branch_id === Number(b)); return s ? s.nombre : ''; }
 function buildTabs() {
