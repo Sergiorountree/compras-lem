@@ -95,7 +95,7 @@ async function api(accion, datos) {
 const MODULOS = {
   compras:     { clase: 'compras',     ico: '🛒', titulo: 'Compras',     texto: 'Gestiona proveedores, pedidos de sucursal, órdenes de compra y recepciones.', href: '/compras/', boton: 'Ir a Compras →' },
   inventarios: { clase: 'inventarios', ico: '📦', titulo: 'Inventarios', texto: 'Conteos diarios de guisos, postres y bebidas por sucursal, eficiencia contra el POS y captura del día.', href: '/inventarios/', boton: 'Ir a Inventarios →' },
-  nominas:     { clase: 'nomina',      ico: '👥', titulo: 'Nóminas',     texto: 'Pre-nómina semanal, horarios, vacaciones y bajas. Hoy se captura en la app actual; pronto aquí mismo.', href: 'https://nomina.grupolem.com', boton: 'Ir a Nóminas →', etiqueta: 'App actual' }
+  nominas:     { clase: 'nomina',      ico: '👥', titulo: 'Nóminas',     texto: 'Pre-nómina semanal: captura del gerente, revisión y cierre de contabilidad, horas extra y nómina calculada.', href: '/nominas/', boton: 'Ir a Nóminas →' }
 };
 function vLogin(msj) {
   $('hUser').innerHTML = 'ERP modular';
