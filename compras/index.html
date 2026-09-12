@@ -162,7 +162,7 @@ async function api(accion, datos) {
   try {
     r = await fetch(API, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: S.token, accion, datos: datos || {} })
+      body: JSON.stringify({ token: S.token, accion, datos: conEmpresa(datos) })
     });
   } catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
   if (r.status === 401) { store.del(); S.token = null; vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
@@ -194,8 +194,9 @@ async function arrancar() {
   try {
     const p = await api('perfil');
     S.perfil = p;
-    if (S.branch == null && p.sucursales.length) S.branch = p.sucursales[0].branch_id;
-    $('hUser').innerHTML = esc(p.usuario) + (p.roles.includes('admin') ? '<br>' + selectorVista() : '');
+    fijarEmpresa();
+    if (S.branch == null && sucs().length) S.branch = sucs()[0].branch_id;
+    $('hUser').innerHTML = esc(p.usuario) + selectorEmpresa() + (p.roles.includes('admin') ? '<br>' + selectorVista() : '');
     router();
   } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
 }
@@ -207,6 +208,31 @@ function cambiarVista(v) {
   S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista', v); } catch (e) {}
   S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null;
   location.hash = (v === 'aprobador') ? 'bandeja' : 'captura';
+  router();
+}
+/* ── Multiempresa (11-sep-2026): el usuario elige empresa solo si tiene más de una; cada
+   empresa está aislada en la base (041/042), aquí solo se filtra lo que ya viene permitido ── */
+function fijarEmpresa() {
+  const emps = (S.perfil && S.perfil.empresas) || [];
+  if (emps.length <= 1) { S.empresa = null; return; }
+  let e = null; try { e = Number(localStorage.getItem('lem_empresa')) || null; } catch (x) {}
+  if (!emps.some(x => x.empresa_id === e)) e = emps[0].empresa_id;
+  S.empresa = e;
+  if (!sucs().some(s => s.branch_id === S.branch)) S.branch = (sucs()[0] || {}).branch_id || null;
+}
+function sucs() { return ((S.perfil && S.perfil.sucursales) || []).filter(s => !S.empresa || s.empresa_id === S.empresa); }
+function conEmpresa(datos) { const d = Object.assign({}, datos || {}); if (S.empresa && d.empresa_id == null) d.empresa_id = S.empresa; return d; }
+function selectorEmpresa() {
+  const emps = (S.perfil && S.perfil.empresas) || [];
+  if (emps.length <= 1) return '';
+  return '<br><label style="font-size:12px;opacity:.9">Empresa <select onchange="cambiarEmpresa(this.value)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
+    emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></label>';
+}
+function cambiarEmpresa(v) {
+  S.empresa = Number(v); try { localStorage.setItem('lem_empresa', String(S.empresa)); } catch (e) {}
+  S.branch = (sucs()[0] || {}).branch_id || null; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.gerenteElegido = false;
+  if (typeof CADM !== 'undefined') CADM.branch = null;
+  $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + (S.perfil.roles.includes('admin') ? '<br>' + selectorVista() : '');
   router();
 }
 function selectorVista() {
@@ -253,7 +279,7 @@ window.addEventListener('hashchange', () => S.perfil && router());
 function cambiarSuc(v) { S.branch = Number(v); S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
 function vElegirGerente() {
   let h = nav() + '<div class="card"><b>¿Qué gerente quieres ser?</b><div class="presu" style="margin-bottom:8px">Verás exactamente lo que ve ese gerente: solo su sucursal.</div>';
-  S.perfil.sucursales.forEach(s => {
+  sucs().forEach(s => {
     h += '<button class="btn sec" style="display:block;width:100%;text-align:left;margin:6px 0" onclick="elegirGerente(' + s.branch_id + ')">' + esc(s.nombre) + '</button>';
   });
   app().innerHTML = h + '</div>';
@@ -262,15 +288,15 @@ function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.pro
 async function vCaptura() {
   document.body.classList.remove('ancha');
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
-  const suc = S.perfil.sucursales.find(s => s.branch_id === S.branch) || S.perfil.sucursales[0];
+  const suc = sucs().find(s => s.branch_id === S.branch) || sucs()[0];
   if (!suc) { app().innerHTML = nav() + '<div class="msg">Tu usuario no tiene sucursal asignada para pedir.</div>'; return; }
   if (!S.cat) {
     app().innerHTML = nav() + '<div class="msg">Cargando catálogo…</div>';
     S.cat = await api('catalogo', { branch_id: S.branch });
   }
-  const selector = (S.perfil.sucursales.length > 1 && vista() !== 'gerente')
+  const selector = (sucs().length > 1 && vista() !== 'gerente')
     ? '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
-      S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
+      sucs().map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
     : '<b>' + esc(suc.nombre) + '</b>';
   let h = '<div class="card">' + selector + '</div>';
   const prov = (S.cat.proveedores || []).find(p => p.proveedor_id === S.prov);
@@ -556,14 +582,14 @@ async function vCalcAdmin(del, al) {
   document.body.classList.remove('ancha');
   app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
   if (!CADM.prov) { const cp = await api('admin_calc_params'); const p0 = (cp.proveedores || [])[0]; if (!p0) { app().innerHTML = nav() + '<div class="msg">Ningún proveedor tiene calculadora.</div>'; return; } CADM.prov = p0.proveedor_id; CADM.provNombre = p0.nombre_corto; }
-  if (!CADM.branch) CADM.branch = (S.perfil.sucursales[0] || {}).branch_id;
+  if (!CADM.branch) CADM.branch = (sucs()[0] || {}).branch_id;
   const d = await api('admin_calc_config', { branch_id: CADM.branch, proveedor_id: CADM.prov, del: del || null, al: al || null });
   if (d.error) { aviso('Calculadora: ' + (d.detalle || d.error)); return; }
   CADM.data = d;
   const f = d.defaults, cfg = d.config;
   let h = nav() + '<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">🧮 Calculadora de ' + esc(CADM.provNombre) + ' · datos por sucursal</b>' +
     '<select onchange="CADM.branch=Number(this.value);vCalcAdmin()" style="font-size:15px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px">' +
-    S.perfil.sucursales.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === CADM.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select></div>' +
+    sucs().map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === CADM.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select></div>' +
     '<div class="presu" style="margin-top:6px">' + (cfg ? 'Vigente desde ' + fecha(cfg.vigente_desde) + ' · capturado por ' + esc(cfg.capturado_por) : '<b style="color:var(--ambar)">Esta sucursal aún no tiene calculadora configurada.</b>') + ' El gerente ve estos datos tal cual y solo captura su inventario.</div></div>';
   h += '<div class="card hoja"><table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
     '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
@@ -583,7 +609,7 @@ async function vCalcAdmin(del, al) {
   d.lineas.forEach(l => { h += '<tr><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n">' + num(l.consumo) + '</td><td class="n">' + num(l.promedio_sql, 4) + '</td>' +
     '<td class="in"><input type="number" step="0.0001" min="0" id="a_c' + l.proveedor_insumo_id + '" value="' + (l.promedio_cfg != null ? l.promedio_cfg : l.promedio_sql) + '"></td></tr>'; });
   h += '</table></div>' +
-    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar para ' + esc((S.perfil.sucursales.find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal') + '</button>' +
+    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar para ' + esc((sucs().find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal') + '</button>' +
     '<label style="font-size:13px"><input type="checkbox" id="a_todas"> aplicar también fechas y días a <b>todas</b> las sucursales (presupuesto y consumo se quedan por sucursal)</label><span class="presu" id="a_msg"></span></div></div>';
   app().innerHTML = h;
 }
