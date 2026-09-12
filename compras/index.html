@@ -159,7 +159,7 @@ const $ = (id) => document.getElementById(id);
 const app = () => $('app');
 function aviso(m) { let b = document.getElementById('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
-const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { store.del(); } catch(e){} } };
+const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
 const S = { token: store.get() || null, branch: null, prov: null, vista: (function(){ try { return localStorage.getItem('lem_vista') || 'admin'; } catch(e){ return 'admin'; } })(), perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
 const UNIDADES = { PZA: ['pieza', 'piezas'], PZ: ['pieza', 'piezas'], KG: ['kilo', 'kilos'], K: ['kilo', 'kilos'], PQ: ['paquete', 'paquetes'], PKT: ['paquete', 'paquetes'], ROL: ['rollo', 'rollos'], BOL: ['bolsa', 'bolsas'], L: ['litro', 'litros'], LT: ['litro', 'litros'], U: ['unidad', 'unidades'] };
 function uDet(u, q) { const k = String(u || 'PZA').toUpperCase(); const p = UNIDADES[k] || [String(u || 'unidad').toLowerCase(), String(u || 'unidades').toLowerCase()]; return Number(q) === 1 ? p[0] : p[1]; }
@@ -185,6 +185,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&
    además es la ÚNICA ruta para correo_oc (n8n manda el correo). Forzar n8n para diagnóstico:
    localStorage.setItem('lem_api', 'n8n'). ── */
 const SOLO_N8N = new Set(['correo_oc']);
+const LECTURAS = new Set(['perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -194,20 +195,31 @@ async function esperarLEMDC() {
 async function api(accion, datos) {
   const d = conEmpresa(datos);
   if (!SOLO_N8N.has(accion) && apiForzada() !== 'n8n') {
+    // 1) ¿Está lista la sesión de SQL Connect? Si no, se usa n8n (todavía no se mandó nada).
+    let listo = false;
     try {
       await esperarLEMDC();
       if (window.LEMDC && S.token) {
         const u = LEMDC.usuario(); const em = emailDeToken(S.token);
         if (!u || (em && (u.email || '').toLowerCase() !== em)) await LEMDC.entrar(S.token);
       }
-      if (window.LEMDC && LEMDC.usuario()) {
+      listo = !!(window.LEMDC && LEMDC.usuario());
+    } catch (e) { console.warn('SQL Connect sin sesión (' + accion + '), usando n8n:', e && e.message); }
+    // 2) Ya con sesión: la llamada va por SQL Connect. Auditoría 12-sep (S04): una ESCRITURA que
+    //    falla por red NO se repite por n8n (pudo haberse ejecutado); solo las lecturas caen a n8n.
+    if (listo) {
+      try {
         const j = await LEMDC.llamar(accion, d);
         if (j.error) { alert('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
         return j;
+      } catch (e) {
+        if (e && e.negocio) throw e;
+        if (!LECTURAS.has(accion)) {
+          aviso('No se pudo confirmar "' + accion + '" (' + ((e && e.message) || 'sin respuesta') + '). Revisa el estado antes de volver a intentarlo.');
+          throw e;
+        }
+        console.warn('SQL Connect falló en la lectura ' + accion + ', usando n8n:', e && e.message);
       }
-    } catch (e) {
-      if (e && e.negocio) throw e;
-      console.warn('SQL Connect no disponible para ' + accion + ', usando n8n:', e && e.message);
     }
   }
   return apiN8n(accion, d);
