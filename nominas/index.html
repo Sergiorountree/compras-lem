@@ -3,62 +3,113 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nóminas · Grupo LEM</title>
+<title>Sistema de Pre-Nómina · Grupo LEM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root { --lem:#534AB7; --lem-dark:#3C3489; --lem-light:#EEEDFE; --bg:#FAFAF7; --surface:#fff; --border:#E8E6DF; --border-strong:#D5D2C7; --text:#1A1A1A; --soft:#6B6B66; --faint:#9B9A92;
-          --A:#2A5A0E; --D:#565550; --FI:#8C1F1B; --INC:#7A4B05; --VAC:#0F4471; --PSGS:#322787; --PCGS:#0E5A42; --BAJA:#1A1A1A; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
-  header { background:var(--lem); color:#fff; padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-  header h1 { font-size:17px; font-weight:800; display:flex; align-items:center; gap:8px; }
-  header h1 a { color:#fff; text-decoration:none; opacity:.9; }
-  .badge { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.18); border-radius:99px; padding:4px 10px; font-size:12px; }
-  .badge select { border:none; border-radius:6px; padding:2px 6px; font-size:12px; }
-  header a.portal { color:#fff; text-decoration:none; font-size:12px; border:1px solid rgba(255,255,255,.5); border-radius:8px; padding:4px 9px; }
-  .layout { display:flex; min-height:calc(100vh - 48px); }
-  nav.side { width:220px; background:var(--surface); border-right:1px solid var(--border); padding:14px 10px; flex-shrink:0; }
-  nav.side a { display:block; padding:9px 12px; border-radius:10px; color:var(--text); text-decoration:none; font-size:14px; margin-bottom:4px; }
-  nav.side a.on, nav.side a:hover { background:var(--lem-light); color:var(--lem-dark); font-weight:700; }
-  nav.side .sec { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); padding:14px 12px 6px; }
-  main { flex:1; padding:18px 22px 60px; min-width:0; }
-  h2 { font-size:22px; font-weight:800; margin-bottom:4px; } .sub { color:var(--soft); font-size:14px; margin-bottom:16px; }
-  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:14px; }
-  .fila { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .btn { border:none; border-radius:10px; padding:9px 14px; font-size:14px; font-weight:700; cursor:pointer; background:var(--lem); color:#fff; }
-  .btn.sec { background:#fff; color:var(--lem-dark); border:1px solid var(--border-strong); } .btn.ok { background:#0E5A42; } .btn.mal { background:#8C1F1B; } .btn.mini { padding:5px 9px; font-size:12px; }
-  .btn:disabled { opacity:.45; cursor:not-allowed; }
-  select, input[type=text], input[type=number] { border:1px solid var(--border-strong); border-radius:8px; padding:6px 8px; font-size:14px; background:#fff; }
-  table { border-collapse:collapse; width:100%; font-size:13.5px; background:#fff; } th, td { border-bottom:1px solid var(--border); padding:7px 8px; text-align:left; vertical-align:middle; }
-  th { font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--soft); background:#F5F4EF; position:sticky; top:0; }
-  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .tabla { overflow:auto; border:1px solid var(--border); border-radius:12px; }
-  .est { display:inline-block; border-radius:99px; padding:3px 10px; font-size:12px; font-weight:700; }
-  .est.borrador, .est.sin_capturar { background:#F1EFE8; color:#565550; } .est.enviada { background:#DEEBF8; color:#0F4471; } .est.rechazada { background:#FCE7E5; color:#8C1F1B; } .est.cerrada { background:#2C2C2A; color:#fff; }
-  select.ind { width:74px; font-weight:800; color:#fff; text-align:center; border:none; }
-  select.ind.v { background:#fff; color:var(--faint); border:1px dashed var(--border-strong); font-weight:400; }
-  select.ind.A{background:var(--A)} select.ind.D{background:var(--D)} select.ind.FI{background:var(--FI)} select.ind.INC{background:var(--INC)} select.ind.VAC{background:var(--VAC)} select.ind.PSGS{background:var(--PSGS)} select.ind.PCGS{background:var(--PCGS)} select.ind.BAJA{background:var(--BAJA)}
-  .pill { display:inline-block; border-radius:6px; padding:2px 7px; font-size:12px; font-weight:800; color:#fff; min-width:34px; text-align:center; }
-  .pill.A{background:var(--A)} .pill.D{background:var(--D)} .pill.FI{background:var(--FI)} .pill.INC{background:var(--INC)} .pill.VAC{background:var(--VAC)} .pill.PSGS{background:var(--PSGS)} .pill.PCGS{background:var(--PCGS)} .pill.BAJA{background:var(--BAJA)} .pill.v{background:#eee;color:#999}
-  .aviso { background:#fff3cd; border:1px solid #ffe08a; color:#664d03; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:14px; }
-  .malo { background:#FCE7E5; border-color:#f3b8b3; color:#8C1F1B; } .bueno { background:#E6F4EA; border-color:#b7dfc4; color:#0E5A42; }
-  .login { text-align:center; padding-top:70px; } .login .ico { font-size:46px; } .login h2 { margin:10px 0 4px; } .login p { color:var(--soft); margin-bottom:20px; }
-  .msg { text-align:center; color:var(--soft); padding:50px 0; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
-  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; } .kpi b { font-size:22px; display:block; } .kpi span { color:var(--soft); font-size:12.5px; }
-  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; } .chip { border:1px solid var(--border-strong); background:#fff; border-radius:99px; padding:5px 12px; font-size:13px; cursor:pointer; } .chip.on { background:var(--lem); color:#fff; border-color:var(--lem); }
-  tr.click { cursor:pointer; } tr.click:hover td { background:var(--lem-light); }
-  .leyenda { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--soft); margin:8px 0 12px; }
-  @media (max-width:820px) { .layout { flex-direction:column; } nav.side { width:auto; display:flex; overflow:auto; padding:8px; border-right:none; border-bottom:1px solid var(--border); } nav.side .sec { display:none; } nav.side a { white-space:nowrap; } main { padding:14px; } }
+  /* ── Mismo sistema visual que la app de pre-nómina (nomina.grupolem.com) ── */
+  :root { --font-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif; --font-serif: 'Instrument Serif', Georgia, serif; --font-mono: 'JetBrains Mono', monospace;
+          --lem: #534AB7; --lem-dark: #3C3489; --lem-light: #EEEDFE; --wings: #1A1A1A; --tota: #C03028; --mini: #D85A30;
+          --bg: #FAFAF7; --surface: #FFFFFF; --border: #E8E6DF; --border-strong: #D5D2C7; --text: #1A1A1A; --text-soft: #6B6B66; --text-faint: #9B9A92; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { font-family: var(--font-sans); background: var(--bg); color: var(--text); font-feature-settings: 'cv11', 'ss01'; letter-spacing: -0.005em; font-size: 14px; }
+  button, input, select, textarea { font-family: inherit; }
+  button { background: none; border: none; color: inherit; }
+  .font-serif { font-family: var(--font-serif); letter-spacing: 0; } .num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  .grain { background-image: radial-gradient(circle at 20% 10%, rgba(83,74,183,0.04) 0%, transparent 50%), radial-gradient(circle at 80% 90%, rgba(192,48,40,0.03) 0%, transparent 50%); }
+  .cell-A { background: #ECF7E8; color: #2A5A0E; border-color: #C8E5BB; } .cell-D { background: #F1EFE8; color: #565550; border-color: #D5D2C5; }
+  .cell-FI { background: #FCE7E5; color: #8C1F1B; border-color: #F2B8B3; } .cell-INC { background: #FCEFD5; color: #7A4B05; border-color: #F0CD83; }
+  .cell-VAC { background: #DEEBF8; color: #0F4471; border-color: #ABCAE9; } .cell-PSGS { background: #EAE6F7; color: #322787; border-color: #C4BBE7; }
+  .cell-PCGS { background: #DAF1E9; color: #0E5A42; border-color: #98D6BF; } .cell-BAJA { background: #2C2C2A; color: #FFFFFF; border-color: #2C2C2A; }
+  .cell-empty { background: #FFFFFF; color: #C5C2B5; border-color: #E8E6DF; }
+  .cell-btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 36px; border: 1px solid; border-radius: 6px; font-weight: 500; font-size: 12px; letter-spacing: 0.02em; cursor: pointer; transition: transform 0.05s ease, box-shadow 0.1s ease; user-select: none; font-family: var(--font-mono); }
+  .cell-btn:hover { box-shadow: 0 0 0 2px rgba(83,74,183,0.15); } .cell-btn:active { transform: scale(0.97); } .cell-btn:disabled { cursor: default; box-shadow: none; }
+  .cell-chip { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); font-weight: 500; border: 1px solid; min-width: 42px; text-align: center; }
+  .shadow-card { box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 0 0 1px var(--border); } .shadow-pop { box-shadow: 0 6px 24px rgba(0,0,0,0.08), 0 0 0 1px var(--border-strong); }
+  .brand-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; font-size: 14px; color: var(--text-soft); cursor: pointer; transition: background 0.1s ease, color 0.1s ease; width: 100%; text-align: left; }
+  .nav-item:hover { background: rgba(0,0,0,0.04); color: var(--text); } .nav-item.active { background: var(--lem-light); color: var(--lem-dark); font-weight: 500; } .nav-item.active svg { color: var(--lem); }
+  .nav-item .soon { margin-left: auto; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: all 0.1s ease; cursor: pointer; border: 1px solid transparent; }
+  .btn-primary { background: var(--lem); color: white; } .btn-primary:hover { background: var(--lem-dark); }
+  .btn-secondary { background: white; color: var(--text); border-color: var(--border-strong); } .btn-secondary:hover { background: var(--bg); }
+  .btn-danger { background: white; color: #8C1F1B; border-color: #F2B8B3; } .btn-danger:hover { background: #FCE7E5; }
+  .btn-success { background: #0E5A42; color: white; } .btn-success:hover { background: #084E37; }
+  .btn-ghost { background: transparent; color: var(--text-soft); } .btn-ghost:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; } .btn.p-2 { padding: 8px; } .btn.p-15 { padding: 6px; } .btn.w-full { width: 100%; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+  .badge-borrador, .badge-sin_capturar { background: #F1EFE8; color: #565550; } .badge-enviada { background: #DEEBF8; color: #0F4471; } .badge-revision { background: #FCEFD5; color: #7A4B05; }
+  .badge-rechazada { background: #FCE7E5; color: #8C1F1B; } .badge-corregida { background: #EAE6F7; color: #322787; } .badge-aprobada { background: #DAF1E9; color: #0E5A42; } .badge-cerrada { background: #2C2C2A; color: white; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(20,20,18,0.4); backdrop-filter: blur(2px); z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .modal-card { background: white; border-radius: 12px; box-shadow: 0 24px 60px rgba(0,0,0,0.18); max-width: 520px; width: 92%; max-height: 86vh; overflow: auto; padding: 24px; }
+  .day-popover { position: absolute; z-index: 50; background: white; border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.16), 0 0 0 1px var(--border-strong); padding: 6px; min-width: 200px; }
+  .day-popover .op { width: 100%; text-align: left; padding: 6px 8px; border-radius: 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; } .day-popover .op:hover { background: #F9FAFB; }
+  .lem-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+  .lem-table thead th { background: #F5F3EC; font-size: 11px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+  .lem-table tbody td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; background: white; vertical-align: middle; }
+  .lem-table tbody tr:hover td { background: #FAFAF7; } .lem-table tbody tr:last-child td { border-bottom: none; }
+  .avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 500; font-size: 12px; color: white; flex-shrink: 0; }
+  .toast { position: fixed; bottom: 24px; right: 24px; z-index: 200; background: #1A1A1A; color: white; padding: 12px 16px; border-radius: 10px; font-size: 13px; max-width: 400px; box-shadow: 0 10px 32px rgba(0,0,0,0.2); animation: toast-in 0.2s ease; }
+  @keyframes toast-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .tip { position: relative; } .tip:hover .tip-body { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .tip-body { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(4px); background: #1A1A1A; color: white; padding: 6px 10px; border-radius: 5px; font-size: 11px; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.12s ease; z-index: 30; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .stat-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .stat-card .stat-value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px; } .stat-card .stat-label { font-size: 12px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; }
+  .fade-in { animation: fade-in 0.2s ease; } @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  /* ── Armazón (sidebar + main) ── */
+  .shell { display: flex; height: 100%; } .sidebar { width: 256px; flex-shrink: 0; border-right: 1px solid var(--border); background: #FCFBF7; display: flex; flex-direction: column; }
+  .sb-head { padding: 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .logo { width: 32px; height: 32px; background: var(--lem); border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-family: var(--font-serif); flex-shrink: 0; }
+  .sb-brand { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: #6B7280; text-transform: uppercase; } .sb-app { font-size: 13px; font-weight: 500; line-height: 1.2; }
+  .sb-nav { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  .sb-foot { padding: 8px 12px 12px; border-top: 1px solid var(--border); } .sb-label { padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; font-weight: 500; }
+  .user-menu { padding: 10px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px; }
+  .sb-extra { padding: 4px 8px 0; display: flex; flex-direction: column; gap: 6px; } .sb-extra label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; font-weight: 500; display: block; margin-bottom: 2px; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; } .main > .scroll { flex: 1; overflow: auto; }
+  .topbar { border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); flex-wrap: wrap; }
+  .topbar h1 { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; } .topbar p { font-size: 14px; color: #6B7280; margin-top: 2px; }
+  .sel { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 14px; background: white; } .sel-lg { padding: 10px 12px; }
+  .lbl-sm { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280; font-weight: 500; display: block; margin-bottom: 4px; }
+  .he-input { width: 48px; text-align: center; font-size: 14px; padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-family: var(--font-mono); }
+  textarea.ta { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 14px; min-height: 120px; resize: vertical; }
+  .login-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-box { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 12px 40px rgba(0,0,0,0.08), 0 0 0 1px var(--border); }
+  .logo-lg { width: 52px; height: 52px; background: var(--lem); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 22px; font-family: var(--font-serif); }
+  .suc-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 20px; text-align: left; cursor: pointer; } .suc-head:hover { background: #F9FAFB; }
+  .op-btn { padding: 6px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; font-family: var(--font-mono); background: var(--bg); border: 1px solid var(--border-strong); color: var(--text); cursor: pointer; } .op-btn.on { background: var(--lem); color: white; border-color: var(--lem); }
+  .op-btn.sm { padding: 6px 8px; font-size: 12px; font-family: var(--font-sans); }
+  .msg-card { background: white; border-radius: 12px; padding: 32px; text-align: center; font-size: 14px; color: #6B7280; }
+  .banner { padding: 16px; border-radius: 8px; border: 1px solid; margin-bottom: 16px; font-size: 14px; } .banner-red { background: #FEF2F2; border-color: #F2B8B3; } .banner-green { background: #F0FDF4; border-color: #C8E5BB; color: #2A5A0E; display: flex; align-items: center; gap: 8px; padding: 12px; } .banner-amber { background: #FFFBEB; border-color: #F0CD83; }
+  .banner .ttl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; margin-bottom: 4px; }
+  /* utilidades (las mismas que usa la app vía Tailwind) */
+  .flex { display: flex; } .items-center { align-items: center; } .items-start { align-items: flex-start; } .items-end { align-items: flex-end; } .justify-between { justify-content: space-between; } .justify-center { justify-content: center; } .justify-end { justify-content: flex-end; } .flex-wrap { flex-wrap: wrap; } .flex-col { flex-direction: column; } .flex-1 { flex: 1; } .min-w-0 { min-width: 0; }
+  .gap-1 { gap: 4px; } .gap-15 { gap: 6px; } .gap-2 { gap: 8px; } .gap-25 { gap: 10px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; } .gap-6 { gap: 24px; }
+  .p-8 { padding: 32px; } .p-6 { padding: 24px; } .p-5 { padding: 20px; } .p-4 { padding: 16px; } .px-5 { padding-left: 20px; padding-right: 20px; } .pb-5 { padding-bottom: 20px; }
+  .mb-1 { margin-bottom: 4px; } .mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 12px; } .mb-4 { margin-bottom: 16px; } .mb-5 { margin-bottom: 20px; } .mb-6 { margin-bottom: 24px; } .mt-05 { margin-top: 2px; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; } .mt-5 { margin-top: 20px; } .ml-2 { margin-left: 8px; } .mr-15 { margin-right: 6px; } .mr-2 { margin-right: 8px; }
+  .text-10 { font-size: 10px; } .text-11 { font-size: 11px; } .text-xs { font-size: 12px; } .text-13 { font-size: 13px; } .text-sm { font-size: 14px; } .text-base { font-size: 16px; } .text-lg { font-size: 18px; } .text-xl { font-size: 20px; } .text-2xl { font-size: 24px; }
+  .text-gray-300 { color: #D1D5DB; } .text-gray-400 { color: #9CA3AF; } .text-gray-500 { color: #6B7280; } .text-gray-600 { color: #4B5563; } .text-green-700 { color: #15803D; } .text-blue-700 { color: #1D4ED8; }
+  .font-medium { font-weight: 500; } .font-semibold { font-weight: 600; } .font-normal { font-weight: 400; } .uppercase { text-transform: uppercase; } .normal-case { text-transform: none; } .tracking-wider { letter-spacing: 0.05em; } .tracking-widest { letter-spacing: 0.1em; }
+  .text-center { text-align: center; } .text-right { text-align: right; } .text-left { text-align: left; } .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .underline { text-decoration: underline; } .leading-relaxed { line-height: 1.625; }
+  .bg-white { background: white; } .rounded-xl { border-radius: 12px; } .rounded-lg { border-radius: 8px; } .rounded { border-radius: 4px; } .overflow-hidden { overflow: hidden; } .overflow-auto { overflow: auto; } .overflow-x-auto { overflow-x: auto; } .relative { position: relative; } .w-full { width: 100%; }
+  .grid { display: grid; gap: 16px; } .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .space-y-2 > * + * { margin-top: 8px; } .space-y-3 > * + * { margin-top: 12px; } .space-y-05 > * + * { margin-top: 2px; }
+  ul.dots { list-style: none; } ul.dots li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; } ul.dots li::before { content: '●'; color: var(--lem); }
+  @media (max-width: 900px) { .grid-4, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 760px) {
+    .shell { flex-direction: column; height: auto; min-height: 100%; } .sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .sb-head { padding: 12px 16px; } .sb-nav { flex-direction: row; overflow-x: auto; padding: 8px; gap: 4px; } .nav-item { white-space: nowrap; width: auto; padding: 6px 10px; } .nav-item .soon { display: none; }
+    .sb-foot { padding: 4px 8px 8px; } .sb-label { display: none; } .sb-extra { flex-direction: row; flex-wrap: wrap; }
+    .main { overflow: visible; } .main > .scroll { overflow: visible; } .topbar { padding: 14px 16px; } .p-8 { padding: 16px; } .p-6 { padding: 12px; } .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1><a href="/" title="Portal">⌂</a> 👥 Nóminas — Grupo LEM</h1>
-  <div class="fila" id="hRight"></div>
-</header>
-<div class="layout"><nav class="side" id="menu" style="display:none"></nav><main id="app"><div class="msg">Cargando…</div></main></div>
+<div id="root"><div class="msg-card">Cargando…</div></div>
+<div id="modal"></div><div id="toast"></div>
 
 <script type="module">
 /* ── SQL Connect (Firebase → Postgres directo). Decisión 8/12-sep-2026: las pantallas ya no pasan
@@ -84,29 +135,81 @@ window.LEMDC = {
 };
 </script>
 <script>
-/* ── Nóminas fase 2 (entrega A, 12-sep-2026): captura del gerente, envío, bandeja y aprobación de
-   contabilidad, horas extra. Misma puerta (Google + SQL Connect) y misma API que Compras/Inventarios. ── */
+/* ── Nóminas fase 2 (entrega A · 13-sep-2026): las pantallas de la app de pre-nómina, ahora dentro del portal.
+   Misma puerta (Google + SQL Connect) y misma API (acciones nom_*) que Compras/Inventarios. ── */
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
 const S = { token: store.get() || null, perfil: null, vista: (function(){ try { return localStorage.getItem('lem_vista_nom') || 'admin'; } catch(e){ return 'admin'; } })(),
-            branch: null, week: null, semana: null, bandeja: null, filtroBandeja: 'pendientes', empresa: null, msgPend: null };
-const $ = id => document.getElementById(id); const app = () => $('app');
+            empresa: null, branch: null, week: null, semana: null, dirty: false, guardando: false, saveT: null, semanasPorSuc: {}, bandeja: null,
+            filtroLista: 'todas', filtroInbox: 'pendientes', nomWeek: null, nomAbierta: null, nomDetalle: {}, heWeek: null, toastT: null };
+const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-const money = n => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-const num = (n, d) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('es-MX', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+const N = n => Number(n) || 0;
+const pesos = n => '$' + N(n).toLocaleString('es-MX');
+const pesos2 = n => '$' + N(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const r1 = n => Math.round(N(n) * 10) / 10;
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const IND = ['A', 'D', 'FI', 'INC', 'VAC', 'PSGS', 'PCGS', 'BAJA'];
-const IND_NOMBRE = { A: 'Asistencia', D: 'Descanso', FI: 'Falta injustificada', INC: 'Incapacidad', VAC: 'Vacaciones', PSGS: 'Permiso sin goce', PCGS: 'Permiso con goce', BAJA: 'Baja' };
-function fmtF(d) { if (!d) return ''; const p = String(d).slice(0, 10).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
-function fmtCorta(d) { if (!d) return ''; const p = String(d).slice(0, 10).split('-'); const M = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']; return Number(p[2]) + ' ' + M[Number(p[1]) - 1]; }
-function errorUI(e) { if (!e || e.message === '401') return; console.error(e); aviso(e.negocio ? e.message : 'Algo falló: ' + (e.message || 'error desconocido'), 'malo'); }
-function avisoLuego(t, cls) { S.msgPend = { t, cls }; }
-function aviso(t, cls) { const d = document.createElement('div'); d.className = 'aviso ' + (cls || ''); d.textContent = t; app().prepend(d); setTimeout(() => d.remove(), 6000); }
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fmtFecha(d) { if (!d) return '—'; const p = String(d).slice(0, 10).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+function fmtCorta(d) { if (!d) return ''; const p = String(d).slice(0, 10).split('-'); return Number(p[2]) + ' ' + MESES[Number(p[1]) - 1]; }
+function addDays(iso, n) { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function weekDe(lunesISO) { const m = new Date(lunesISO + 'T12:00:00Z'); const y = m.getUTCFullYear(); const j1 = new Date(Date.UTC(y, 0, 1)); const w = Math.ceil((((m - j1) / 86400000) + j1.getUTCDay() + 1) / 7); return y + '-W' + String(w).padStart(2, '0'); }
+const INDICADORES = [
+  { code: 'A',    nombre: 'Asistencia',                 desc: 'Día trabajado normal' },
+  { code: 'D',    nombre: 'Descanso',                   desc: 'Día de descanso' },
+  { code: 'FI',   nombre: 'Falta injustificada',        desc: 'Requiere observación. Cuenta para alerta de 4 FI/30 días.' },
+  { code: 'INC',  nombre: 'Incapacidad',                desc: 'Requiere documento o folio IMSS' },
+  { code: 'VAC',  nombre: 'Vacaciones',                 desc: 'Aparece automáticamente con solicitud aprobada' },
+  { code: 'PSGS', nombre: 'Permiso sin goce de sueldo', desc: 'Requiere comentario' },
+  { code: 'PCGS', nombre: 'Permiso con goce de sueldo', desc: 'Requiere comentario' },
+  { code: 'BAJA', nombre: 'Baja',                       desc: 'Solo visible cuando hay baja aprobada' }];
+const IND_COLOR = { A: '#2A5A0E', D: '#565550', FI: '#8C1F1B', INC: '#7A4B05', VAC: '#0F4471', PSGS: '#322787', PCGS: '#0E5A42', BAJA: '#1A1A1A' };
+const ROLES = { admin: { label: 'Administrador', color: '#534AB7' }, rh: { label: 'Recursos Humanos', color: '#0F4471' }, contabilidad: { label: 'Contabilidad', color: '#0E5A42' }, asesor: { label: 'Asesor operativo', color: '#7A4B05' }, gerente: { label: 'Gerente', color: '#8C1F1B' } };
+const EMP_COLOR = { 1: '#C03028', 2: '#1A1A1A', 4: '#D85A30' };
+const ICONS = {
+  home: '<path d="M3 12L12 4l9 8M5 10v10h4v-6h6v6h4V10"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20c0-3 3-5 7-5s7 2 7 5M14 20c0-2 2-4 5-4s3 2 3 4"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2h-16a2 2 0 0 1-2-2v-6z"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-7"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.4.6 1 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  cake: '<path d="M20 21V11.5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2V21M2 21h20M12 8V3M9 5l3-2 3 2"/><path d="M4 16c1 0 2 1 4 1s3-1 4-1 2 1 4 1 3-1 4-1"/>',
+  gift: '<path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>',
+  check: '<path d="M5 13l4 4L19 7"/>', x: '<path d="M18 6L6 18M6 6l12 12"/>', plus: '<path d="M12 5v14M5 12h14"/>',
+  chevronR: '<path d="M9 6l6 6-6 6"/>', chevronL: '<path d="M15 6l-6 6 6 6"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  alert: '<path d="M12 2L2 22h20L12 2zM12 9v4M12 17h.01"/>',
+  money: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9a3 3 0 0 0-2.8-2c-1.7 0-3 1-3 2.5s1.5 2 3 2.5 3 1 3 2.5-1.3 2.5-3 2.5a3 3 0 0 1-2.8-2M12 6v2m0 8v2"/>',
+  moveH: '<path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>',
+  clipboard: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>' };
+const icon = (n, s, cls) => '<svg width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"' + (cls ? ' class="' + cls + '"' : '') + ' style="flex-shrink:0">' + (ICONS[n] || '') + '</svg>';
+const LISTOS = new Set(['dashboard', 'capturar', 'prenominas', 'inbox', 'nomina', 'horasextras']);
+const NAV = {
+  admin: [['dashboard', 'chart', 'Dashboard'], ['prenominas', 'file', 'Pre-nóminas'], ['inbox', 'inbox', 'Bandeja pre-nóminas'], ['horario', 'calendar', 'Horarios'], ['colaboradores', 'users', 'Colaboradores'], ['sucursales', 'home', 'Sucursales'], ['movimientos', 'moveH', 'Movimientos'], ['nomina', 'money', 'Nómina semanal'], ['horasextras', 'money', 'Horas extras'], ['bajas', 'logout', 'Bajas'], ['reportes', 'file', 'Reportes'], ['bonos', 'gift', 'Bonos'], ['usuarios', 'settings', 'Usuarios y accesos'], ['auditoria', 'clipboard', 'Auditoría']],
+  rh: [['dashboard', 'chart', 'Dashboard'], ['colaboradores', 'users', 'Colaboradores'], ['sucursales', 'home', 'Sucursales'], ['cumpleanos', 'cake', 'Cumpleaños'], ['movimientos', 'moveH', 'Movimientos'], ['contratos', 'file', 'Contratos'], ['vacaciones', 'calendar', 'Vacaciones'], ['bajas', 'logout', 'Bajas'], ['reportes', 'file', 'Reportes'], ['alertas', 'alert', 'Alertas FI']],
+  contabilidad: [['dashboard', 'chart', 'Dashboard'], ['inbox', 'inbox', 'Bandeja pre-nóminas'], ['nomina', 'money', 'Nómina semanal'], ['colaboradores', 'users', 'Colaboradores'], ['movimientos', 'moveH', 'Movimientos'], ['bajas', 'logout', 'Bajas'], ['reportes', 'file', 'Reportes'], ['bonos', 'gift', 'Bonos mensuales'], ['horasextras', 'money', 'Horas extras']],
+  asesor: [['dashboard', 'chart', 'Dashboard'], ['prenominas', 'file', 'Pre-nóminas UN'], ['horario', 'calendar', 'Horarios'], ['movimientos', 'moveH', 'Movimientos'], ['vacaciones', 'calendar', 'Vacaciones'], ['bajas', 'logout', 'Bajas']],
+  gerente: [['dashboard', 'home', 'Inicio'], ['capturar', 'file', 'Capturar pre-nómina'], ['horario', 'calendar', 'Horario próxima semana'], ['colaboradores', 'users', 'Mi equipo'], ['movimientos', 'moveH', 'Movimientos'], ['vacaciones', 'calendar', 'Solicitar vacaciones'], ['bajas', 'logout', 'Bajas']] };
+const PRONTO = {
+  horario: ['Turnos y descansos de la próxima semana por colaborador', 'La pre-nómina se prellena con lo que definas aquí'],
+  colaboradores: ['Ficha de cada colaborador (puesto, ingreso, contrato, estatus)', 'Altas y cambios de sucursal'],
+  sucursales: ['Sucursales, gerente y asesor asignados', 'Plantilla objetivo por sucursal'],
+  movimientos: ['Solicitudes de cambio de sueldo, puesto o sucursal', 'Aprobación por administración'],
+  bajas: ['Solicitud y aprobación de bajas', 'Historial de bajas por sucursal'],
+  reportes: ['Reportes por semana, sucursal y colaborador', 'Exportación a Excel'],
+  bonos: ['Bonos mensuales por sucursal', 'Aprobación de contabilidad'],
+  usuarios: ['Usuarios y accesos (llegará al panel central del portal)'],
+  auditoria: ['Bitácora de cambios de pre-nóminas y aprobaciones'],
+  cumpleanos: ['Cumpleaños del mes por sucursal'], contratos: ['Contratos temporales, renovaciones y planta', 'Alertas de vencimiento'],
+  vacaciones: ['Solicitud de vacaciones', 'Aprobación de RH y saldos por colaborador'], alertas: ['Alerta automática con 4 FI en 30 días', 'Aviso a RH y Administración'] };
 
 /* ── API: SQL Connect con respaldo n8n (misma lógica que los otros módulos) ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['perfil', 'nom_inicio', 'nom_semanas', 'nom_semana', 'nom_bandeja']);
+const LECTURAS = new Set(['perfil', 'nom_inicio', 'nom_semanas', 'nom_semana', 'nom_bandeja', 'nom_he_semana']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -130,7 +233,7 @@ async function api(accion, datos) {
         return j;
       } catch (e) {
         if (e && e.negocio) throw e;
-        if (!LECTURAS.has(accion)) { aviso('No se pudo confirmar "' + accion + '" (' + ((e && e.message) || 'sin respuesta') + '). Revisa el estado antes de repetir.', 'malo'); throw e; }
+        if (!LECTURAS.has(accion)) { toast('No se pudo confirmar "' + accion + '" (' + ((e && e.message) || 'sin respuesta') + '). Revisa el estado antes de repetir.'); throw e; }
         console.warn('SQL Connect falló en la lectura ' + accion + ', usando n8n:', e && e.message);
       }
     }
@@ -140,38 +243,48 @@ async function api(accion, datos) {
 async function apiN8n(accion, datos) {
   let r;
   try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, accion, datos: datos || {} }) }); }
-  catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.', 'malo'); throw err; }
+  catch (err) { toast('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
   if (r.status === 401) { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
   const j = await r.json();
   if (j.error && j.error !== 'no_existe') { const e = new Error(j.detalle || j.error); e.negocio = true; e.codigo = j.error; throw e; }
   return j;
 }
+function errorUI(e) { if (!e || e.message === '401') return; console.error(e); toast(e.negocio ? e.message : 'Algo falló: ' + (e.message || 'error desconocido')); }
 
-/* ── Login ── */
+/* ── Toast y modales (como en la app) ── */
+function toast(msg) { const t = $('toast'); t.innerHTML = '<div class="toast">' + esc(msg) + '</div>'; clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.innerHTML = ''; }, 3200); }
+function modal(html) { $('modal').innerHTML = '<div class="modal-backdrop" onclick="if(event.target===this)cerrarModal()"><div class="modal-card fade-in">' + html + '</div></div>'; }
+function cerrarModal() { $('modal').innerHTML = ''; }
+
+/* ── Login (la tarjeta de la app, con el botón de Google del portal) ── */
 function vLogin(msj) {
-  $('menu').style.display = 'none'; $('hRight').innerHTML = '';
-  app().innerHTML = '<div class="login"><div class="ico">👥</div><h2>Nóminas — Grupo LEM</h2><p>' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div>';
+  $('root').innerHTML = '<div class="login-wrap grain"><div style="width:100%;max-width:380px"><div class="login-box">' +
+    '<div class="flex justify-center mb-4"><div class="logo-lg">L</div></div><div class="text-center mb-1"><h1 class="font-serif text-2xl" style="color:var(--lem);font-weight:400">Grupo LEM Nóminas</h1></div>' +
+    '<p class="text-center text-gray-500 text-sm mb-6">Sistema de Pre-Nómina y Control Laboral</p><div id="gbtn" class="flex justify-center"></div>' +
+    '<p class="text-center text-xs text-gray-500 mt-4">' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p></div>' +
+    '<div class="text-center mt-5 text-xs text-gray-400"><a href="/" style="color:inherit">Portal Grupo LEM · compras.grupolem.com</a></div></div></div>';
   if (window.google) {
     google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
-      error_callback: (e) => aviso('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Permite ventanas emergentes para este sitio y reintenta.', 'malo'),
-      callback: (resp) => { try { S.token = resp.credential; store.set(S.token); arrancar(); } catch (err) { aviso('Falló el arranque tras el login: ' + err.message, 'malo'); } } });
+      error_callback: (e) => toast('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Permite ventanas emergentes para este sitio y reintenta.'),
+      callback: (resp) => { try { S.token = resp.credential; store.set(S.token); arrancar(); } catch (err) { toast('Falló el arranque tras el login: ' + err.message); } } });
     google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
   } else { setTimeout(() => vLogin(msj), 400); }
 }
 async function arrancar() {
-  app().innerHTML = '<div class="msg">Cargando…</div>';
+  $('root').innerHTML = '<div class="msg-card">Cargando…</div>';
   try {
     const p = await api('nom_inicio');
     S.perfil = p; fijarEmpresa();
-    const sucs = sucs_();
-    if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucs[0] || {}).branch_id || null;
     if (!S.week) S.week = p.semana_actual.week_id;
-    pintarHeader(); pintarMenu(); router();
+    const sucs = sucsCaptura(); if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucs[0] || {}).branch_id || null;
+    pintarShell(); router(); toast('Bienvenido, ' + ((p.nombre || p.usuario).split(' ')[0]) + '.');
   } catch (e) {
-    if (e.message !== '401') { if (e.codigo === 'sin_acceso') { $('menu').style.display = 'none'; app().innerHTML = '<div class="msg">Tu usuario no tiene acceso al módulo de Nóminas.<br><a href="/">Volver a los módulos</a></div>'; } else aviso('No se pudo cargar tu perfil: ' + e.message, 'malo'); }
+    if (e.message === '401') return;
+    if (e.codigo === 'sin_acceso') $('root').innerHTML = '<div class="login-wrap grain"><div class="login-box" style="max-width:380px;text-align:center"><div class="font-serif text-xl mb-2">Sin acceso</div><p class="text-sm text-gray-500">Tu usuario no tiene acceso al módulo de Nóminas.</p><a class="btn btn-secondary mt-4" href="/">Volver a los módulos</a></div></div>';
+    else { $('root').innerHTML = '<div class="msg-card">No se pudo cargar tu perfil.<br><a href="#" onclick="arrancar();return false">Reintentar</a></div>'; errorUI(e); }
   }
 }
-function salir() { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Sesión cerrada.'); }
+function salir() { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); location.hash = ''; vLogin('Sesión cerrada.'); }
 
 /* ── Empresa, roles y vista ── */
 function fijarEmpresa() {
@@ -182,233 +295,294 @@ function fijarEmpresa() {
   S.empresa = e;
 }
 function empresaActual() { const emps = S.perfil.empresas || []; return emps.find(e => e.empresa_id === S.empresa) || emps[0] || { roles: [] }; }
+function empresaNombre(id) { const e = (S.perfil.empresas || []).find(x => x.empresa_id === id); return e ? e.nombre : ''; }
+function empColor(id) { return EMP_COLOR[id] || '#534AB7'; }
 function rolesReales() { return empresaActual().roles || []; }
 function esAdminReal() { return rolesReales().includes('admin'); }
-function vista() { if (!esAdminReal()) return rolesReales().includes('contabilidad') ? 'contabilidad' : rolesReales().includes('gerente') ? 'gerente' : rolesReales().includes('asesor') ? 'asesor' : 'rh'; return S.vista; }
+function vista() { if (!esAdminReal()) { const r = rolesReales(); return r.includes('contabilidad') ? 'contabilidad' : r.includes('gerente') ? 'gerente' : r.includes('asesor') ? 'asesor' : 'rh'; } return ['admin', 'gerente', 'contabilidad', 'asesor', 'rh'].includes(S.vista) ? S.vista : 'admin'; }
 function veSueldos() { return vista() === 'admin' || vista() === 'contabilidad'; }
 function sucs_() { return (S.perfil.sucursales || []).filter(s => !S.empresa || s.empresa_id === S.empresa); }
-function sucsCaptura() { return sucs_().filter(s => s.captura); }
-function irRuta(r) { if ((location.hash || '#inicio') !== '#' + r) location.hash = r; else { pintarMenu(); router(); } }
-function cambiarVista(v) { S.vista = v; try { localStorage.setItem('lem_vista_nom', v); } catch (e) {} pintarHeader(); irRuta('inicio'); }
-function cambiarEmpresa(v) { S.empresa = Number(v); try { localStorage.setItem('lem_empresa', String(S.empresa)); } catch (e) {} S.branch = (sucs_()[0] || {}).branch_id || null; S.semana = null; S.bandeja = null; pintarHeader(); irRuta((location.hash || '#inicio').replace('#', '').split('/')[0]); }
-function pintarHeader() {
-  const p = S.perfil; let h = '';
-  const rolTxt = { admin: '◆ Administrador', contabilidad: '▲ Contabilidad', gerente: '✦ Gerente', asesor: '■ Asesor', rh: '● RH' }[vista()] || vista();
-  h += '<span class="badge">' + rolTxt + '</span>';
-  if (esAdminReal()) { const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
-    h += '<span class="badge">Ver como <select onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('contabilidad', 'Contabilidad') + '</select></span>'; }
-  const emps = p.empresas || [];
-  if (emps.length > 1) h += '<span class="badge">Empresa <select onchange="cambiarEmpresa(this.value)">' + emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></span>';
-  h += '<span class="badge" style="opacity:.85">' + esc(p.usuario) + '</span><a class="portal" href="/">Portal</a><a class="portal" href="#" onclick="salir();return false">Salir</a>';
-  $('hRight').innerHTML = h;
+function tiendas() { return sucs_().filter(s => s.tipo !== 'centro'); }
+function sucsCaptura() { const v = vista(); return tiendas().filter(s => v === 'gerente' ? s.captura : true); }
+function cambiarVista(v) { S.vista = v; try { localStorage.setItem('lem_vista_nom', v); } catch (e) {} S.branch = (sucsCaptura()[0] || {}).branch_id || null; S.semana = null; pintarShell(); irRuta('dashboard'); }
+function cambiarEmpresa(v) { S.empresa = Number(v); try { localStorage.setItem('lem_empresa', String(S.empresa)); } catch (e) {} S.branch = (sucsCaptura()[0] || {}).branch_id || null; S.semana = null; S.bandeja = null; S.nomDetalle = {}; S.nomAbierta = null; pintarShell(); irRuta(ruta().split('/')[0]); }
+
+/* ── Armazón: barra lateral + área principal ── */
+function pintarShell() {
+  const p = S.perfil; const v = vista(); const rol = ROLES[v] || ROLES.admin;
+  const nombre = p.nombre || p.usuario.split('@')[0]; const ini = nombre.split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase();
+  const emps = p.empresas || []; let extra = '';
+  if (emps.length > 1) extra += '<div><label>Empresa</label><select class="sel w-full" onchange="cambiarEmpresa(this.value)">' + emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></div>';
+  if (esAdminReal()) { const op = (k, t) => '<option value="' + k + '"' + (S.vista === k ? ' selected' : '') + '>' + t + '</option>'; extra += '<div><label>Ver como</label><select class="sel w-full" onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('contabilidad', 'Contabilidad') + op('asesor', 'Asesor operativo') + op('rh', 'Recursos Humanos') + '</select></div>'; }
+  extra += '<a href="/" class="nav-item" style="padding:6px 10px;font-size:12px">' + icon('home', 14) + '<span>Portal de módulos</span></a>';
+  $('root').innerHTML = '<div class="shell"><aside class="sidebar"><div class="sb-head"><div class="logo">L</div><div><div class="sb-brand">Grupo LEM</div><div class="sb-app">Pre-Nómina</div></div></div><nav class="sb-nav" id="nav"></nav>' +
+    '<div class="sb-foot"><div class="sb-label">Sesión</div><div class="user-menu"><div class="avatar" style="width:32px;height:32px;background:' + rol.color + '">' + esc(ini) + '</div><div class="flex-1 min-w-0"><div class="text-13 font-medium truncate">' + esc(nombre) + '</div><div class="text-11 text-gray-500 truncate">' + rol.label + '</div></div><button class="btn btn-ghost p-2 tip" onclick="salir()">' + icon('logout', 14) + '<span class="tip-body">Salir</span></button></div><div class="sb-extra">' + extra + '</div></div></aside>' +
+    '<main class="main"><div class="scroll" id="scroll"><div id="vista"></div></div></main></div>';
+  pintarNav();
 }
-function pintarMenu() {
-  const v = vista(); const cur = (location.hash || '#inicio').replace('#', '').split('/')[0];
-  const it = (k, t) => '<a href="#' + k + '" class="' + (cur === k ? 'on' : '') + '">' + t + '</a>';
-  let h = '<div class="sec">Menú</div>' + it('inicio', '🏠 Inicio');
-  if (v === 'gerente' || v === 'admin') h += it('capturar', '📝 Capturar pre-nómina') + it('historial', '📅 Historial');
-  if (v === 'contabilidad' || v === 'admin') h += it('bandeja', '📥 Bandeja pre-nóminas') + it('nomina', '💵 Nómina semanal');
-  if (v === 'asesor') h += it('historial', '📅 Pre-nóminas');
-  $('menu').innerHTML = h; $('menu').style.display = '';
+function pintarNav() {
+  const v = vista(); const parts = ruta().split('/'); const cur = parts[0] === 'coming' ? parts[1] : parts[0];
+  $('nav').innerHTML = (NAV[v] || []).map(([k, ic, label]) => { const ok = LISTOS.has(k); return '<button class="nav-item' + (cur === k ? ' active' : '') + '" onclick="ir(\'' + (ok ? k : 'coming/' + k) + '\')">' + icon(ic, 16) + '<span>' + label + '</span>' + (ok ? '' : '<span class="soon">pronto</span>') + '</button>'; }).join('');
 }
+function topbar(title, subtitle, actions) { return '<header class="topbar"><div><h1>' + title + '</h1>' + (subtitle ? '<p>' + subtitle + '</p>' : '') + '</div>' + (actions ? '<div class="flex items-center gap-2 flex-wrap">' + actions + '</div>' : '') + '</header>'; }
+function stat(label, value, hint, color) { return '<div class="stat-card"><div class="stat-label">' + label + '</div><div class="stat-value num" style="color:' + (color || 'var(--text)') + '">' + value + '</div>' + (hint ? '<div class="text-xs text-gray-500 mt-1">' + hint + '</div>' : '') + '</div>'; }
+function badge(estado) { const m = { borrador: 'Borrador', sin_capturar: 'Sin capturar', enviada: 'Enviada', en_revision: 'En revisión', rechazada: 'Rechazada', corregida: 'Corregida', aprobada: 'Aprobada', cerrada: 'Cerrada' }; return '<span class="badge badge-' + (m[estado] ? estado : 'borrador') + '">' + (m[estado] || 'Borrador') + '</span>'; }
+function partesNombre(n) { const t = String(n || '').trim().split(/\s+/); return t.length >= 3 ? [t.slice(0, -1).join(' '), t[t.length - 1]] : [t.join(' '), '']; }
+function iniciales(n) { const t = String(n || '').trim().split(/\s+/); return ((t[0] || '')[0] || '') + ((t[1] || '')[0] || ''); }
 
 /* ── Router ── */
-window.addEventListener('hashchange', () => { if (S.perfil) { pintarMenu(); router(); } });
+function ruta() { return (location.hash || '#dashboard').replace('#', '') || 'dashboard'; }
+async function ir(r) { await flushGuardado(); if (location.hash !== '#' + r) location.hash = r; else router(); }
+function irRuta(r) { if ((location.hash || '#dashboard') !== '#' + r) location.hash = r; else { router(); } }
+window.addEventListener('hashchange', () => { if (S.perfil) router(); });
 function router() {
-  const parts = (location.hash || '#inicio').replace('#', '').split('/'); const r = parts[0];
-  const v = r === 'capturar' ? vCapturar(parts[1], parts[2]) : r === 'historial' ? vHistorial() : r === 'bandeja' ? vBandeja(parts[1]) : r === 'nomina' ? vNomina() : vInicio();
-  Promise.resolve(v).then(() => { if (S.msgPend) { aviso(S.msgPend.t, S.msgPend.cls); S.msgPend = null; } }).catch(e => { if (e && e.message === '401') return; const m = app().querySelector('.msg'); if (m) m.innerHTML = 'No se pudo cargar la pantalla.<br><a href="#inicio">Volver al inicio</a>'; aviso((e && e.negocio ? '' : 'No se pudo cargar: ') + ((e && e.message) || 'error desconocido'), 'malo'); console.error(e); });
+  if (!S.perfil) return;
+  const parts = ruta().split('/'); const r = parts[0]; pintarNav(); cerrarPop();
+  const v = r === 'capturar' ? vCapturar(parts[1], parts[2]) : r === 'prenominas' ? vLista(false) : r === 'inbox' ? vLista(true) : r === 'nomina' ? vNomina() : r === 'horasextras' ? vHorasExtras() : r === 'coming' ? vComing(parts[1]) : vDashboard();
+  Promise.resolve(v).catch(e => { if (e && e.message === '401') return; errorUI(e); if ($('vista') && /Cargando/.test($('vista').textContent || '')) $('vista').innerHTML = topbar('Nóminas') + '<div class="p-8"><div class="msg-card">No se pudo cargar la pantalla.<br><a href="#dashboard">Volver al inicio</a></div></div>'; });
+}
+function pon(h) { const v = $('vista'); if (v) { v.innerHTML = h; $('scroll').scrollTop = 0; } }
+function cargando(t, s) { pon(topbar(t, s) + '<div class="p-8"><div class="msg-card">Cargando…</div></div>'); }
+
+/* ── Datos en caché ── */
+async function semanasDe(branch, force) { if (!force && S.semanasPorSuc[branch]) return S.semanasPorSuc[branch]; const r = await api('nom_semanas', { branch_id: branch, n: 8 }); S.semanasPorSuc[branch] = r; return r; }
+async function cargarBandeja(force) { if (!force && S.bandeja) return S.bandeja; const r = await api('nom_bandeja'); S.bandeja = (r.bandeja || []).filter(x => !S.empresa || x.empresa_id === S.empresa); return S.bandeja; }
+function semanasDeBandeja(b) { const m = {}; b.forEach(x => { if (!m[x.week_id]) m[x.week_id] = { week_id: x.week_id, lunes: x.lunes, domingo: x.domingo }; }); return Object.values(m).sort((a, c) => a.lunes < c.lunes ? 1 : -1); }
+function selSemanas(semanas, actual, onchange) { return '<div><label class="lbl-sm">Semana</label><select class="sel sel-lg" style="min-width:280px" onchange="' + onchange + '">' + semanas.map(s => '<option value="' + s.week_id + '"' + (s.week_id === actual ? ' selected' : '') + '>Semana ' + esc(s.week_id) + ' · ' + fmtFecha(s.lunes) + ' – ' + fmtFecha(s.domingo) + '</option>').join('') + '</select></div>'; }
+
+/* ── Dashboard por rol ── */
+async function vDashboard() { const v = vista(); if (v === 'gerente' || v === 'asesor') return vDashboardSucursales(v); if (v === 'contabilidad') return vDashboardConta(); if (v === 'admin') return vDashboardAdmin(); return vDashboardRH(); }
+async function vDashboardSucursales(v) {
+  const p = S.perfil; const sucs = sucsCaptura(); const nombre = (p.nombre || p.usuario).split(' ')[0]; const wk = p.semana_actual;
+  const equipo = sucs.reduce((a, s) => a + N(s.activos), 0);
+  let h = topbar('Hola, ' + esc(nombre), esc(sucs.map(s => s.nombre).join(' · ')));
+  if (!sucs.length) { pon(h + '<div class="p-8"><div class="bg-white rounded-xl p-8 text-center shadow-card"><div class="font-serif text-xl mb-2">Sin sucursal asignada</div><p class="text-sm text-gray-500">No tienes ninguna sucursal asignada todavía. Pídele al administrador que te asigne una.</p></div></div>'); return; }
+  h += '<div class="p-8"><div class="grid grid-3 mb-6">' + stat('Tu equipo', equipo, 'Colaboradores activos') + stat('Sucursales', sucs.length) + stat('Semana actual', esc(wk.week_id), 'Pre-nómina abierta') + '</div><div id="alertaRech"></div><div class="grid grid-2" id="sucCards">' +
+       sucs.map(s => '<div class="bg-white rounded-xl shadow-card p-5" id="sc' + s.branch_id + '"><div class="flex items-center justify-between mb-3"><div><div class="text-base font-medium">' + esc(s.nombre) + '</div><div class="text-xs text-gray-500 mt-05">' + N(s.activos) + ' colaboradores</div></div><span class="text-xs text-gray-400">…</span></div><div class="text-xs text-gray-600 mb-3">Semana ' + fmtCorta(wk.lunes) + ' – ' + fmtCorta(wk.domingo) + '</div><button class="btn btn-secondary w-full" onclick="ir(\'capturar/' + s.branch_id + '/' + wk.week_id + '\')">' + icon('file', 14) + (v === 'gerente' ? 'Abrir captura' : 'Ver pre-nómina') + '</button></div>').join('') + '</div></div>';
+  pon(h);
+  const rechs = [];
+  for (const s of sucs.slice(0, 12)) {
+    try { const r = await semanasDe(s.branch_id); const act = r.semanas.find(x => x.week_id === wk.week_id) || r.semanas[0]; const card = $('sc' + s.branch_id); if (card) card.querySelector('.text-gray-400').outerHTML = badge(act ? act.estado : 'borrador');
+      r.semanas.filter(x => x.estado === 'rechazada').forEach(x => rechs.push({ s, x })); } catch (e) { errorUI(e); }
+  }
+  if (rechs.length && $('alertaRech') && v === 'gerente') $('alertaRech').innerHTML = rechs.map(({ s, x }) => '<div class="banner banner-red flex items-start justify-between gap-3"><div><div class="ttl" style="color:#8C1F1B">Pre-nómina rechazada por corregir</div><div class="text-sm" style="color:#8C1F1B">Contabilidad rechazó tu pre-nómina de <b>' + esc(s.nombre) + '</b>, <b>semana ' + esc(x.week_id) + '</b> (' + fmtCorta(x.lunes) + ' – ' + fmtCorta(x.domingo) + '). Corrígela y vuélvela a enviar.</div></div><button class="btn btn-danger" style="white-space:nowrap" onclick="ir(\'capturar/' + s.branch_id + '/' + x.week_id + '\')">Corregir esa semana</button></div>').join('');
+}
+async function vDashboardConta() {
+  cargando('Contabilidad · Tablero', 'Aprobación de pre-nóminas');
+  const b = await cargarBandeja(); const pend = b.filter(x => x.estado === 'enviada').length, cerr = b.filter(x => x.estado === 'cerrada').length, rech = b.filter(x => x.estado === 'rechazada').length, he = b.reduce((a, x) => a + N(x.he_pendientes), 0);
+  pon(topbar('Contabilidad · Tablero', 'Aprobación de pre-nóminas') + '<div class="p-8"><div class="grid grid-4 mb-6">' + stat('Pendientes de revisión', pend, null, 'var(--mini)') + stat('Aprobadas', cerr, 'Cerradas · últimas 8 semanas', '#0E5A42') + stat('Regresadas al gerente', rech, 'Por corregir', rech ? '#8C1F1B' : null) + stat('Horas extras por aprobar', he, 'Reportadas por gerentes', he ? 'var(--lem)' : null) + '</div>' + cardBandeja(pend) + '</div>');
+}
+async function vDashboardAdmin() {
+  cargando('Vista general', 'Resumen ejecutivo de Grupo LEM');
+  const b = await cargarBandeja(); const pend = b.filter(x => x.estado === 'enviada').length, he = b.reduce((a, x) => a + N(x.he_pendientes), 0);
+  const activos = sucs_().reduce((a, s) => a + N(s.activos), 0); const ops = tiendas().length; const emps = (S.perfil.empresas || []).length;
+  pon(topbar('Vista general', 'Resumen ejecutivo de Grupo LEM') + '<div class="p-8"><div class="grid grid-4 mb-6">' + stat('Colaboradores activos', activos, 'Total ' + esc(empresaActual().nombre || 'Grupo LEM')) + stat('Pre-nóminas pendientes', pend, 'Por aprobar contabilidad', pend ? 'var(--mini)' : null) + stat('Horas extras por aprobar', he, 'Esperando aprobación', he ? 'var(--lem)' : null) + stat('Sucursales operativas', ops, emps + ' empresa(s) en el portal') + '</div>' + cardBandeja(pend) + '</div>');
+}
+function cardBandeja(pend) { return '<div class="bg-white rounded-xl shadow-card p-5"><div class="text-base font-medium mb-3">Bandeja de entrada</div>' + (pend ? '<p class="text-sm text-gray-600">' + pend + ' pre-nómina(s) esperando revisión.</p><button class="btn btn-primary mt-4" onclick="ir(\'inbox\')">' + icon('inbox', 14) + 'Ir a la bandeja</button>' : '<p class="text-sm text-gray-500">No hay pre-nóminas pendientes en este momento.</p>') + '</div>'; }
+async function vDashboardRH() { pon(topbar('Recursos Humanos · Tablero', 'Colaboradores, contratos y vacaciones') + '<div class="p-8"><div class="bg-white rounded-xl shadow-card p-8"><div class="font-serif text-2xl mb-3">Módulo en construcción</div><p class="text-sm text-gray-600 mb-5">Las pantallas de RH llegan en la siguiente entrega del portal. Mientras tanto siguen en la app actual.</p><ul class="dots space-y-2"><li>Colaboradores, contratos y cumpleaños</li><li>Vacaciones y bajas</li><li>Alertas de 4 FI en 30 días</li></ul></div></div>'); }
+function vComing(key) {
+  const item = Object.values(NAV).flat().find(x => x[0] === key); const title = item ? item[2] : 'Módulo';
+  pon(topbar(esc(title), 'Próximamente en el portal') + '<div class="p-8"><div class="bg-white rounded-xl shadow-card p-8"><div class="font-serif text-2xl mb-3">Módulo en construcción</div><p class="text-sm text-gray-600 mb-5">Esta pantalla llega en la siguiente entrega del portal; mientras tanto sigue disponible en la app actual (nomina.grupolem.com).</p><ul class="dots space-y-2">' + (PRONTO[key] || ['Próximamente']).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul></div></div>');
 }
 
-/* ── Inicio ── */
-async function vInicio() {
-  const p = S.perfil; const sa = p.semana_actual;
-  let h = '<h2>Semana ' + esc(sa.week_id) + '</h2><div class="sub">' + fmtCorta(sa.lunes) + ' – ' + fmtCorta(sa.domingo) + ' · ' + esc(empresaActual().nombre || '') + '</div>';
-  if (vista() === 'gerente' || vista() === 'admin') {
-    const sucs = sucsCaptura();
-    if (!sucs.length) h += '<div class="aviso">Tu usuario no tiene sucursal para capturar.</div>';
-    else {
-      app().innerHTML = h + '<div class="msg">Cargando semanas…</div>';
-      const cards = [];
-      for (const s of sucs.slice(0, 20)) {
-        const r = await api('nom_semanas', { branch_id: s.branch_id, n: 2 });
-        const act = r.semanas[0], ant = r.semanas[1];
-        cards.push('<div class="kpi"><span>' + esc(s.nombre) + '</span><div style="margin:8px 0 4px">Esta semana: <span class="est ' + act.estado + '">' + estadoTxt(act.estado) + '</span></div><div>Anterior: <span class="est ' + ant.estado + '">' + estadoTxt(ant.estado) + '</span></div>' +
-          (act.motivo_rechazo ? '<div class="aviso malo" style="margin-top:8px">Rechazada: ' + esc(act.motivo_rechazo) + '</div>' : '') +
-          '<div style="margin-top:10px"><a class="btn mini" href="#capturar/' + s.branch_id + '/' + act.week_id + '">Capturar esta semana →</a></div></div>');
-      }
-      h += '<div class="grid">' + cards.join('') + '</div>';
-    }
-  }
-  if (vista() === 'contabilidad' || vista() === 'admin') {
-    const b = await cargarBandeja();
-    const pend = b.filter(x => x.estado === 'enviada').length, rech = b.filter(x => x.estado === 'rechazada').length, cerr = b.filter(x => x.estado === 'cerrada' && x.week_id === sa.week_id).length;
-    h += '<div class="grid" style="margin-top:14px"><div class="kpi"><b>' + pend + '</b><span>Pre-nóminas por revisar</span></div><div class="kpi"><b>' + rech + '</b><span>Regresadas al gerente</span></div><div class="kpi"><b>' + cerr + '</b><span>Cerradas esta semana</span></div>' +
-         '<div class="kpi"><b>' + b.reduce((a, x) => a + (x.he_pendientes || 0), 0) + '</b><span>Horas extra por aprobar</span></div></div><div style="margin-top:12px"><a class="btn" href="#bandeja">Ir a la bandeja →</a></div>';
-  }
-  if (vista() === 'asesor' || vista() === 'rh') h += '<div class="aviso">Las pantallas de asesor y RH llegan en la siguiente entrega. Por ahora consulta el historial de tus sucursales.</div>';
-  app().innerHTML = h;
+/* ── Pre-nóminas (lista) y Bandeja ── */
+async function vLista(inbox) {
+  const v = vista(); cargando(inbox ? 'Bandeja de pre-nóminas' : 'Pre-nóminas', inbox ? 'Para revisión de contabilidad' : 'Estado y captura');
+  let lista = [];
+  if (v === 'admin' || v === 'contabilidad') lista = (await cargarBandeja()).slice();
+  else { for (const s of sucs_()) { const r = await semanasDe(s.branch_id); r.semanas.filter(x => x.estado !== 'sin_capturar').forEach(x => lista.push(Object.assign({ branch_id: s.branch_id, sucursal: s.nombre, empresa_id: s.empresa_id }, x))); } }
+  const f = inbox ? S.filtroInbox : S.filtroLista;
+  if (f === 'pendientes') lista = lista.filter(p => p.estado === 'enviada'); else if (f === 'aprobadas') lista = lista.filter(p => p.estado === 'cerrada'); else if (f === 'rechazadas') lista = lista.filter(p => p.estado === 'rechazada');
+  const sel = '<select class="sel" onchange="S.' + (inbox ? 'filtroInbox' : 'filtroLista') + '=this.value;router()">' + [['todas', 'Todas'], ['pendientes', 'Pendientes'], ['aprobadas', 'Aprobadas'], ['rechazadas', 'Rechazadas']].map(([k, t]) => '<option value="' + k + '"' + (f === k ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
+  let h = topbar(inbox ? 'Bandeja de pre-nóminas' : 'Pre-nóminas', inbox ? 'Para revisión de contabilidad' : 'Estado y captura', sel) + '<div class="p-8">';
+  if (!lista.length) h += '<div class="bg-white rounded-xl p-8 text-center text-sm text-gray-500 shadow-card">No hay pre-nóminas con este filtro.</div>';
+  else h += '<div class="bg-white rounded-xl overflow-hidden shadow-card"><div class="overflow-x-auto"><table class="lem-table"><thead><tr><th>Sucursal</th><th>Semana</th><th>Estado</th><th>Última actualización</th>' + (veSueldos() ? '<th class="text-right">Neto</th>' : '') + '<th></th></tr></thead><tbody>' +
+    lista.map(p => '<tr><td><div class="flex items-center gap-2"><span class="brand-dot" style="background:' + empColor(p.empresa_id) + '"></span><span class="font-medium">' + esc(p.sucursal) + '</span></div></td><td class="num text-sm">' + esc(p.week_id) + '</td><td>' + badge(p.estado) + '</td><td class="text-sm text-gray-600">' + (p.fecha_aprobacion ? fmtFecha(p.fecha_aprobacion) : p.fecha_envio ? fmtFecha(p.fecha_envio) : '—') + '</td>' + (veSueldos() ? '<td class="text-right num">' + (p.neto != null ? pesos(p.neto) : '—') + '</td>' : '') + '<td class="text-right"><button class="btn btn-secondary" onclick="ir(\'capturar/' + p.branch_id + '/' + p.week_id + '\')">' + (inbox && p.estado === 'enviada' ? 'Revisar' : 'Abrir') + ' ' + icon('chevronR', 14) + '</button></td></tr>').join('') + '</tbody></table></div></div>';
+  pon(h + '</div>');
 }
-function estadoTxt(e) { return { sin_capturar: 'Sin capturar', borrador: 'Borrador', enviada: 'Enviada', rechazada: 'Rechazada', cerrada: 'Cerrada', aprobada: 'Aprobada', en_revision: 'En revisión', corregida: 'Corregida' }[e] || e; }
 
-/* ── Capturar ── */
-function semanaVecina(week, n) { const l = new Date(S.semana && S.semana.lunes ? S.semana.lunes : S.perfil.semana_actual.lunes); l.setUTCDate(l.getUTCDate() + 7 * n); return l.toISOString().slice(0, 10); }
-async function vCapturar(branch, week) {
-  const sucs = sucs_().filter(s => s.captura || vista() !== 'gerente');
-  if (branch) S.branch = Number(branch); if (week) S.week = week;
-  if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucsCaptura()[0] || sucs[0] || {}).branch_id;
-  if (!S.branch) { app().innerHTML = '<div class="aviso">Tu usuario no tiene sucursal para capturar.</div>'; return; }
-  app().innerHTML = '<div class="msg">Cargando semana…</div>';
-  let d; try { d = await api('nom_semana', { branch_id: S.branch, week_id: S.week }); } catch (e) { app().innerHTML = '<div class="aviso malo">' + esc(e.message) + '</div>'; return; }
-  S.semana = d; pintarSemana();
+/* ── Captura de la pre-nómina (la pantalla de la app) ── */
+async function vCapturar(b, w) {
+  const sucs = sucsCaptura(); if (b) S.branch = Number(b); if (w) S.week = w;
+  if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucs[0] || {}).branch_id || null;
+  if (!S.branch) { pon(topbar('Pre-nómina', 'Captura semanal') + '<div class="p-8"><div class="bg-white rounded-xl p-8 text-center shadow-card"><div class="font-serif text-xl mb-2">Sin sucursal asignada</div><p class="text-sm text-gray-500">No tienes ninguna sucursal asignada todavía. Pídele al administrador que te asigne una desde el panel de Sucursales.</p></div></div>'); return; }
+  if (!S.week) S.week = S.perfil.semana_actual.week_id;
+  cargando('Pre-nómina', 'Captura semanal');
+  const d = await api('nom_semana', { branch_id: S.branch, week_id: S.week }); S.semana = d; S.dirty = false;
+  try { await semanasDe(S.branch); } catch (e) {}
+  pintarCaptura();
 }
-function pintarSemana() {
-  const d = S.semana; const editable = d.puede_capturar && vista() !== 'contabilidad';
-  const sucs = sucs_().filter(s => s.captura || vista() !== 'gerente');
-  let h = '<h2>Pre-nómina · ' + esc(d.sucursal) + '</h2>';
-  h += '<div class="card"><div class="fila">';
-  if (sucs.length > 1) h += '<select onchange="S.branch=Number(this.value);vCapturar()">' + sucs.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>';
-  h += '<button class="btn sec mini" onclick="irSemana(-1)">◀ anterior</button><b>Semana ' + esc(d.week_id) + ' · ' + fmtCorta(d.lunes) + ' – ' + fmtCorta(d.domingo) + '</b><button class="btn sec mini" onclick="irSemana(1)">siguiente ▶</button>';
-  h += '<span class="est ' + d.estado + '">' + estadoTxt(d.estado) + '</span>' + (d.fuente === 'firebase' ? '<span class="badge" style="background:#F1EFE8;color:#565550">capturada en la app</span>' : '') + '</div>';
-  if (d.estado === 'rechazada') h += '<div class="aviso malo" style="margin-top:10px">Contabilidad la regresó: <b>' + esc(d.motivo_rechazo || '') + '</b>. Corrige y vuelve a enviar.</div>';
-  if (d.estado === 'enviada') h += '<div class="aviso" style="margin-top:10px">Enviada el ' + fmtF(d.fecha_envio) + '. Contabilidad la está revisando; ya no se puede editar.</div>';
-  if (d.estado === 'cerrada') h += '<div class="aviso bueno" style="margin-top:10px">Cerrada por contabilidad el ' + fmtF(d.fecha_aprobacion) + '.</div>';
-  if (d.sugerido && !d.existe) h += '<div class="aviso" style="margin-top:10px">Los días vienen prellenados con el horario y las vacaciones aprobadas. Revisa y ajusta antes de guardar.</div>';
-  h += '</div>';
-  h += '<div class="leyenda">' + IND.map(i => '<span><span class="pill ' + i + '">' + i + '</span> ' + IND_NOMBRE[i] + '</span>').join('') + '</div>';
-  h += '<div class="tabla"><table><thead><tr><th>Colaborador</th>' + DIAS.map((x, i) => { const f = new Date(d.lunes); f.setUTCDate(f.getUTCDate() + i); return '<th style="text-align:center">' + x + '<br><span style="font-weight:400">' + f.getUTCDate() + '</span></th>'; }).join('') + '<th class="num">H. extra</th><th>Observación</th></tr></thead><tbody>';
-  d.lineas.forEach((l, i) => {
-    h += '<tr' + (l.estatus === 'baja' ? ' style="opacity:.7"' : '') + '><td><b>' + esc(l.nombre) + '</b><br><span style="color:var(--soft);font-size:12px">' + esc(l.puesto || '') + (l.estatus === 'baja' ? ' · baja ' + fmtF(l.fecha_baja) : '') + '</span></td>';
-    for (let k = 0; k < 7; k++) {
-      const c = (l.dias && l.dias[k]) || {}; const v = c.indicador || '';
-      h += '<td style="text-align:center">' + (editable
-        ? '<select class="ind ' + (v || 'v') + '" onchange="setInd(' + i + ',' + k + ',this.value,this)"><option value="">—</option>' + IND.map(x => '<option value="' + x + '"' + (v === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
-        : '<span class="pill ' + (v || 'v') + '">' + (v || '—') + '</span>') + '</td>';
-    }
-    h += '<td class="num">' + (editable ? '<input type="number" min="0" step="0.5" style="width:70px" value="' + esc(l.horas_extras || 0) + '" onchange="S.semana.lineas[' + i + '].horas_extras=Number(this.value)||0">' : num(l.horas_extras, 1)) + (l.he_aprobada ? ' <span title="aprobadas">✅</span>' : '') + '</td>';
-    h += '<td>' + (editable ? '<input type="text" style="width:100%;min-width:160px" placeholder="Obligatoria si hay FI" value="' + esc(l.observacion || '') + '" onchange="S.semana.lineas[' + i + '].observacion=this.value;refrescarValidacion()" oninput="S.semana.lineas[' + i + '].observacion=this.value;refrescarValidacion()">' : esc(l.observacion || '')) + '</td></tr>';
-  });
-  h += '</tbody></table></div>';
-  if (editable) h += '<div class="card" id="valid" style="margin-top:14px">' + htmlValidacion(d.lineas) + '</div>';
-  if (veSueldos() && d.existe) h += tablaCalculo(d, true);
-  app().innerHTML = h;
-}
-function irSemana(n) { S.week = weekDe(semanaVecina(S.week, n)); vCapturar(); }
-function weekDe(lunesISO) { const m = new Date(lunesISO + 'T12:00:00Z'); const y = m.getUTCFullYear(); const j1 = new Date(Date.UTC(y, 0, 1)); const week = Math.ceil((((m - j1) / 86400000) + j1.getUTCDay() + 1) / 7); return y + '-W' + String(week).padStart(2, '0'); }
-function htmlValidacion(lineas) {
-  const v = validar(lineas);
-  return (v.length ? '<div class="aviso">' + v.map(esc).join('<br>') + '</div>' : '<div class="aviso bueno">Todo capturado. Puedes enviar a contabilidad.</div>') +
-         '<div class="fila"><button class="btn sec" onclick="guardar(false)">💾 Guardar borrador</button><button class="btn" ' + (v.length ? 'disabled' : '') + ' onclick="guardar(true)">📤 Guardar y enviar a contabilidad</button></div>';
-}
-function refrescarValidacion() { const c = $('valid'); if (c) c.innerHTML = htmlValidacion(S.semana.lineas); }
-function setInd(i, k, v, sel) { const l = S.semana.lineas[i]; l.dias = l.dias || {}; l.dias[k] = Object.assign(l.dias[k] || {}, { indicador: v || null }); if (sel) sel.className = 'ind ' + (v || 'v'); refrescarValidacion(); }
+function editable() { const d = S.semana; return !!(d && d.puede_capturar && vista() === 'gerente'); }
+function countDays(l) { const c = { A: 0, D: 0, FI: 0, INC: 0, VAC: 0, PSGS: 0, PCGS: 0, BAJA: 0 }; for (let k = 0; k < 7; k++) { const i = l.dias && l.dias[k] && l.dias[k].indicador; if (i && c[i] !== undefined) c[i]++; } return c; }
+function countsPill(l) { const c = countDays(l); const items = ['A', 'D', 'FI', 'INC', 'VAC', 'PSGS', 'PCGS'].filter(k => c[k]); if (!items.length) return '<span class="text-gray-300 text-xs">—</span>'; return '<div class="flex justify-center gap-15 flex-wrap">' + items.map(k => '<span class="text-10 num font-medium" style="color:' + IND_COLOR[k] + '">' + c[k] + k + '</span>').join('') + '</div>'; }
+function progreso(lineas) { let t = lineas.length * 7, done = 0; lineas.forEach(l => { for (let k = 0; k < 7; k++) if (l.dias && l.dias[k] && l.dias[k].indicador) done++; }); return t ? Math.round(done / t * 100) : 0; }
 function validar(lineas) {
-  const out = []; let faltan = 0, fiSin = 0;
-  lineas.forEach(l => { let hasFI = false; for (let k = 0; k < 7; k++) { const v = l.dias && l.dias[k] && l.dias[k].indicador; if (!v) faltan++; if (v === 'FI') hasFI = true; } if (hasFI && !(l.observacion || '').trim()) fiSin++; });
-  if (faltan) out.push('Faltan ' + faltan + ' celdas por capturar.'); if (fiSin) out.push(fiSin + ' colaborador(es) con FI sin observación.');
-  return out;
+  const bloqueantes = [], advertencias = []; let faltan = 0, fiSin = 0, incSin = 0;
+  lineas.forEach(l => { let hasFI = false, hasINC = false, hasD = false, a = 0, cap = 0;
+    for (let k = 0; k < 7; k++) { const i = l.dias && l.dias[k] && l.dias[k].indicador; if (!i) faltan++; else cap++; if (i === 'FI') hasFI = true; if (i === 'INC') hasINC = true; if (i === 'D') hasD = true; if (i === 'A') a++; }
+    if (hasFI && !(l.observacion || '').trim()) fiSin++; if (hasINC && !(l.documento || '').trim()) incSin++;
+    const nm = partesNombre(l.nombre)[0]; if (a === 7) advertencias.push(nm + ': 7 días seguidos de A.'); if (!hasD && cap === 7) advertencias.push(nm + ': sin día de descanso.'); });
+  if (faltan) bloqueantes.push('Faltan ' + faltan + ' celdas por capturar.'); if (fiSin) bloqueantes.push(fiSin + ' colaborador(es) con FI sin observación.'); if (incSin) advertencias.push(incSin + ' INC sin documento adjunto.');
+  return { bloqueantes, advertencias };
 }
-async function guardar(enviar) {
-  const d = S.semana;
-  const lineas = d.lineas.map(l => ({ colaborador_id: l.colaborador_id, horas_extras: Number(l.horas_extras) || 0, observacion: l.observacion || '', documento: l.documento || '',
-    he_opcion: l.he_opcion, he_aprobada: !!l.he_aprobada, he_monto3: l.he_monto3, dias: Object.fromEntries([0,1,2,3,4,5,6].map(k => [k, { indicador: (l.dias && l.dias[k] && l.dias[k].indicador) || null, comentario: (l.dias && l.dias[k] && l.dias[k].comentario) || '' }])) }));
-  try {
-    await api('nom_guardar', { branch_id: d.branch_id, week_id: d.week_id, lineas });
-    if (enviar) { await api('nom_enviar', { branch_id: d.branch_id, week_id: d.week_id }); }
-    await vCapturar(); aviso(enviar ? 'Pre-nómina enviada a contabilidad.' : 'Borrador guardado.', 'bueno');
-  } catch (e) { errorUI(e); }
-}
-
-/* ── Historial ── */
-async function vHistorial() {
-  const sucs = sucs_(); if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucs[0] || {}).branch_id;
-  app().innerHTML = '<div class="msg">Cargando…</div>';
-  const r = await api('nom_semanas', { branch_id: S.branch, n: 16 });
-  let h = '<h2>Historial · ' + esc(r.sucursal) + '</h2><div class="card"><div class="fila">' + (sucs.length > 1 ? '<select onchange="S.branch=Number(this.value);vHistorial()">' + sucs.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>' : '') + '</div></div>';
-  h += '<div class="tabla"><table><thead><tr><th>Semana</th><th>Fechas</th><th>Estado</th><th class="num">Personas</th><th>Enviada</th><th>Cerrada por</th><th></th></tr></thead><tbody>';
-  r.semanas.forEach(s => { h += '<tr class="click" onclick="location.hash=\'capturar/' + S.branch + '/' + s.week_id + '\'"><td><b>' + esc(s.week_id) + '</b></td><td>' + fmtCorta(s.lunes) + ' – ' + fmtCorta(s.domingo) + '</td><td><span class="est ' + s.estado + '">' + estadoTxt(s.estado) + '</span>' + (s.fuente === 'firebase' ? ' <span style="font-size:11px;color:var(--faint)">app</span>' : '') + '</td><td class="num">' + (s.personas || '') + '</td><td>' + (s.fecha_envio ? fmtF(s.fecha_envio) : '') + '</td><td>' + esc(s.aprobado_por || '') + '</td><td>›</td></tr>'; });
-  app().innerHTML = h + '</tbody></table></div>';
-}
-
-/* ── Bandeja (contabilidad / admin) ── */
-async function cargarBandeja() { const r = await api('nom_bandeja'); S.bandeja = (r.bandeja || []).filter(x => !S.empresa || x.empresa_id === S.empresa); return S.bandeja; }
-async function vBandeja(id) {
-  if (id) return vDetalleBandeja(Number(id));
-  app().innerHTML = '<div class="msg">Cargando bandeja…</div>';
-  const b = await cargarBandeja();
-  const f = S.filtroBandeja; const lista = b.filter(x => f === 'todas' || (f === 'pendientes' ? x.estado === 'enviada' : x.estado === f));
-  const chip = (k, t) => '<span class="chip ' + (f === k ? 'on' : '') + '" onclick="S.filtroBandeja=\'' + k + '\';vBandeja()">' + t + ' (' + b.filter(x => k === 'todas' || (k === 'pendientes' ? x.estado === 'enviada' : x.estado === k)).length + ')</span>';
-  let h = '<h2>Bandeja de pre-nóminas</h2><div class="sub">Últimas 8 semanas · ' + esc(empresaActual().nombre || '') + '</div><div class="chips">' + chip('pendientes', 'Por revisar') + chip('rechazada', 'Regresadas') + chip('cerrada', 'Cerradas') + chip('todas', 'Todas') + '</div>';
-  h += '<div class="tabla"><table><thead><tr><th>Sucursal</th><th>Semana</th><th>Estado</th><th class="num">Personas</th><th class="num">H. extra por aprobar</th>' + (veSueldos() ? '<th class="num">Neto</th>' : '') + '<th>Enviada por</th><th></th></tr></thead><tbody>';
-  if (!lista.length) h += '<tr><td colspan="8" style="text-align:center;color:var(--soft)">Nada en este filtro.</td></tr>';
-  lista.forEach(x => { h += '<tr class="click" onclick="location.hash=\'bandeja/' + x.prenomina_id + '\'"><td><b>' + esc(x.sucursal) + '</b></td><td>' + esc(x.week_id) + '<br><span style="font-size:12px;color:var(--soft)">' + fmtCorta(x.lunes) + ' – ' + fmtCorta(x.domingo) + '</span></td><td><span class="est ' + x.estado + '">' + estadoTxt(x.estado) + '</span></td><td class="num">' + x.personas + '</td><td class="num">' + (x.he_pendientes || 0) + '</td>' + (veSueldos() ? '<td class="num">' + money(x.neto) + '</td>' : '') + '<td>' + esc(x.enviado_por || (x.fuente === 'firebase' ? 'app' : '')) + '<br><span style="font-size:12px;color:var(--soft)">' + (x.fecha_envio ? fmtF(x.fecha_envio) : '') + '</span></td><td>›</td></tr>'; });
-  app().innerHTML = h + '</tbody></table></div>';
-}
-async function vDetalleBandeja(pid) {
-  if (!S.bandeja) await cargarBandeja();
-  const x = S.bandeja.find(b => b.prenomina_id === pid); if (!x) { location.hash = 'bandeja'; return; }
-  app().innerHTML = '<div class="msg">Cargando…</div>';
-  const d = await api('nom_semana', { branch_id: x.branch_id, week_id: x.week_id }); S.semana = d;
-  let h = '<h2>' + esc(d.sucursal) + ' · semana ' + esc(d.week_id) + '</h2><div class="sub">' + fmtCorta(d.lunes) + ' – ' + fmtCorta(d.domingo) + ' · <span class="est ' + d.estado + '">' + estadoTxt(d.estado) + '</span>' + (d.enviado_por ? ' · enviada por ' + esc(d.enviado_por) + ' el ' + fmtF(d.fecha_envio) : '') + '</div>';
-  h += '<div class="card"><div class="fila"><a class="btn sec" href="#bandeja">← Bandeja</a>';
-  if (d.estado === 'enviada') h += '<button class="btn ok" onclick="aprobar(' + pid + ')">✅ Aprobar y cerrar</button><button class="btn mal" onclick="rechazar(' + pid + ')">↩ Regresar al gerente</button>';
-  if (d.estado === 'cerrada' || d.estado === 'enviada') h += '<button class="btn sec" onclick="reabrir(' + pid + ')">🔓 Reabrir para corrección</button>';
-  h += '</div>' + (d.motivo_rechazo && d.estado === 'rechazada' ? '<div class="aviso malo" style="margin-top:10px">Regresada: ' + esc(d.motivo_rechazo) + '</div>' : '') + '</div>';
-  // días capturados
-  h += '<div class="tabla" style="margin-bottom:14px"><table><thead><tr><th>Colaborador</th>' + DIAS.map(x => '<th style="text-align:center">' + x + '</th>').join('') + '<th class="num">H. extra</th><th>Observación</th></tr></thead><tbody>';
-  d.lineas.forEach(l => { h += '<tr><td><b>' + esc(l.nombre) + '</b><br><span style="font-size:12px;color:var(--soft)">' + esc(l.puesto || '') + '</span></td>' + [0,1,2,3,4,5,6].map(k => { const v = l.dias && l.dias[k] && l.dias[k].indicador; return '<td style="text-align:center"><span class="pill ' + (v || 'v') + '">' + (v || '—') + '</span></td>'; }).join('') + '<td class="num">' + num(l.horas_extras, 1) + '</td><td>' + esc(l.observacion || '') + '</td></tr>'; });
-  h += '</tbody></table></div>';
-  if (veSueldos()) h += tablaCalculo(d, d.estado === 'enviada' || d.estado === 'borrador' || d.estado === 'rechazada');
-  app().innerHTML = h;
-}
-function tablaCalculo(d, conHE) {
-  const porId = Object.fromEntries((d.calculo || []).map(c => [c.colaborador_id, c]));
-  let tot = { dias: 0, sueldo: 0, bono: 0, he: 0, ded: 0, neto: 0 };
-  let h = '<h3 style="margin:6px 0 8px">Nómina calculada' + (veSueldos() ? '' : ' (sin montos)') + '</h3><div class="tabla"><table><thead><tr><th>Colaborador</th><th class="num">A</th><th class="num">D</th><th class="num">FI</th><th class="num">Otros</th><th class="num">Días pag.</th><th class="num">Sueldo diario</th><th class="num">Sueldo</th><th class="num">Bono</th><th class="num">H. extra</th><th>Pago HE</th><th class="num">Monto HE</th><th class="num">Deducc.</th><th class="num">Neto</th></tr></thead><tbody>';
-  d.lineas.forEach(l => {
-    const c = porId[l.colaborador_id] || {}; const otros = (c.vac || 0) + (c.pcgs || 0) + (c.psgs || 0) + (c.inc || 0) + (c.baja || 0);
-    tot.dias += Number(c.dias_pagados || 0); tot.sueldo += Number(c.monto_sueldo || 0); tot.bono += Number(c.monto_bono || 0); tot.he += Number(c.monto_he || 0); tot.ded += Number(c.deducciones || 0); tot.neto += Number(c.neto || 0);
-    const heCtl = conHE && Number(c.horas_extras || 0) > 0
-      ? '<select onchange="he(' + d.prenomina_id + ',' + l.colaborador_id + ',this.value)"><option value="">Sin aprobar</option><option value="1"' + (c.he_aprobada && c.he_opcion === '1' ? ' selected' : '') + '>Sencilla (sueldo/8)</option><option value="2"' + (c.he_aprobada && c.he_opcion === '2' ? ' selected' : '') + '>Doble</option><option value="3"' + (c.he_aprobada && c.he_opcion === '3' ? ' selected' : '') + '>Monto libre</option></select>'
-      : (c.he_aprobada ? { '1': 'Sencilla', '2': 'Doble', '3': 'Monto' }[c.he_opcion] || '✓' : (Number(c.horas_extras || 0) > 0 ? 'Sin aprobar' : ''));
-    h += '<tr><td><b>' + esc(l.nombre) + '</b>' + (c.pierde_bono ? ' <span title="pierde el bono por FI/PSGS" style="color:#8C1F1B">⚠︎</span>' : '') + '</td><td class="num">' + (c.a ?? '') + '</td><td class="num">' + (c.d ?? '') + '</td><td class="num">' + (c.fi ?? '') + '</td><td class="num">' + otros + '</td><td class="num">' + num(c.dias_pagados, 2) + '</td><td class="num">' + money(c.sueldo_diario) + '</td><td class="num">' + money(c.monto_sueldo) + '</td><td class="num">' + money(c.monto_bono) + '</td><td class="num">' + num(c.horas_extras, 1) + '</td><td>' + heCtl + '</td><td class="num">' + money(c.monto_he) + '</td><td class="num">' + money(c.deducciones) + '</td><td class="num"><b>' + money(c.neto) + '</b></td></tr>';
+function pintarCaptura() {
+  const d = S.semana; const v = vista(); const ed = editable(); const sucs = sucsCaptura(); const wk = S.perfil.semana_actual;
+  const sem = (S.semanasPorSuc[S.branch] || {}).semanas || []; const rp = v === 'gerente' ? sem.find(x => x.estado === 'rechazada' && x.week_id !== d.week_id) : null;
+  let acts = badge(d.estado);
+  if (sucs.length > 1) acts += '<select class="sel" onchange="S.branch=Number(this.value);ir(\'capturar/\'+S.branch+\'/\'+S.week)">' + sucs.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>';
+  acts += '<span class="flex items-center"><button class="btn btn-ghost p-15 tip" onclick="irSemana(-1)">' + icon('chevronL', 14) + '<span class="tip-body">Semana anterior</span></button><button class="btn btn-ghost p-15 tip" onclick="irSemana(1)">' + icon('chevronR', 14) + '<span class="tip-body">Semana siguiente</span></button></span>';
+  let h = topbar('Pre-nómina · ' + esc(d.sucursal), 'Semana ' + esc(d.week_id) + ' · ' + fmtCorta(d.lunes) + ' – ' + fmtCorta(d.domingo), acts) + '<div class="p-6">';
+  if (d.sugerido && !d.existe && ed) h += '<div class="banner banner-green">' + icon('check', 14) + 'Esta pre-nómina se pre-llenó con el horario y las vacaciones aprobadas. Revisa y ajusta lo que haya cambiado en la realidad.</div>';
+  if (rp) h += '<div class="banner banner-red flex items-start justify-between gap-3"><div><div class="ttl" style="color:#8C1F1B">Pre-nómina rechazada por corregir</div><div class="text-sm" style="color:#8C1F1B">Contabilidad rechazó tu pre-nómina de la <b>semana ' + esc(rp.week_id) + '</b> (' + fmtCorta(rp.lunes) + ' – ' + fmtCorta(rp.domingo) + '). Corrígela y vuélvela a enviar.</div></div><button class="btn btn-danger" style="white-space:nowrap" onclick="ir(\'capturar/' + S.branch + '/' + rp.week_id + '\')">Corregir esa semana</button></div>';
+  if (d.estado === 'rechazada' && d.motivo_rechazo) h += '<div class="banner banner-red"><div class="flex items-start justify-between gap-3"><div><div class="ttl" style="color:#8C1F1B">Motivo del rechazo de contabilidad</div><div class="text-sm">' + esc(d.motivo_rechazo) + '</div></div>' + (d.week_id !== wk.week_id ? '<button class="btn btn-secondary" style="white-space:nowrap" onclick="ir(\'capturar/' + S.branch + '/' + wk.week_id + '\')">Ir a la semana en curso</button>' : '') + '</div></div>';
+  if (d.estado === 'enviada' && v === 'gerente') h += '<div class="banner banner-amber text-sm" style="color:#7A4B05">Enviada el ' + fmtFecha(d.fecha_envio) + '. Contabilidad la está revisando; no se puede editar hasta que la apruebe o la regrese.</div>';
+  h += '<div id="valid">' + htmlValidacion() + '</div>';
+  h += '<div class="bg-white rounded-xl shadow-card overflow-hidden"><div class="overflow-auto" style="max-height:calc(100vh - 360px)"><table class="lem-table" style="min-width:1100px"><thead><tr><th style="width:60px">#</th><th style="min-width:200px">Colaborador</th><th style="width:140px">Puesto</th>' +
+       DIAS.map((x, k) => { const f = addDays(d.lunes, k); return '<th style="width:80px;text-align:center"><div>' + x + '</div><div class="text-10 font-normal text-gray-400 num normal-case mt-05">' + Number(f.slice(8, 10)) + '</div></th>'; }).join('') +
+       '<th style="width:60px;text-align:center">HE</th><th style="width:120px;text-align:center">Total</th><th style="width:80px">Obs.</th></tr></thead><tbody>';
+  d.lineas.forEach((l, i) => {
+    const pn = partesNombre(l.nombre);
+    h += '<tr' + (l.estatus === 'baja' ? ' style="opacity:.75"' : '') + '><td class="text-gray-400 num text-xs">' + String(i + 1).padStart(3, '0') + '</td><td><div class="flex items-center gap-25"><div class="avatar" style="width:28px;height:28px;background:' + empColor(d.empresa_id) + ';font-size:11px">' + esc(iniciales(l.nombre)) + '</div><div><div class="font-medium text-sm">' + esc(pn[0]) + '</div><div class="text-11 text-gray-500">' + esc(pn[1] || (l.estatus === 'baja' ? 'Baja ' + fmtFecha(l.fecha_baja) : '')) + '</div></div></div></td><td class="text-xs text-gray-600">' + esc(l.puesto || '') + '</td>';
+    for (let k = 0; k < 7; k++) { const ind = l.dias && l.dias[k] && l.dias[k].indicador; h += '<td style="padding:6px 4px"><div class="relative"><button class="cell-btn ' + (ind ? 'cell-' + ind : 'cell-empty') + '" id="c' + i + '_' + k + '" ' + (ed ? 'onclick="abrirPop(' + i + ',' + k + ')"' : 'disabled') + '>' + (ind || '—') + '</button></div></td>'; }
+    h += '<td class="text-center"><input type="number" min="0" max="20" step="0.5" class="he-input num" value="' + (N(l.horas_extras) ? esc(l.horas_extras) : '') + '"' + (ed ? ' onchange="setHE(' + i + ',this.value)"' : ' disabled') + '></td>';
+    h += '<td class="text-center" id="cnt' + i + '">' + countsPill(l) + '</td>';
+    h += '<td><button class="btn btn-ghost p-15" onclick="abrirObs(' + i + ')">' + icon(l.observacion ? 'eye' : 'plus', 14, l.observacion ? 'text-blue-700' : '') + '</button></td></tr>';
   });
-  h += '<tr style="background:#F5F4EF;font-weight:800"><td>Total</td><td colspan="4"></td><td class="num">' + num(tot.dias, 2) + '</td><td></td><td class="num">' + money(tot.sueldo) + '</td><td class="num">' + money(tot.bono) + '</td><td></td><td></td><td class="num">' + money(tot.he) + '</td><td class="num">' + money(tot.ded) + '</td><td class="num">' + money(tot.neto) + '</td></tr></tbody></table></div>';
-  h += '<div class="fila" style="margin-top:10px"><button class="btn sec" onclick="exportar()">📊 Exportar Excel</button></div>';
+  h += '</tbody></table></div></div>';
+  h += '<div class="mt-4 flex items-center justify-between bg-white rounded-xl shadow-card p-4 flex-wrap gap-3"><div class="flex items-center gap-6 text-sm flex-wrap"><div><span class="text-gray-500 text-xs uppercase tracking-wider mr-2">Plantilla</span><span class="num font-medium">' + d.lineas.length + '</span></div><div><span class="text-gray-500 text-xs uppercase tracking-wider mr-2">Capturado</span><span class="num font-medium" id="pct">' + progreso(d.lineas) + '%</span></div><div id="okmsg">' + htmlOk() + '</div><div id="saveState" class="text-xs text-gray-400"></div></div><div class="flex gap-2 flex-wrap" id="acciones">' + htmlAcciones() + '</div></div>';
+  h += '<div class="mt-4 flex flex-wrap gap-2">' + INDICADORES.map(x => '<div class="cell-' + x.code + ' tip" style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;border:1px solid"><span class="num mr-15">' + x.code + '</span>' + x.nombre + '<div class="tip-body">' + esc(x.desc) + '</div></div>').join('') + '</div>';
+  pon(h + '</div>');
+}
+function htmlValidacion() {
+  const vv = validar(S.semana.lineas); if (!vv.bloqueantes.length && !vv.advertencias.length) return '';
+  return '<div class="mb-4 grid grid-2" style="gap:12px">' + (vv.bloqueantes.length ? '<div class="banner banner-red" style="margin:0;padding:12px"><div class="font-medium mb-1" style="color:#8C1F1B">Errores (' + vv.bloqueantes.length + ')</div><ul class="space-y-05" style="list-style:none">' + vv.bloqueantes.slice(0, 3).map(b => '<li class="text-xs" style="color:#8C1F1B">· ' + esc(b) + '</li>').join('') + '</ul></div>' : '') +
+         (vv.advertencias.length ? '<div class="banner banner-amber" style="margin:0;padding:12px"><div class="font-medium mb-1" style="color:#7A4B05">Advertencias (' + vv.advertencias.length + ')</div><ul class="space-y-05" style="list-style:none">' + vv.advertencias.slice(0, 3).map(b => '<li class="text-xs" style="color:#7A4B05">· ' + esc(b) + '</li>').join('') + '</ul></div>' : '') + '</div>';
+}
+function htmlOk() { const vv = validar(S.semana.lineas); return (!vv.bloqueantes.length && !vv.advertencias.length) ? '<div class="text-green-700 text-xs flex items-center gap-15">' + icon('check', 12) + 'Sin errores ni advertencias</div>' : ''; }
+function htmlAcciones() {
+  const d = S.semana; const v = vista(); const vv = validar(d.lineas); let h = '';
+  if (editable()) h += '<button class="btn btn-secondary" onclick="guardarBorrador()">' + icon('check', 14) + 'Guardar borrador</button><button class="btn btn-primary" ' + (vv.bloqueantes.length ? 'disabled' : '') + ' onclick="confirmarEnvio()">' + icon('upload', 14) + 'Enviar a contabilidad</button>';
+  if ((v === 'contabilidad' || v === 'admin') && d.estado === 'enviada') h += '<button class="btn btn-danger" onclick="abrirRechazo()">' + icon('x', 14) + 'Rechazar</button><button class="btn btn-success" onclick="aprobar()">' + icon('check', 14) + 'Aprobar y cerrar</button>';
+  if ((v === 'contabilidad' || v === 'admin') && d.estado === 'cerrada') h += '<button class="btn btn-secondary" onclick="reabrir()">' + icon('file', 14) + 'Reabrir para captura</button>';
   return h;
 }
-async function he(pid, colab, opcion) {
-  try {
-    if (!opcion) { await api('nom_horas_extra', { prenomina_id: pid, colaborador_id: colab, aprobada: false }); }
-    else { let monto = null; if (opcion === '3') { monto = Number(prompt('Monto a pagar por las horas extra:')); if (!monto) return vDetalleBandeja(pid); }
-      await api('nom_horas_extra', { prenomina_id: pid, colaborador_id: colab, aprobada: true, opcion, monto3: monto }); }
-    await vDetalleBandeja(pid);
-  } catch (e) { errorUI(e); }
+function refrescar() { const d = S.semana; if ($('valid')) $('valid').innerHTML = htmlValidacion(); if ($('okmsg')) $('okmsg').innerHTML = htmlOk(); if ($('acciones')) $('acciones').innerHTML = htmlAcciones(); if ($('pct')) $('pct').textContent = progreso(d.lineas) + '%'; }
+function irSemana(n) { S.week = weekDe(addDays(S.semana.lunes, 7 * n)); ir('capturar/' + S.branch + '/' + S.week); }
+/* selector de día (menú emergente, como en la app) */
+function abrirPop(i, k) {
+  cerrarPop(); const btn = $('c' + i + '_' + k); if (!btn) return; const l = S.semana.lineas[i]; const cur = l.dias && l.dias[k] && l.dias[k].indicador;
+  const pop = document.createElement('div'); pop.className = 'day-popover fade-in'; pop.id = 'pop'; pop.style.top = '38px'; pop.style.left = '0';
+  pop.innerHTML = '<div class="text-10 uppercase tracking-wider text-gray-500 font-medium" style="padding:4px 8px">Selecciona</div>' + INDICADORES.map(x => '<button class="op" onclick="setInd(' + i + ',' + k + ',\'' + x.code + '\')"><span class="cell-chip cell-' + x.code + '">' + x.code + '</span><span class="text-13">' + x.nombre + '</span></button>').join('') +
+    (cur ? '<div style="border-top:1px solid var(--border);margin:4px 0"></div><button class="op text-xs text-gray-500" onclick="setInd(' + i + ',' + k + ',null)">Limpiar</button>' : '');
+  // se ancla al botón pero vive en el body (position: fixed) para que no lo recorte el scroll de la tabla
+  const b = btn.getBoundingClientRect(); pop.style.position = 'fixed'; pop.style.top = (b.bottom + 2) + 'px'; pop.style.left = b.left + 'px'; document.body.appendChild(pop);
+  const rect = pop.getBoundingClientRect(); if (rect.right > window.innerWidth - 8) pop.style.left = Math.max(8, window.innerWidth - rect.width - 8) + 'px'; if (rect.bottom > window.innerHeight - 8) pop.style.top = Math.max(8, b.top - rect.height - 2) + 'px';
+  setTimeout(() => { document.addEventListener('mousedown', cerrarPopFuera); document.addEventListener('scroll', cerrarPop, true); }, 0);
 }
-async function aprobar(pid) { if (!confirm('¿Aprobar y cerrar esta pre-nómina? Después de cerrarla el gerente ya no puede editarla.')) return; try { await api('nom_aprobar', { prenomina_id: pid }); S.bandeja = null; avisoLuego('Pre-nómina aprobada y cerrada.', 'bueno'); location.hash = 'bandeja'; } catch (e) { errorUI(e); } }
-async function rechazar(pid) { const m = prompt('Motivo para regresarla al gerente:'); if (!m) return; try { await api('nom_rechazar', { prenomina_id: pid, motivo: m }); S.bandeja = null; avisoLuego('Regresada al gerente.', 'bueno'); location.hash = 'bandeja'; } catch (e) { errorUI(e); } }
-async function reabrir(pid) { if (!confirm('¿Reabrir la semana para que el gerente la corrija?')) return; try { await api('nom_reabrir', { prenomina_id: pid }); S.bandeja = null; await vDetalleBandeja(pid); aviso('Semana reabierta. El gerente ya puede corregirla.', 'bueno'); } catch (e) { errorUI(e); } }
+function cerrarPopFuera(e) { const p = $('pop'); if (p && !p.contains(e.target)) cerrarPop(); }
+function cerrarPop() { const p = $('pop'); if (p) p.remove(); document.removeEventListener('mousedown', cerrarPopFuera); document.removeEventListener('scroll', cerrarPop, true); }
+function setInd(i, k, v) { const l = S.semana.lineas[i]; l.dias = l.dias || {}; l.dias[k] = Object.assign(l.dias[k] || {}, { indicador: v || null }); const b = $('c' + i + '_' + k); if (b) { b.className = 'cell-btn ' + (v ? 'cell-' + v : 'cell-empty'); b.textContent = v || '—'; } if ($('cnt' + i)) $('cnt' + i).innerHTML = countsPill(l); cerrarPop(); refrescar(); marcarCambio(); }
+function setHE(i, v) { S.semana.lineas[i].horas_extras = Math.max(0, Number(v) || 0); refrescar(); marcarCambio(); }
+function abrirObs(i) {
+  const l = S.semana.lineas[i]; const ro = !editable();
+  modal('<div class="text-xs uppercase tracking-wider text-gray-500 font-medium mb-1">Observación</div><h2 class="text-lg font-medium mb-1">' + esc(partesNombre(l.nombre)[0]) + '</h2><p class="text-sm text-gray-500 mb-4">Comentarios sobre la semana de este colaborador.</p>' +
+    '<textarea class="ta" id="obsTxt" ' + (ro ? 'disabled' : '') + ' placeholder="Por ejemplo: faltó el martes, no avisó. Reportó incapacidad el jueves...">' + esc(l.observacion || '') + '</textarea>' +
+    (ro ? '' : '<div class="mt-3"><label class="lbl-sm">Documento / folio (incapacidad)</label><input type="text" class="sel w-full" id="docTxt" value="' + esc(l.documento || '') + '" placeholder="Folio IMSS o nombre del documento"></div>') +
+    '<div class="flex justify-end gap-2 mt-4"><button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>' + (ro ? '' : '<button class="btn btn-primary" onclick="guardarObs(' + i + ')">Guardar</button>') + '</div>');
+  if (!ro) setTimeout(() => { const t = $('obsTxt'); if (t) t.focus(); }, 50);
+}
+function guardarObs(i) { const l = S.semana.lineas[i]; l.observacion = ($('obsTxt') || {}).value || ''; if ($('docTxt')) l.documento = $('docTxt').value || ''; cerrarModal(); const btn = document.querySelectorAll('#vista tbody tr')[i]; if (btn) btn.querySelector('td:last-child').innerHTML = '<button class="btn btn-ghost p-15" onclick="abrirObs(' + i + ')">' + icon(l.observacion ? 'eye' : 'plus', 14, l.observacion ? 'text-blue-700' : '') + '</button>'; refrescar(); marcarCambio(); }
+/* guardado automático (como la app, que guarda cada cambio) + botón explícito */
+function marcarCambio() { if (!editable()) return; S.dirty = true; if ($('saveState')) $('saveState').textContent = 'Cambios sin guardar…'; clearTimeout(S.saveT); S.saveT = setTimeout(() => guardar(false), 2000); }
+function payload() { return S.semana.lineas.map(l => ({ colaborador_id: l.colaborador_id, horas_extras: N(l.horas_extras), observacion: l.observacion || '', documento: l.documento || '', he_opcion: l.he_opcion, he_aprobada: !!l.he_aprobada, he_monto3: l.he_monto3,
+  dias: Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map(k => [k, { indicador: (l.dias && l.dias[k] && l.dias[k].indicador) || null, comentario: (l.dias && l.dias[k] && l.dias[k].comentario) || '' }])) })); }
+async function guardar(avisar) {
+  const d = S.semana; if (!d || !editable()) return false; clearTimeout(S.saveT);
+  if (S.guardando) { await S.guardando; if (!S.dirty) return true; }
+  S.guardando = (async () => {
+    try { const r = await api('nom_guardar', { branch_id: d.branch_id, week_id: d.week_id, lineas: payload() }); S.dirty = false;
+      if (!d.existe) { d.existe = true; d.prenomina_id = r.prenomina_id; d.estado = r.estado || 'borrador'; d.sugerido = false; const bd = document.querySelector('.topbar .badge'); if (bd) bd.outerHTML = badge(d.estado); }
+      if ($('saveState')) $('saveState').textContent = 'Guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); if (avisar) toast('Borrador guardado.'); return true; }
+    catch (e) { errorUI(e); if ($('saveState')) $('saveState').textContent = 'No se pudo guardar'; return false; }
+  })();
+  const ok = await S.guardando; S.guardando = null; return ok;
+}
+async function flushGuardado() { if (S.dirty && S.semana && editable()) await guardar(false); }
+function guardarBorrador() { guardar(true); }
+function confirmarEnvio() { modal('<h2 class="text-lg font-medium mb-2">Enviar pre-nómina a contabilidad</h2><p class="text-sm text-gray-600 mb-5">Una vez enviada, no podrás editarla hasta que contabilidad la apruebe o rechace. ¿Continuar?</p><div class="flex justify-end gap-2"><button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button><button class="btn btn-primary" onclick="enviar()">Sí, enviar</button></div>'); }
+async function enviar() {
+  cerrarModal(); const d = S.semana; const vv = validar(d.lineas); if (vv.bloqueantes.length) { toast('Hay errores que impiden el envío.'); return; }
+  S.dirty = true; if (!(await guardar(false))) return;
+  try { await api('nom_enviar', { branch_id: d.branch_id, week_id: d.week_id }); toast('Pre-nómina enviada a contabilidad.'); S.semanasPorSuc = {}; S.bandeja = null; await vCapturar(); } catch (e) { errorUI(e); }
+}
+function abrirRechazo() { modal('<h2 class="text-lg font-medium mb-1">Rechazar pre-nómina</h2><p class="text-sm text-gray-500 mb-4">El gerente recibirá esta nota y deberá corregir.</p><textarea class="ta" id="motivoTxt" placeholder="Especifica qué se necesita corregir..." oninput="$(\'btnRech\').disabled=!this.value.trim()"></textarea><div class="flex justify-end gap-2 mt-4"><button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button><button class="btn btn-danger" id="btnRech" disabled onclick="rechazar()">Rechazar y devolver</button></div>'); setTimeout(() => { const t = $('motivoTxt'); if (t) t.focus(); }, 50); }
+async function rechazar() { const m = (($('motivoTxt') || {}).value || '').trim(); if (!m) return; cerrarModal(); try { await api('nom_rechazar', { prenomina_id: S.semana.prenomina_id, motivo: m }); toast('Pre-nómina regresada al gerente.'); S.semanasPorSuc = {}; S.bandeja = null; await vCapturar(); } catch (e) { errorUI(e); } }
+async function aprobar() { try { await api('nom_aprobar', { prenomina_id: S.semana.prenomina_id }); toast('Pre-nómina aprobada y cerrada.'); S.semanasPorSuc = {}; S.bandeja = null; S.nomDetalle = {}; await vCapturar(); } catch (e) { errorUI(e); } }
+async function reabrir() { try { await api('nom_reabrir', { prenomina_id: S.semana.prenomina_id }); toast('Pre-nómina reabierta. El gerente puede terminar la captura y reenviarla.'); S.semanasPorSuc = {}; S.bandeja = null; S.nomDetalle = {}; await vCapturar(); } catch (e) { errorUI(e); } }
 
-/* ── Nómina semanal (cálculo + Excel) ── */
+/* ── Nómina semanal (cálculo de percepciones por sucursal y empleado) ── */
 async function vNomina() {
-  const sucs = sucs_(); if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucs[0] || {}).branch_id;
-  app().innerHTML = '<div class="msg">Cargando…</div>';
-  const d = await api('nom_semana', { branch_id: S.branch, week_id: S.week }); S.semana = d;
-  let h = '<h2>Nómina semanal</h2><div class="card"><div class="fila"><select onchange="S.branch=Number(this.value);vNomina()">' + sucs.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>' +
-    '<button class="btn sec mini" onclick="S.week=weekDe(semanaVecina(S.week,-1));vNomina()">◀</button><b>Semana ' + esc(d.week_id) + ' · ' + fmtCorta(d.lunes) + ' – ' + fmtCorta(d.domingo) + '</b><button class="btn sec mini" onclick="S.week=weekDe(semanaVecina(S.week,1));vNomina()">▶</button><span class="est ' + d.estado + '">' + estadoTxt(d.estado) + '</span></div></div>';
-  h += d.existe ? tablaCalculo(d, false) : '<div class="aviso">Esta semana no tiene pre-nómina capturada.</div>';
-  app().innerHTML = h;
+  cargando('Nómina semanal', 'Cálculo de percepciones por sucursal y empleado');
+  const b = await cargarBandeja(); const semanas = semanasDeBandeja(b);
+  if (!semanas.length) { pon(topbar('Nómina semanal', 'Cálculo de percepciones') + '<div class="p-8"><div class="bg-white rounded-xl p-8 text-center text-sm text-gray-500 shadow-card">Aún no hay pre-nóminas capturadas. La nómina se calcula a partir de las pre-nóminas de cada sucursal.</div></div>'); return; }
+  if (!semanas.some(s => s.week_id === S.nomWeek)) S.nomWeek = semanas[0].week_id;
+  const rows = b.filter(x => x.week_id === S.nomWeek); const granTotal = rows.reduce((a, x) => a + N(x.neto), 0), emp = rows.reduce((a, x) => a + N(x.personas), 0);
+  let h = topbar('Nómina semanal', 'Cálculo de percepciones por sucursal y empleado') + '<div class="p-8"><div class="flex flex-wrap items-end gap-3 mb-6">' + selSemanas(semanas, S.nomWeek, 'S.nomWeek=this.value;S.nomAbierta=null;router()') + '<div class="flex-1"></div>' + (rows.length ? '<button class="btn btn-secondary" onclick="exportarNomina()">' + icon('file', 14) + 'Exportar a Excel</button>' : '') + '</div>';
+  h += '<div class="grid grid-3 mb-6">' + stat('Total a pagar (grupo)', pesos(granTotal), null, 'var(--lem)') + stat('Sucursales', rows.length) + stat('Empleados', emp) + '</div>';
+  if (!rows.length) h += '<div class="bg-white rounded-xl p-8 text-center text-sm text-gray-500 shadow-card">No hay datos de nómina para esta semana. Verifica que las pre-nóminas estén capturadas.</div>';
+  else h += '<div class="space-y-3">' + rows.map(r => { const abierta = S.nomAbierta === r.branch_id; const key = r.branch_id + '|' + r.week_id;
+      return '<div class="bg-white rounded-xl shadow-card overflow-hidden"><button class="suc-head" onclick="toggleSuc(' + r.branch_id + ')"><span class="brand-dot" style="background:' + empColor(r.empresa_id) + '"></span><div class="flex-1"><div class="font-medium">' + esc(r.sucursal) + '</div><div class="text-xs text-gray-500">' + esc(empresaNombre(r.empresa_id)) + ' · ' + N(r.personas) + ' empleado(s) · ' + badge(r.estado) + '</div></div><div class="text-right"><div class="text-lg font-semibold num" style="color:var(--lem-dark)">' + pesos(r.neto) + '</div><div class="text-11 text-gray-400">Total sucursal</div></div>' + icon(abierta ? 'x' : 'chart', 16, 'text-gray-400 ml-2') + '</button>' +
+        (abierta ? '<div class="px-5 pb-5 overflow-x-auto">' + (S.nomDetalle[key] ? tablaNomina(S.nomDetalle[key]) : '<div class="text-sm text-gray-500" style="padding:8px 0">Cargando…</div>') + '</div>' : '') + '</div>'; }).join('') + '</div>';
+  h += '<div class="text-11 text-gray-400 mt-5 leading-relaxed"><strong>Criterios de cálculo:</strong> se pagan asistencias (A), vacaciones (VAC) y permisos con goce (PCGS). <strong>Prima dominical:</strong> el domingo trabajado se paga al 125%. <strong>Descanso:</strong> el 7º día se paga proporcional a los días cubiertos ÷ 6 para quien trabajó al menos 4 días (6 días = completo, 5 = 0.83, 4 = 0.67; menos de 4, sin descanso). <strong>Bono semanal fijo:</strong> se paga completo salvo que haya una falta (FI) o un permiso sin goce (PSGS); las vacaciones y el permiso con goce no afectan el bono. <strong>Horas extras y deducciones:</strong> las horas extras aprobadas se suman; las deducciones (FONACOT, INFONAVIT, crédito empresa) se restan para dar el neto. No se pagan FI, PSGS ni incapacidades (INC, las cubre el IMSS).</div>';
+  pon(h + '</div>');
+  if (S.nomAbierta) { const key = S.nomAbierta + '|' + S.nomWeek; if (!S.nomDetalle[key]) { try { S.nomDetalle[key] = await api('nom_semana', { branch_id: S.nomAbierta, week_id: S.nomWeek }); if (ruta() === 'nomina') router(); } catch (e) { errorUI(e); } } }
 }
-function exportar() {
-  const d = S.semana; if (!d || !d.calculo) return;
-  const porId = Object.fromEntries(d.calculo.map(c => [c.colaborador_id, c]));
-  const filas = d.lineas.map(l => { const c = porId[l.colaborador_id] || {}; return { 'Sucursal': d.sucursal, 'Colaborador': l.nombre, 'Puesto': l.puesto || '', 'Asistencias': c.a, 'Faltas (FI)': c.fi, 'P.Vacac': c.vac, 'Permiso c/goce': c.pcgs, 'Permiso s/goce': c.psgs,
-    'Domingo trabajado': c.trabajo_domingo ? 'Sí (+25%)' : 'No', 'Descanso pagado (días)': c.descanso_pagado, 'Días pagados': c.dias_pagados, 'Sueldo diario': c.sueldo_diario, 'Monto sueldo': c.monto_sueldo, 'Bono semanal': c.bono_semanal, 'Bono pagado': c.monto_bono,
-    'Horas extras (h)': c.horas_extras, 'Monto horas extras': c.monto_he, 'Percepciones': c.total, 'Deducciones': c.deducciones, 'Neto a pagar': c.neto }; });
-  const ws = XLSX.utils.json_to_sheet(filas); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Periodo');
-  XLSX.writeFile(wb, 'nomina_' + (d.sucursal || '').replace(/[^A-Za-z0-9]+/g, '_') + '_' + d.week_id + '.xlsx');
+function toggleSuc(b) { S.nomAbierta = S.nomAbierta === b ? null : b; router(); }
+function tablaNomina(d) {
+  const porId = Object.fromEntries((d.calculo || []).map(c => [c.colaborador_id, c]));
+  let h = '<table class="lem-table" style="min-width:880px"><thead><tr><th>Colaborador</th><th class="text-center" title="Asistencias">A</th><th class="text-center" title="Faltas injustificadas">FI</th><th class="text-center" title="Vacaciones">VAC</th><th class="text-center" title="Domingo trabajado (prima 25%)">Dom</th><th class="text-center" title="Descanso pagado (proporcional)">Desc.</th><th class="text-center" title="Días pagados totales">Días pag.</th><th class="text-right">Monto sueldo</th><th class="text-right">Bono</th><th class="text-right">H. Extra</th><th class="text-right">Percepciones</th><th class="text-right">Deducc.</th><th class="text-right">Neto</th></tr></thead><tbody>';
+  d.lineas.forEach(l => { const c = porId[l.colaborador_id]; if (!c) return;
+    h += '<tr><td><div class="font-medium text-sm">' + esc(l.nombre) + '</div><div class="text-11 text-gray-400">' + esc(l.puesto || '') + ' · ' + pesos(c.sueldo_diario) + '/día</div></td><td class="text-center num">' + (c.a || '—') + '</td><td class="text-center num"' + (c.fi ? ' style="color:#8C1F1B;font-weight:600"' : '') + '>' + (c.fi || '—') + '</td><td class="text-center num">' + (c.vac || '—') + '</td><td class="text-center num"' + (c.trabajo_domingo ? ' style="color:var(--lem);font-weight:600"' : '') + '>' + (c.trabajo_domingo ? '+25%' : '—') + '</td><td class="text-center num">' + (N(c.descanso_pagado) > 0 ? r1(c.descanso_pagado) : '—') + '</td><td class="text-center num font-medium">' + r1(c.dias_pagados) + '</td><td class="text-right num">' + pesos(c.monto_sueldo) + '</td>' +
+      '<td class="text-right num"' + (c.pierde_bono && N(c.bono_semanal) > 0 ? ' style="color:#8C1F1B"' : '') + '>' + (N(c.bono_semanal) === 0 ? '—' : c.pierde_bono ? '<span title="Bono perdido por falta o permiso sin goce">$0 ✕</span>' : pesos(c.monto_bono)) + '</td>' +
+      '<td class="text-right num">' + (N(c.horas_extras) === 0 ? '—' : N(c.monto_he) > 0 ? pesos(c.monto_he) : '<span title="Horas reportadas, pendientes de aprobar en Horas extras" style="color:#9A3412">' + c.horas_extras + 'h ⏳</span>') + '</td><td class="text-right num">' + pesos(c.total) + '</td><td class="text-right num"' + (N(c.deducciones) > 0 ? ' style="color:#8C1F1B"' : '') + '>' + (N(c.deducciones) > 0 ? '-' + pesos(c.deducciones) : '—') + '</td><td class="text-right num font-semibold" style="color:var(--lem-dark)">' + pesos(c.neto) + '</td></tr>'; });
+  return h + '</tbody></table><div class="text-11 text-gray-400 mt-2">Dom +25% = prima dominical · Desc. = días de descanso pagados (proporcional a faltas) · Bono $0 ✕ = bono perdido por falta o permiso sin goce.</div>';
+}
+async function exportarNomina() {
+  const rows = (S.bandeja || []).filter(x => x.week_id === S.nomWeek); if (!rows.length) return; toast('Preparando el Excel…');
+  const filas = [];
+  for (const r of rows) { const key = r.branch_id + '|' + r.week_id; if (!S.nomDetalle[key]) S.nomDetalle[key] = await api('nom_semana', { branch_id: r.branch_id, week_id: r.week_id }); const d = S.nomDetalle[key]; const porId = Object.fromEntries((d.calculo || []).map(c => [c.colaborador_id, c]));
+    d.lineas.forEach(l => { const c = porId[l.colaborador_id]; if (!c) return; filas.push({ 'Sucursal': d.sucursal, 'Colaborador': l.nombre, 'Puesto': l.puesto || '', 'Asistencias': c.a, 'Faltas (FI)': c.fi, 'Vacaciones': c.vac, 'Permiso c/goce': c.pcgs, 'Permiso s/goce': c.psgs, 'Domingo trabajado': c.trabajo_domingo ? 'Sí (+25%)' : 'No', 'Descanso pagado (días)': r1(c.descanso_pagado), 'Días pagados': r1(c.dias_pagados), 'Sueldo diario': N(c.sueldo_diario), 'Monto sueldo': N(c.monto_sueldo), 'Bono semanal': N(c.bono_semanal), 'Bono pagado': N(c.monto_bono), 'Horas extras (h)': N(c.horas_extras), 'Monto horas extras': N(c.monto_he), 'Percepciones': N(c.total), 'Deducciones': N(c.deducciones), 'Neto a pagar': N(c.neto) }); }); }
+  const ws = XLSX.utils.json_to_sheet(filas); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Nomina'); XLSX.writeFile(wb, 'nomina_semanal_' + S.nomWeek + '.xlsx');
 }
 
+/* ── Horas extras (aprobación de contabilidad / admin) ── */
+async function vHorasExtras() {
+  cargando('Horas extras', 'Aprobación de horas extras reportadas por el gerente');
+  if (!veSueldos()) { pon(topbar('Horas extras', 'Aprobación de horas extras') + '<div class="p-8"><div class="bg-white rounded-xl p-8 text-center text-sm text-gray-500 shadow-card">Este módulo solo está disponible para Contabilidad y Administración.</div></div>'); return; }
+  const b = await cargarBandeja(); const semanas = semanasDeBandeja(b);
+  if (!semanas.length) { pon(topbar('Horas extras', 'Aprobación de horas extras') + '<div class="p-8"><div class="bg-white rounded-xl p-8 text-center text-sm text-gray-500 shadow-card">Aún no hay pre-nóminas capturadas.</div></div>'); return; }
+  if (!semanas.some(s => s.week_id === S.heWeek)) S.heWeek = semanas[0].week_id;
+  const r = await api('nom_he_semana', { week_id: S.heWeek }); const filas = (r.filas || []).filter(f => !S.empresa || f.empresa_id === S.empresa); const pend = filas.filter(f => !f.he_aprobada).length;
+  let h = topbar('Horas extras', 'Aprobación de horas extras reportadas por el gerente') + '<div class="p-8"><div class="flex flex-wrap items-end gap-3 mb-6">' + selSemanas(semanas, S.heWeek, 'S.heWeek=this.value;router()') + '<div class="flex-1"></div><div class="text-sm text-gray-500">' + filas.length + ' con horas extras · ' + pend + ' por aprobar</div></div>';
+  if (!filas.length) h += '<div class="bg-white rounded-xl p-8 text-center text-sm text-gray-500 shadow-card">No hay horas extras capturadas en esta semana. El gerente las registra en la columna HE de la pre-nómina.</div>';
+  else {
+    h += '<div class="bg-white rounded-xl shadow-card overflow-x-auto"><table class="lem-table" style="min-width:980px"><thead><tr><th>Colaborador</th><th class="text-center">Horas</th><th class="text-right">Opción 1<div class="text-10 font-normal text-gray-400 normal-case">sueldo/8 × h</div></th><th class="text-right">Opción 2<div class="text-10 font-normal text-gray-400 normal-case">hora al doble</div></th><th style="min-width:150px">Opción 3<div class="text-10 font-normal text-gray-400 normal-case">monto libre</div></th><th class="text-center">Estado</th><th style="min-width:180px">Observación del gerente</th></tr></thead><tbody>';
+    filas.forEach((f, i) => { const m1 = Math.round(N(f.sueldo_diario) / 8 * N(f.horas) * 100) / 100, m2 = Math.round(m1 * 2 * 100) / 100; const ap = !!f.he_aprobada; const sel = f.he_opcion; const args = f.prenomina_id + ',' + f.colaborador_id;
+      h += '<tr' + (ap ? ' style="background:#F2FAF6"' : '') + '><td><div class="flex items-center gap-2"><span class="brand-dot" style="background:' + empColor(f.empresa_id) + '"></span><div><div class="font-medium text-sm">' + esc(partesNombre(f.nombre)[0]) + '</div><div class="text-11 text-gray-500">' + esc(f.sucursal) + '</div></div></div></td><td class="text-center num font-medium">' + N(f.horas) + (f.auto ? '<div class="text-10 font-normal normal-case" style="color:var(--lem)">incluye 8 auto · 7 días</div>' : '') + '</td>' +
+        '<td class="text-right"><button class="op-btn' + (ap && sel === '1' ? ' on' : '') + '" onclick="aprobarHE(' + args + ',\'1\',' + i + ')">' + pesos2(m1) + '</button></td><td class="text-right"><button class="op-btn' + (ap && sel === '2' ? ' on' : '') + '" onclick="aprobarHE(' + args + ',\'2\',' + i + ')">' + pesos2(m2) + '</button></td>' +
+        '<td><div class="flex items-center gap-15"><input type="number" min="0" step="0.01" placeholder="0.00" class="he-input num" style="width:96px;text-align:left;padding:6px 8px" id="m3_' + i + '" value="' + (sel === '3' && f.he_monto3 != null ? esc(f.he_monto3) : '') + '"><button class="op-btn sm' + (ap && sel === '3' ? ' on' : '') + '" onclick="aprobarHE(' + args + ',\'3\',' + i + ')">Usar</button></div></td>' +
+        '<td class="text-center">' + (ap ? '<div class="flex flex-col items-center gap-1"><span class="badge badge-aprobada">Aprobada · Op ' + esc(sel) + '</span><button class="text-11 text-gray-500 underline" onclick="quitarHE(' + args + ')">Quitar</button></div>' : '<span class="badge badge-borrador">Pendiente</span>') + '</td><td class="text-sm text-gray-600">' + (f.observacion ? esc(f.observacion) : '<span class="text-gray-300">—</span>') + '</td></tr>'; });
+    h += '</tbody></table></div>';
+  }
+  pon(h + '</div>');
+}
+async function aprobarHE(pid, colab, opcion, i) {
+  let monto = null; if (opcion === '3') { monto = Number(($('m3_' + i) || {}).value); if (!monto || monto <= 0) { toast('Captura el monto de la opción 3.'); return; } }
+  try { await api('nom_horas_extra', { prenomina_id: pid, colaborador_id: colab, aprobada: true, opcion, monto3: monto }); toast('Horas extras aprobadas.'); S.bandeja = null; S.nomDetalle = {}; router(); } catch (e) { errorUI(e); }
+}
+async function quitarHE(pid, colab) { try { await api('nom_horas_extra', { prenomina_id: pid, colaborador_id: colab, aprobada: false }); toast('Aprobación retirada.'); S.bandeja = null; S.nomDetalle = {}; router(); } catch (e) { errorUI(e); } }
+
+window.addEventListener('beforeunload', () => { if (S.dirty && S.semana && editable()) { try { navigator.sendBeacon && guardar(false); } catch (e) {} } });
 if (S.token) arrancar(); else vLogin();
 </script>
 </body>
