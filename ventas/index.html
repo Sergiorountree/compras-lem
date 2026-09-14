@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semáforo de Ventas · Grupo LEM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  /* ── Mismo sistema visual que la app de pre-nómina (nomina.grupolem.com) ── */
+  :root { --font-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif; --font-serif: 'Instrument Serif', Georgia, serif; --font-mono: 'JetBrains Mono', monospace;
+          --lem: #534AB7; --lem-dark: #3C3489; --lem-light: #EEEDFE; --wings: #1A1A1A; --tota: #C03028; --mini: #D85A30;
+          --bg: #FAFAF7; --surface: #FFFFFF; --border: #E8E6DF; --border-strong: #D5D2C7; --text: #1A1A1A; --text-soft: #6B6B66; --text-faint: #9B9A92; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { font-family: var(--font-sans); background: var(--bg); color: var(--text); font-feature-settings: 'cv11', 'ss01'; letter-spacing: -0.005em; font-size: 14px; }
+  button, input, select, textarea { font-family: inherit; }
+  button { background: none; border: none; color: inherit; }
+  .font-serif { font-family: var(--font-serif); letter-spacing: 0; } .num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  .grain { background-image: radial-gradient(circle at 20% 10%, rgba(83,74,183,0.04) 0%, transparent 50%), radial-gradient(circle at 80% 90%, rgba(192,48,40,0.03) 0%, transparent 50%); }
+  .cell-A { background: #ECF7E8; color: #2A5A0E; border-color: #C8E5BB; } .cell-D { background: #F1EFE8; color: #565550; border-color: #D5D2C5; }
+  .cell-FI { background: #FCE7E5; color: #8C1F1B; border-color: #F2B8B3; } .cell-INC { background: #FCEFD5; color: #7A4B05; border-color: #F0CD83; }
+  .cell-VAC { background: #DEEBF8; color: #0F4471; border-color: #ABCAE9; } .cell-PSGS { background: #EAE6F7; color: #322787; border-color: #C4BBE7; }
+  .cell-PCGS { background: #DAF1E9; color: #0E5A42; border-color: #98D6BF; } .cell-BAJA { background: #2C2C2A; color: #FFFFFF; border-color: #2C2C2A; }
+  .cell-empty { background: #FFFFFF; color: #C5C2B5; border-color: #E8E6DF; }
+  .cell-btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 36px; border: 1px solid; border-radius: 6px; font-weight: 500; font-size: 12px; letter-spacing: 0.02em; cursor: pointer; transition: transform 0.05s ease, box-shadow 0.1s ease; user-select: none; font-family: var(--font-mono); }
+  .cell-btn:hover { box-shadow: 0 0 0 2px rgba(83,74,183,0.15); } .cell-btn:active { transform: scale(0.97); } .cell-btn:disabled { cursor: default; box-shadow: none; }
+  .cell-chip { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); font-weight: 500; border: 1px solid; min-width: 42px; text-align: center; }
+  .shadow-card { box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 0 0 1px var(--border); } .shadow-pop { box-shadow: 0 6px 24px rgba(0,0,0,0.08), 0 0 0 1px var(--border-strong); }
+  .brand-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; font-size: 14px; color: var(--text-soft); cursor: pointer; transition: background 0.1s ease, color 0.1s ease; width: 100%; text-align: left; }
+  .nav-item:hover { background: rgba(0,0,0,0.04); color: var(--text); } .nav-item.active { background: var(--lem-light); color: var(--lem-dark); font-weight: 500; } .nav-item.active svg { color: var(--lem); }
+  .nav-item .soon { margin-left: auto; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: all 0.1s ease; cursor: pointer; border: 1px solid transparent; }
+  .btn-primary { background: var(--lem); color: white; } .btn-primary:hover { background: var(--lem-dark); }
+  .btn-secondary { background: white; color: var(--text); border-color: var(--border-strong); } .btn-secondary:hover { background: var(--bg); }
+  .btn-danger { background: white; color: #8C1F1B; border-color: #F2B8B3; } .btn-danger:hover { background: #FCE7E5; }
+  .btn-success { background: #0E5A42; color: white; } .btn-success:hover { background: #084E37; }
+  .btn-ghost { background: transparent; color: var(--text-soft); } .btn-ghost:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; } .btn.p-2 { padding: 8px; } .btn.p-15 { padding: 6px; } .btn.w-full { width: 100%; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+  .badge-borrador, .badge-sin_capturar { background: #F1EFE8; color: #565550; } .badge-enviada { background: #DEEBF8; color: #0F4471; } .badge-revision { background: #FCEFD5; color: #7A4B05; }
+  .badge-rechazada { background: #FCE7E5; color: #8C1F1B; } .badge-corregida { background: #EAE6F7; color: #322787; } .badge-aprobada { background: #DAF1E9; color: #0E5A42; } .badge-cerrada { background: #2C2C2A; color: white; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(20,20,18,0.4); backdrop-filter: blur(2px); z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .modal-card { background: white; border-radius: 12px; box-shadow: 0 24px 60px rgba(0,0,0,0.18); max-width: 520px; width: 92%; max-height: 86vh; overflow: auto; padding: 24px; }
+  .day-popover { position: absolute; z-index: 50; background: white; border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.16), 0 0 0 1px var(--border-strong); padding: 6px; min-width: 200px; }
+  .day-popover .op { width: 100%; text-align: left; padding: 6px 8px; border-radius: 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; } .day-popover .op:hover { background: #F9FAFB; }
+  .lem-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+  .lem-table thead th { background: #F5F3EC; font-size: 11px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+  .lem-table tbody td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; background: white; vertical-align: middle; }
+  .lem-table tbody tr:hover td { background: #FAFAF7; } .lem-table tbody tr:last-child td { border-bottom: none; }
+  .avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 500; font-size: 12px; color: white; flex-shrink: 0; }
+  .toast { position: fixed; bottom: 24px; right: 24px; z-index: 200; background: #1A1A1A; color: white; padding: 12px 16px; border-radius: 10px; font-size: 13px; max-width: 400px; box-shadow: 0 10px 32px rgba(0,0,0,0.2); animation: toast-in 0.2s ease; }
+  @keyframes toast-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .tip { position: relative; } .tip:hover .tip-body { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .tip-body { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(4px); background: #1A1A1A; color: white; padding: 6px 10px; border-radius: 5px; font-size: 11px; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.12s ease; z-index: 30; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .stat-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .stat-card .stat-value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px; } .stat-card .stat-label { font-size: 12px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; }
+  .fade-in { animation: fade-in 0.2s ease; } @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  /* ── Armazón (sidebar + main) ── */
+  .shell { display: flex; height: 100%; } .sidebar { width: 256px; flex-shrink: 0; border-right: 1px solid var(--border); background: #FCFBF7; display: flex; flex-direction: column; }
+  .sb-head { padding: 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .logo { width: 32px; height: 32px; background: var(--lem); border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-family: var(--font-serif); flex-shrink: 0; }
+  .sb-brand { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: #6B7280; text-transform: uppercase; } .sb-app { font-size: 13px; font-weight: 500; line-height: 1.2; }
+  .sb-nav { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  .sb-foot { padding: 8px 12px 12px; border-top: 1px solid var(--border); } .sb-label { padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; font-weight: 500; }
+  .user-menu { padding: 10px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px; }
+  .sb-extra { padding: 4px 8px 0; display: flex; flex-direction: column; gap: 6px; } .sb-extra label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; font-weight: 500; display: block; margin-bottom: 2px; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; } .main > .scroll { flex: 1; overflow: auto; }
+  .topbar { border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); flex-wrap: wrap; }
+  .topbar h1 { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; } .topbar p { font-size: 14px; color: #6B7280; margin-top: 2px; }
+  .sel { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 14px; background: white; } .sel-lg { padding: 10px 12px; }
+  .lbl-sm { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280; font-weight: 500; display: block; margin-bottom: 4px; }
+  .he-input { width: 48px; text-align: center; font-size: 14px; padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-family: var(--font-mono); }
+  textarea.ta { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 14px; min-height: 120px; resize: vertical; }
+  .login-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-box { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 12px 40px rgba(0,0,0,0.08), 0 0 0 1px var(--border); }
+  .logo-lg { width: 52px; height: 52px; background: var(--lem); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 22px; font-family: var(--font-serif); }
+  .suc-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 20px; text-align: left; cursor: pointer; } .suc-head:hover { background: #F9FAFB; }
+  .op-btn { padding: 6px 10px; border-radius: 8px; font-size: 14px; font-weight: 500; font-family: var(--font-mono); background: var(--bg); border: 1px solid var(--border-strong); color: var(--text); cursor: pointer; } .op-btn.on { background: var(--lem); color: white; border-color: var(--lem); }
+  .op-btn.sm { padding: 6px 8px; font-size: 12px; font-family: var(--font-sans); }
+  .msg-card { background: white; border-radius: 12px; padding: 32px; text-align: center; font-size: 14px; color: #6B7280; }
+  .banner { padding: 16px; border-radius: 8px; border: 1px solid; margin-bottom: 16px; font-size: 14px; } .banner-red { background: #FEF2F2; border-color: #F2B8B3; } .banner-green { background: #F0FDF4; border-color: #C8E5BB; color: #2A5A0E; display: flex; align-items: center; gap: 8px; padding: 12px; } .banner-amber { background: #FFFBEB; border-color: #F0CD83; }
+  .banner .ttl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; margin-bottom: 4px; }
+  /* utilidades (las mismas que usa la app vía Tailwind) */
+  .flex { display: flex; } .items-center { align-items: center; } .items-start { align-items: flex-start; } .items-end { align-items: flex-end; } .justify-between { justify-content: space-between; } .justify-center { justify-content: center; } .justify-end { justify-content: flex-end; } .flex-wrap { flex-wrap: wrap; } .flex-col { flex-direction: column; } .flex-1 { flex: 1; } .min-w-0 { min-width: 0; }
+  .gap-1 { gap: 4px; } .gap-15 { gap: 6px; } .gap-2 { gap: 8px; } .gap-25 { gap: 10px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; } .gap-6 { gap: 24px; }
+  .p-8 { padding: 32px; } .p-6 { padding: 24px; } .p-5 { padding: 20px; } .p-4 { padding: 16px; } .px-5 { padding-left: 20px; padding-right: 20px; } .pb-5 { padding-bottom: 20px; }
+  .mb-1 { margin-bottom: 4px; } .mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 12px; } .mb-4 { margin-bottom: 16px; } .mb-5 { margin-bottom: 20px; } .mb-6 { margin-bottom: 24px; } .mt-05 { margin-top: 2px; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; } .mt-5 { margin-top: 20px; } .ml-2 { margin-left: 8px; } .mr-15 { margin-right: 6px; } .mr-2 { margin-right: 8px; }
+  .text-10 { font-size: 10px; } .text-11 { font-size: 11px; } .text-xs { font-size: 12px; } .text-13 { font-size: 13px; } .text-sm { font-size: 14px; } .text-base { font-size: 16px; } .text-lg { font-size: 18px; } .text-xl { font-size: 20px; } .text-2xl { font-size: 24px; }
+  .text-gray-300 { color: #D1D5DB; } .text-gray-400 { color: #9CA3AF; } .text-gray-500 { color: #6B7280; } .text-gray-600 { color: #4B5563; } .text-green-700 { color: #15803D; } .text-blue-700 { color: #1D4ED8; }
+  .font-medium { font-weight: 500; } .font-semibold { font-weight: 600; } .font-normal { font-weight: 400; } .uppercase { text-transform: uppercase; } .normal-case { text-transform: none; } .tracking-wider { letter-spacing: 0.05em; } .tracking-widest { letter-spacing: 0.1em; }
+  .text-center { text-align: center; } .text-right { text-align: right; } .text-left { text-align: left; } .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .underline { text-decoration: underline; } .leading-relaxed { line-height: 1.625; }
+  .bg-white { background: white; } .rounded-xl { border-radius: 12px; } .rounded-lg { border-radius: 8px; } .rounded { border-radius: 4px; } .overflow-hidden { overflow: hidden; } .overflow-auto { overflow: auto; } .overflow-x-auto { overflow-x: auto; } .relative { position: relative; } .w-full { width: 100%; }
+  .grid { display: grid; gap: 16px; } .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .space-y-2 > * + * { margin-top: 8px; } .space-y-3 > * + * { margin-top: 12px; } .space-y-05 > * + * { margin-top: 2px; }
+  ul.dots { list-style: none; } ul.dots li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; } ul.dots li::before { content: '●'; color: var(--lem); }
+  .space-y-4 > * + * { margin-top: 16px; } .space-y-6 > * + * { margin-top: 24px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); } .tab { padding: 10px 16px; font-size: 14px; font-weight: 500; color: var(--text-soft); position: relative; cursor: pointer; } .tab.on { color: var(--lem); } .tab.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--lem); }
+  .inp { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 14px; background: white; } .inp:disabled { background: var(--bg); color: var(--text-soft); }
+  .combo { position: relative; } .combo-list { position: absolute; z-index: 60; left: 0; right: 0; top: 100%; margin-top: 4px; background: white; border: 1px solid var(--border-strong); border-radius: 8px; max-height: 260px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+  .combo-list div { padding: 8px 12px; font-size: 14px; cursor: pointer; } .combo-list div:hover { background: #F9FAFB; } .combo-list div.sel { background: var(--lem-light); }
+  .tipo-btn { padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid var(--border-strong); background: white; color: var(--text-soft); cursor: pointer; } .tipo-btn.on { background: var(--lem); color: white; border-color: var(--lem); }
+  .hcell { display: inline-flex; align-items: center; justify-content: center; gap: 3px; width: 100%; height: 36px; border-radius: 6px; border: 1px solid; font-weight: 500; font-size: 11px; cursor: pointer; } .hcell.finde { border: 2px solid #C2410C; } .hcell:disabled { cursor: default; }
+  .search { position: relative; } .search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9CA3AF; } .search .inp { padding-left: 36px; }
+  .toggle { display: flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; } .toggle button { padding: 8px 12px; font-size: 14px; font-weight: 500; background: white; color: var(--text-soft); cursor: pointer; } .toggle button.on { background: var(--lem-light); color: var(--lem-dark); }
+  .card-sol { background: white; border-radius: 12px; padding: 20px; display: flex; align-items: flex-start; gap: 16px; } .card-sol .acciones { display: flex; flex-direction: column; gap: 8px; }
+  .hoja table { border-collapse: collapse; width: 100%; font-size: 11px; } .hoja th { text-align: left; padding: 7px 8px; border-bottom: 1.5px solid #333; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; background: #F3F1EC; } .hoja td { padding: 6px 8px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+  @media print { .sidebar, .topbar, #toast, .no-print, #root { display: none !important; } #modal .modal-backdrop { position: static; background: white; display: block; backdrop-filter: none; } #modal .modal-card { max-width: 100% !important; width: 100%; box-shadow: none; border-radius: 0; max-height: none; overflow: visible; padding: 0; } @page { size: A4 landscape; margin: 1cm; } }
+  @media (max-width: 900px) { .grid-4, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 760px) {
+    .shell { flex-direction: column; height: auto; min-height: 100%; } .sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .sb-head { padding: 12px 16px; } .sb-nav { flex-direction: row; overflow-x: auto; padding: 8px; gap: 4px; } .nav-item { white-space: nowrap; width: auto; padding: 6px 10px; } .nav-item .soon { display: none; }
+    .sb-foot { padding: 4px 8px 8px; } .sb-label { display: none; } .sb-extra { flex-direction: row; flex-wrap: wrap; }
+    .main { overflow: visible; } .main > .scroll { overflow: visible; } .topbar { padding: 14px 16px; } .p-8 { padding: 16px; } .p-6 { padding: 12px; } .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; }
+  }
+
+  .sem { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .sem.verde { background: #DAF1E9; color: #0E5A42; } .sem.amarillo { background: #FCEFD5; color: #7A4B05; } .sem.rojo { background: #FCE7E5; color: #8C1F1B; } .sem.sin_datos { background: #F1EFE8; color: #565550; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; } .dot.verde { background: #16A34A; } .dot.amarillo { background: #EAB308; } .dot.rojo { background: #DC2626; } .dot.sin_datos { background: #C5C2B5; }
+  .big-sem { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: 12px; border: 1px solid var(--border); background: white; }
+  .big-sem .luz { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 4px rgba(255,255,255,.6); }
+  .luz.verde { background: #16A34A; } .luz.amarillo { background: #EAB308; } .luz.rojo { background: #DC2626; } .luz.sin_datos { background: #C5C2B5; }
+  tr.hoy td { background: var(--lem-light) !important; } tr.futuro td { color: var(--text-faint); }
+  .bar { height: 8px; border-radius: 999px; background: #EEEDE6; overflow: hidden; } .bar > div { height: 100%; background: var(--lem); }
+  .inp { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 14px; background: white; } .lbl-sm { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280; font-weight: 500; display: block; margin-bottom: 4px; }
+  .num-in { width: 90px; text-align: right; }
+</style>
+</head>
+<body>
+<div id="root"><div class="msg-card">Cargando…</div></div>
+<div id="modal"></div><div id="toast"></div>
+
+<script type="module">
+/* ── SQL Connect (Firebase → Postgres directo). Decisión 8/12-sep-2026: las pantallas ya no pasan
+   por n8n para hablar con la base; n8n queda para correos y robots. La sesión de Firebase se abre
+   con la MISMA credencial de Google del botón de entrada (signInWithCredential). ── */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+import { getDataConnect, mutationRef, executeMutation } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-data-connect.js";
+const fbApp = initializeApp({"apiKey": "AIzaSyC1ycKtN1atpb1monWFIJqmR4X5vmpnNoo", "authDomain": "lem-erp.firebaseapp.com", "projectId": "lem-erp", "appId": "1:902179844288:web:e887a0886fa1188da2fd25"});
+const fbAuth = getAuth(fbApp);
+const dc = getDataConnect(fbApp, { connector: "api", location: "us-central1", service: "lem-api" });
+let resolverListo; const listo = new Promise(r => { resolverListo = r; });
+onAuthStateChanged(fbAuth, () => resolverListo());
+window.LEMDC = {
+  listo,
+  usuario: () => fbAuth.currentUser,
+  entrar: (idToken) => signInWithCredential(fbAuth, GoogleAuthProvider.credential(idToken)),
+  salir: () => signOut(fbAuth).catch(() => {}),
+  llamar: async (accion, datos) => {
+    const r = await executeMutation(mutationRef(dc, "Accion", { accion, datos: JSON.stringify(datos || {}) }));
+    return (r && r.data && r.data.r && r.data.r.r) || {};
+  }
+};
+</script>
+<script>
+/* ── Módulo Ventas: semáforo diario (14-sep-2026). Réplica del Excel "Semaforo <Mes>" de Sergio: objetivo mensual = año pasado ×
+   (1 + % incremento), presupuesto del día por peso del mismo día de la semana, semáforo del día y de 7 días, consolidado con
+   proyección e índice vs red. Regla: el gerente NO ve % de incremento, año pasado, parámetros ni otras tiendas. ── */
+const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
+const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
+const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
+const S = { token: store.get() || null, perfil: null, vista: (function(){ try { return localStorage.getItem('lem_vista_ven') || 'admin'; } catch(e){ return 'admin'; } })(),
+            empresa: null, branch: null, anio: new Date().getFullYear(), mes: new Date().getMonth() + 1, sem: null, cons: null, metas: null, toastT: null, msgPend: null };
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const N = n => Number(n) || 0;
+const pesos = n => '$' + N(n).toLocaleString('es-MX');
+const pesos2 = n => '$' + N(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const r1 = n => Math.round(N(n) * 10) / 10;
+const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fmtFecha(d) { if (!d) return '—'; const p = String(d).slice(0, 10).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+function fmtCorta(d) { if (!d) return ''; const p = String(d).slice(0, 10).split('-'); return Number(p[2]) + ' ' + MESES[Number(p[1]) - 1]; }
+function addDays(iso, n) { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function weekDe(lunesISO) { const m = new Date(lunesISO + 'T12:00:00Z'); const y = m.getUTCFullYear(); const j1 = new Date(Date.UTC(y, 0, 1)); const w = Math.ceil((((m - j1) / 86400000) + j1.getUTCDay() + 1) / 7); return y + '-W' + String(w).padStart(2, '0'); }
+/* ── API: SQL Connect con respaldo n8n (misma lógica que los otros módulos) ── */
+const SOLO_N8N = new Set(['correo_oc']);
+const LECTURAS = new Set(['perfil', 'ven_inicio', 'ven_semaforo', 'ven_consolidado', 'ven_metas']);
+function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
+function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
+async function esperarLEMDC() {
+  if (!window.LEMDC) await new Promise(r => { const t0 = Date.now(); const iv = setInterval(() => { if (window.LEMDC || Date.now() - t0 > 4000) { clearInterval(iv); r(); } }, 50); });
+  if (window.LEMDC) await Promise.race([LEMDC.listo, new Promise(r => setTimeout(r, 4000))]);
+}
+function conEmpresa(datos) { const d = Object.assign({}, datos || {}); if (S.empresa && d.empresa_id == null) d.empresa_id = S.empresa; return d; }
+async function api(accion, datos) {
+  const d = conEmpresa(datos);
+  if (!SOLO_N8N.has(accion) && apiForzada() !== 'n8n') {
+    let listo = false;
+    try {
+      await esperarLEMDC();
+      if (window.LEMDC && S.token) { const u = LEMDC.usuario(); const em = emailDeToken(S.token); if (!u || (em && (u.email || '').toLowerCase() !== em)) await LEMDC.entrar(S.token); }
+      listo = !!(window.LEMDC && LEMDC.usuario());
+    } catch (e) { console.warn('SQL Connect sin sesión (' + accion + '), usando n8n:', e && e.message); }
+    if (listo) {
+      try {
+        const j = await LEMDC.llamar(accion, d);
+        if (j && j.error && j.error !== 'no_existe') { const e = new Error(j.detalle || j.error); e.negocio = true; e.codigo = j.error; throw e; }
+        return j;
+      } catch (e) {
+        if (e && e.negocio) throw e;
+        if (!LECTURAS.has(accion)) { toast('No se pudo confirmar "' + accion + '" (' + ((e && e.message) || 'sin respuesta') + '). Revisa el estado antes de repetir.'); throw e; }
+        console.warn('SQL Connect falló en la lectura ' + accion + ', usando n8n:', e && e.message);
+      }
+    }
+  }
+  return apiN8n(accion, d);
+}
+async function apiN8n(accion, datos) {
+  let r;
+  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, accion, datos: datos || {} }) }); }
+  catch (err) { toast('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
+  if (r.status === 401) { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
+  const j = await r.json();
+  if (j.error && j.error !== 'no_existe') { const e = new Error(j.detalle || j.error); e.negocio = true; e.codigo = j.error; throw e; }
+  return j;
+}
+function errorUI(e) { if (!e || e.message === '401') return; console.error(e); toast(e.negocio ? e.message : 'Algo falló: ' + (e.message || 'error desconocido')); }
+
+/* ── Toast y modales (como en la app) ── */
+function toast(msg) { const t = $('toast'); t.innerHTML = '<div class="toast">' + esc(msg) + '</div>'; clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.innerHTML = ''; }, 3200); }
+function modal(html, w) { $('modal').innerHTML = '<div class="modal-backdrop" onclick="if(event.target===this)cerrarModal()"><div class="modal-card fade-in"' + (w ? ' style="max-width:' + w + 'px"' : '') + '>' + html + '</div></div>'; }
+function cerrarModal() { $('modal').innerHTML = ''; }
+
+/* ── Login (la tarjeta de la app, con el botón de Google del portal) ── */
+function vLogin(msj) {
+  $('root').innerHTML = '<div class="login-wrap grain"><div style="width:100%;max-width:380px"><div class="login-box">' +
+    '<div class="flex justify-center mb-4"><div class="logo-lg">L</div></div><div class="text-center mb-1"><h1 class="font-serif text-2xl" style="color:var(--lem);font-weight:400">Grupo LEM Ventas</h1></div>' +
+    '<p class="text-center text-gray-500 text-sm mb-6">Semáforo diario de ventas por sucursal</p><div id="gbtn" class="flex justify-center"></div>' +
+    '<p class="text-center text-xs text-gray-500 mt-4">' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p></div>' +
+    '<div class="text-center mt-5 text-xs text-gray-400"><a href="/" style="color:inherit">Portal Grupo LEM · compras.grupolem.com</a></div></div></div>';
+  if (window.google) {
+    google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
+      error_callback: (e) => toast('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Permite ventanas emergentes para este sitio y reintenta.'),
+      callback: (resp) => { try { S.token = resp.credential; store.set(S.token); arrancar(); } catch (err) { toast('Falló el arranque tras el login: ' + err.message); } } });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
+  } else { setTimeout(() => vLogin(msj), 400); }
+}
+async function arrancar() {
+  $('root').innerHTML = '<div class="msg-card">Cargando…</div>';
+  try {
+    const p = await api('ven_inicio');
+    S.perfil = p; fijarEmpresa();
+    const sucs = sucs_(); if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucs[0] || {}).branch_id || null;
+    pintarShell(); router(); toast('Bienvenido, ' + ((p.nombre || p.usuario).split(' ')[0]) + '.');
+  } catch (e) {
+    if (e.message === '401') return;
+    if (e.codigo === 'sin_acceso') $('root').innerHTML = '<div class="login-wrap grain"><div class="login-box" style="max-width:380px;text-align:center"><div class="font-serif text-xl mb-2">Sin acceso</div><p class="text-sm text-gray-500">Tu usuario no tiene acceso al módulo de Ventas.</p><a class="btn btn-secondary mt-4" href="/">Volver a los módulos</a></div></div>';
+    else { $('root').innerHTML = '<div class="msg-card">No se pudo cargar tu perfil.<br><a href="#" onclick="arrancar();return false">Reintentar</a></div>'; errorUI(e); }
+  }
+}
+function salir() { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); location.hash = ''; vLogin('Sesión cerrada.'); }
+
+/* ── Empresa, roles y vista ── */
+function fijarEmpresa() {
+  const emps = (S.perfil && S.perfil.empresas) || [];
+  if (emps.length <= 1) { S.empresa = null; return; }
+  let e = null; try { e = Number(localStorage.getItem('lem_empresa')) || null; } catch (x) {}
+  if (!emps.some(x => x.empresa_id === e)) e = emps[0].empresa_id;
+  S.empresa = e;
+}
+function empresaActual() { const emps = S.perfil.empresas || []; return emps.find(e => e.empresa_id === S.empresa) || emps[0] || { roles: [] }; }
+function empresaNombre(id) { const e = (S.perfil.empresas || []).find(x => x.empresa_id === id); return e ? e.nombre : ''; }
+const EMP_COLOR = { 1: '#C03028', 2: '#1A1A1A', 4: '#D85A30' }; function empColor(id) { return EMP_COLOR[id] || '#534AB7'; }
+function rolesReales() { return empresaActual().roles || []; }
+function esAdminReal() { return rolesReales().includes('admin'); }
+function vista() { if (!esAdminReal()) { const r = rolesReales(); return r.includes('contabilidad') ? 'contabilidad' : r.includes('asesor') ? 'asesor' : 'gerente'; } return ['admin', 'gerente', 'contabilidad', 'asesor'].includes(S.vista) ? S.vista : 'admin'; }
+function veParametros() { return vista() === 'admin' || vista() === 'contabilidad'; }
+function veConsolidado() { return vista() !== 'gerente'; }
+function sucs_() { return (S.perfil.sucursales || []).filter(s => !S.empresa || s.empresa_id === S.empresa); }
+function cambiarVista(v) { S.vista = v; try { localStorage.setItem('lem_vista_ven', v); } catch (e) {} S.branch = (sucs_()[0] || {}).branch_id || null; pintarShell(); irRuta('semaforo'); }
+function cambiarEmpresa(v) { S.empresa = Number(v); try { localStorage.setItem('lem_empresa', String(S.empresa)); } catch (e) {} S.branch = (sucs_()[0] || {}).branch_id || null; S.cons = null; S.metas = null; pintarShell(); irRuta(ruta().split('/')[0]); }
+const ROLES = { admin: { label: 'Administrador', color: '#534AB7' }, contabilidad: { label: 'Contabilidad', color: '#0E5A42' }, asesor: { label: 'Asesor operativo', color: '#7A4B05' }, gerente: { label: 'Gerente', color: '#8C1F1B' } };
+const ICONS = { home: '<path d="M3 12L12 4l9 8M5 10v10h4v-6h6v6h4V10"/>', chart: '<path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-7"/>', settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.4.6 1 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>', file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>', money: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9a3 3 0 0 0-2.8-2c-1.7 0-3 1-3 2.5s1.5 2 3 2.5 3 1 3 2.5-1.3 2.5-3 2.5a3 3 0 0 1-2.8-2M12 6v2m0 8v2"/>', check: '<path d="M5 13l4 4L19 7"/>', x: '<path d="M18 6L6 18M6 6l12 12"/>', chevronR: '<path d="M9 6l6 6-6 6"/>', chevronL: '<path d="M15 6l-6 6 6 6"/>', alert: '<path d="M12 2L2 22h20L12 2zM12 9v4M12 17h.01"/>', plus: '<path d="M12 5v14M5 12h14"/>', flag: '<path d="M4 22V4a1 1 0 0 1 1-1h11l-1.5 4L16 11H5"/>' };
+const icon = (n, s, cls) => '<svg width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"' + (cls ? ' class="' + cls + '"' : '') + ' style="flex-shrink:0">' + (ICONS[n] || '') + '</svg>';
+const MESES_L = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const DOW = ['', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+const pct = (n, d) => (n == null || isNaN(n)) ? '—' : ((N(n) * 100 >= 0 ? '+' : '') + (N(n) * 100).toFixed(d == null ? 1 : d) + '%');
+const pesos0 = n => (n == null) ? '—' : '$' + Math.round(N(n)).toLocaleString('es-MX');
+const SEM_TXT = { verde: 'VERDE', amarillo: 'AMARILLO', rojo: 'ROJO', sin_datos: 'SIN DATOS' }; const SEM_MTD = { verde: 'EN META', amarillo: 'CASI', rojo: 'BAJO', sin_datos: 'SIN DATOS' };
+function semHtml(c, mtd) { c = c || 'sin_datos'; return '<span class="sem ' + c + '"><span class="dot ' + c + '"></span>' + (mtd ? SEM_MTD[c] : SEM_TXT[c]) + '</span>'; }
+function mesLabel() { return MESES_L[S.mes - 1] + ' ' + S.anio; }
+function irMes(n) { let m = S.mes + n, a = S.anio; if (m < 1) { m = 12; a--; } if (m > 12) { m = 1; a++; } S.mes = m; S.anio = a; S.cons = null; S.metas = null; router(); }
+function selMes() { return '<span class="flex items-center gap-1"><button class="btn btn-ghost p-15" onclick="irMes(-1)">' + icon('chevronL', 14) + '</button><b class="text-sm" style="min-width:130px;text-align:center">' + mesLabel() + '</b><button class="btn btn-ghost p-15" onclick="irMes(1)">' + icon('chevronR', 14) + '</button></span>'; }
+
+/* ── Armazón ── */
+function pintarShell() {
+  const p = S.perfil; const v = vista(); const rol = ROLES[v] || ROLES.admin; const nombre = p.nombre || p.usuario.split('@')[0]; const ini = nombre.split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase();
+  const emps = p.empresas || []; let extra = '';
+  if (emps.length > 1) extra += '<div><label>Empresa</label><select class="sel w-full" onchange="cambiarEmpresa(this.value)">' + emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></div>';
+  if (esAdminReal()) { const op = (k, t) => '<option value="' + k + '"' + (S.vista === k ? ' selected' : '') + '>' + t + '</option>'; extra += '<div><label>Ver como</label><select class="sel w-full" onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('contabilidad', 'Contabilidad') + op('asesor', 'Asesor operativo') + '</select></div>'; }
+  extra += '<a href="/" class="nav-item" style="padding:6px 10px;font-size:12px">' + icon('home', 14) + '<span>Portal de módulos</span></a>';
+  $('root').innerHTML = '<div class="shell"><aside class="sidebar"><div class="sb-head"><div class="logo">L</div><div><div class="sb-brand">Grupo LEM</div><div class="sb-app">Semáforo de ventas</div></div></div><nav class="sb-nav" id="nav"></nav>' +
+    '<div class="sb-foot"><div class="sb-label">Sesión</div><div class="user-menu"><div class="avatar" style="width:32px;height:32px;background:' + rol.color + '">' + esc(ini) + '</div><div class="flex-1 min-w-0"><div class="text-13 font-medium truncate">' + esc(nombre) + '</div><div class="text-11 text-gray-500 truncate">' + rol.label + '</div></div><button class="btn btn-ghost p-2 tip" onclick="salir()">' + icon('logout', 14) + '<span class="tip-body">Salir</span></button></div><div class="sb-extra">' + extra + '</div></div></aside>' +
+    '<main class="main"><div class="scroll" id="scroll"><div id="vista"></div></div></main></div>';
+  pintarNav();
+}
+function pintarNav() {
+  const v = vista(); const cur = ruta().split('/')[0]; const items = [['semaforo', 'flag', v === 'gerente' ? 'Mi semáforo' : 'Semáforo por sucursal']];
+  if (veConsolidado()) items.push(['consolidado', 'chart', 'Consolidado']); if (veParametros()) items.push(['metas', 'settings', 'Metas y parámetros'], ['captura', 'plus', 'Captura manual']);
+  $('nav').innerHTML = items.map(([k, ic, label]) => '<button class="nav-item' + (cur === k ? ' active' : '') + '" onclick="ir(\'' + k + '\')">' + icon(ic, 16) + '<span>' + label + '</span></button>').join('');
+}
+function topbar(title, subtitle, actions) { return '<header class="topbar"><div><h1>' + title + '</h1>' + (subtitle ? '<p>' + subtitle + '</p>' : '') + '</div>' + (actions ? '<div class="flex items-center gap-2 flex-wrap">' + actions + '</div>' : '') + '</header>'; }
+function stat(label, value, hint, color) { return '<div class="stat-card"><div class="stat-label">' + label + '</div><div class="stat-value num" style="color:' + (color || 'var(--text)') + '">' + value + '</div>' + (hint ? '<div class="text-xs text-gray-500 mt-1">' + hint + '</div>' : '') + '</div>'; }
+function ruta() { return (location.hash || '#semaforo').replace('#', '') || 'semaforo'; }
+function ir(r) { if (location.hash !== '#' + r) location.hash = r; else router(); }
+function irRuta(r) { ir(r); }
+window.addEventListener('hashchange', () => { if (S.perfil) router(); });
+function router() {
+  if (!S.perfil) return; const r = ruta().split('/')[0]; pintarNav();
+  const RUTAS = { semaforo: vSemaforo, consolidado: vConsolidado, metas: vMetas, captura: vCaptura };
+  const fn = RUTAS[r] || vSemaforo; if ((r === 'consolidado' && !veConsolidado()) || ((r === 'metas' || r === 'captura') && !veParametros())) { location.hash = 'semaforo'; return; }
+  Promise.resolve(fn()).then(() => { if (S.msgPend) { toast(S.msgPend); S.msgPend = null; } }).catch(e => { if (e && e.message === '401') return; errorUI(e); if ($('vista') && /Cargando/.test($('vista').textContent || '')) $('vista').innerHTML = topbar('Ventas') + '<div class="p-8"><div class="msg-card">No se pudo cargar la pantalla.<br><a href="#semaforo">Volver</a></div></div>'; console.error(e); });
+}
+function pon(h) { const v = $('vista'); if (v) { v.innerHTML = h; $('scroll').scrollTop = 0; } }
+function cargando(t, s) { pon(topbar(t, s) + '<div class="p-8"><div class="msg-card">Cargando…</div></div>'); }
+
+/* ── Semáforo por sucursal (la hoja de la sucursal en el Excel) ── */
+async function vSemaforo() {
+  const sucs = sucs_(); if (!S.branch || !sucs.some(s => s.branch_id === S.branch)) S.branch = (sucs[0] || {}).branch_id || null;
+  if (!S.branch) { pon(topbar('Semáforo', 'Sin sucursal') + '<div class="p-8"><div class="bg-white rounded-xl p-8 text-center shadow-card"><div class="font-serif text-xl mb-2">Sin sucursal asignada</div><p class="text-sm text-gray-500">Tu usuario no tiene sucursal asignada en Ventas. Pídelo al administrador.</p></div></div>'); return; }
+  cargando('Semáforo de ventas', 'Cargando…');
+  const d = await api('ven_semaforo', { anio: S.anio, mes: S.mes, branch_id: S.branch }); S.sem = d; const vp = veParametros();
+  let acts = selMes(); if (sucs.length > 1) acts += '<select class="sel" onchange="S.branch=Number(this.value);router()">' + sucs.map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>';
+  const hoy = (d.dias || []).find(x => x.hoy) || null; const ult = (d.dias || []).filter(x => x.real != null).slice(-1)[0] || null;
+  let h = topbar('Semáforo · ' + esc(d.sucursal), mesLabel() + ' · corte ' + fmtFecha(d.corte) + (d.cerrada ? ' · <span style="color:#8C1F1B">sucursal cerrada (remodelación)</span>' : ''), acts) + '<div class="p-8">';
+  if (d.provisional && vp) h += '<div class="banner banner-amber text-sm" style="color:#7A4B05">⚠️ Metas provisionales: los % de incremento de este mes son una copia y todavía no se confirman en Metas y parámetros.</div>';
+  if (d.sin_ly) h += '<div class="banner banner-amber text-sm" style="color:#7A4B05">Esta sucursal no tiene venta del año pasado cargada para este mes, así que no hay presupuesto ni semáforo.' + (vp ? ' Cárgala en Metas y parámetros.' : '') + '</div>';
+  if (ult) h += '<div class="big-sem mb-6"><div class="luz ' + (ult.semaforo_7d || ult.semaforo) + '"></div><div class="flex-1"><div class="text-xs uppercase tracking-wider text-gray-500 font-medium">Semáforo de 7 días al ' + fmtFecha(ult.fecha) + '</div><div class="text-lg font-medium">' + (ult.semaforo_7d ? SEM_TXT[ult.semaforo_7d] + ' · ' + pct(ult.var_7d_pct) + ' vs presupuesto de la semana' : 'Aún no hay 7 días completos con venta') + '</div><div class="text-sm text-gray-500 mt-05">Día ' + fmtFecha(ult.fecha) + ': ' + pesos0(ult.real) + ' contra ' + pesos0(ult.presupuesto) + ' → ' + SEM_TXT[ult.semaforo] + ' (' + pct(ult.var_pct) + ')</div></div><div>' + semHtml(d.semaforo_mtd, true) + '</div></div>';
+  h += '<div class="grid grid-4 mb-6">' + stat('Objetivo del mes', pesos0(d.objetivo)) + stat('Presupuesto al corte', pesos0(d.presupuesto_mtd)) + stat('Venta real al corte', pesos0(d.real_mtd), d.var_mtd != null ? (N(d.var_mtd) >= 0 ? '+' : '') + pesos0(d.var_mtd) + ' (' + pct(d.var_mtd_pct) + ')' : '', d.var_mtd_pct == null ? null : N(d.var_mtd_pct) >= 0 ? '#0E5A42' : N(d.var_mtd_pct) >= N(d.tolerancia_amarillo) ? '#7A4B05' : '#8C1F1B') + stat('Proyección fin de mes', pesos0(d.proyeccion), 'Progreso ' + Math.round(N(d.progreso) * 100) + '% del presupuesto al corte', 'var(--lem)') + '</div>';
+  if (vp) h += '<div class="rounded-xl p-4 mb-6" style="background:var(--lem-light);border:1px solid var(--border)"><div class="text-xs uppercase tracking-wider font-medium mb-1" style="color:var(--lem-dark)">Solo administración y contabilidad</div><div class="text-sm" style="color:var(--lem-dark)">Incremento sobre el año pasado: <b>' + pct(d.incremento, 0).replace('+', '') + '</b> · Año pasado al corte (mismo día de la semana): <b class="num">' + pesos0(d.ly_mtd) + '</b> · Variación vs año pasado: <b>' + pct(d.var_ly_pct) + '</b></div></div>';
+  h += '<div class="bg-white rounded-xl shadow-card overflow-hidden"><div class="overflow-x-auto"><table class="lem-table" style="min-width:' + (vp ? 1250 : 980) + 'px"><thead><tr><th>Fecha</th><th>Día</th>' + (vp ? '<th class="text-right">Año pasado</th><th class="text-right">AP mismo día sem.</th>' : '') + '<th class="text-right">Presupuesto</th><th class="text-right">Venta real</th><th class="text-right">Var %</th><th>Semáforo día</th>' + (vp ? '<th class="text-right">Var vs AP</th>' : '') + '<th class="text-right">Real 7 días</th><th class="text-right">Presup. 7 días</th><th class="text-right">Var 7 días</th><th>Semáforo 7 días</th></tr></thead><tbody>';
+  (d.dias || []).forEach(x => { const futuro = x.real == null && x.fecha > d.corte; h += '<tr class="' + (x.hoy ? 'hoy' : futuro ? 'futuro' : '') + '"><td class="num text-sm">' + fmtFecha(x.fecha) + '</td><td class="text-sm">' + DOW[x.dow] + '</td>' + (vp ? '<td class="num text-right text-sm text-gray-500">' + pesos0(x.ly) + '</td><td class="num text-right text-sm text-gray-500">' + pesos0(x.ly_dow) + '</td>' : '') + '<td class="num text-right">' + pesos0(x.presupuesto) + '</td><td class="num text-right font-medium">' + (x.real != null ? pesos0(x.real) + (x.fuente === 'manual' ? ' <span class="text-10 text-gray-400">manual</span>' : '') : '') + '</td><td class="num text-right">' + (x.var_pct != null ? pct(x.var_pct) : '') + '</td><td>' + (x.real != null ? semHtml(x.semaforo) : '') + '</td>' + (vp ? '<td class="num text-right text-sm">' + (x.var_ly_pct != null ? pct(x.var_ly_pct) : '') + '</td>' : '') + '<td class="num text-right text-sm">' + (x.real_7d != null ? pesos0(x.real_7d) : '') + '</td><td class="num text-right text-sm">' + (x.presupuesto_7d != null ? pesos0(x.presupuesto_7d) : '') + '</td><td class="num text-right text-sm">' + (x.var_7d_pct != null ? pct(x.var_7d_pct) : '') + '</td><td>' + (x.semaforo_7d ? semHtml(x.semaforo_7d) : '') + '</td></tr>'; });
+  h += '</tbody></table></div></div><div class="text-11 text-gray-400 mt-4 leading-relaxed">🟢 en presupuesto · 🟡 hasta ' + pct(d.tolerancia_amarillo, 0) + ' · 🔴 debajo. El presupuesto del día reparte el objetivo del mes por el peso de cada día de la semana. El semáforo de 7 días es la lectura recomendada: siete días siempre traen un lunes y un sábado. La venta es sin IVA y llega del corte del día anterior.</div>';
+  pon(h + '</div>');
+}
+
+/* ── Consolidado (hoja Consolidado + Dashboard_Red) ── */
+async function vConsolidado() {
+  cargando('Consolidado de sucursales', 'Cargando…'); const d = await api('ven_consolidado', { anio: S.anio, mes: S.mes }); S.cons = d; const vp = veParametros();
+  const filas = (d.filas || []).filter(f => (!S.empresa || f.empresa_id === S.empresa) && !(f.sin_ly && f.real_mtd == null)); const emps = [...new Set(filas.map(f => f.empresa_id))];
+  const sum = (arr, k) => arr.reduce((a, x) => a + N(x[k]), 0); const tot = arr => { const o = sum(arr, 'objetivo'), r = sum(arr, 'real_mtd'), p = sum(arr, 'presupuesto_mtd'), ly = sum(arr, 'ly_mtd'); return { objetivo: o, real_mtd: r, presupuesto_mtd: p, var_mtd: r - p, var_mtd_pct: p ? (r - p) / p : null, proyeccion: p ? o * r / p : 0, ly_mtd: ly, var_ly_pct: ly ? (r - ly) / ly : null, progreso: p ? r / p : 0 }; };
+  const color = v => v == null ? 'sin_datos' : v >= 0 ? 'verde' : v >= N(d.tolerancia_amarillo) ? 'amarillo' : 'rojo';
+  const red = tot(filas); const operaron = filas.filter(f => N(f.real_mtd) > 0); const redOp = tot(operaron); const criticas = filas.filter(f => f.alerta).length;
+  const conIdx = filas.filter(f => f.indice_vs_red != null); const mejor = conIdx.slice().sort((a, b) => b.indice_vs_red - a.indice_vs_red)[0], peor = conIdx.slice().sort((a, b) => a.indice_vs_red - b.indice_vs_red)[0];
+  let h = topbar('Consolidado de sucursales', mesLabel() + ' · corte ' + fmtFecha(d.corte), selMes()) + '<div class="p-8">';
+  if (d.provisional && vp) h += '<div class="banner banner-amber text-sm" style="color:#7A4B05">⚠️ Metas provisionales este mes (copia sin revisar). Confírmalas en Metas y parámetros antes de juzgar a nadie.</div>';
+  h += '<div class="grid grid-4 mb-6">' + stat('Objetivo mensual (red)', pesos0(red.objetivo)) + stat('Venta real al corte', pesos0(red.real_mtd), (red.var_mtd >= 0 ? '+' : '') + pesos0(red.var_mtd) + ' vs presupuesto ' + pesos0(red.presupuesto_mtd), color(red.var_mtd_pct) === 'verde' ? '#0E5A42' : color(red.var_mtd_pct) === 'amarillo' ? '#7A4B05' : '#8C1F1B') + stat('Variación % al corte', pct(red.var_mtd_pct), semHtml(color(red.var_mtd_pct), true)) + stat('Proyección fin de mes', pesos0(red.proyeccion), 'Progreso ' + Math.round(red.progreso * 100) + '% del presupuesto al corte', 'var(--lem)') + '</div>';
+  h += '<div class="grid grid-4 mb-6">' + stat('Vs año pasado al corte', pct(red.var_ly_pct), 'Mismo día de la semana', red.var_ly_pct == null ? null : red.var_ly_pct >= 0 ? '#0E5A42' : '#8C1F1B') + stat('Sucursales en alerta crítica', criticas, 'Debajo de ' + pct(d.tolerancia_rojo, 0), criticas ? '#8C1F1B' : null) + stat('Mejor índice vs red', mejor ? esc(mejor.sucursal) : '—', mejor ? pct(mejor.indice_vs_red) : '') + stat('Peor índice vs red', peor ? esc(peor.sucursal) : '—', peor ? pct(peor.indice_vs_red) : '') + '</div>';
+  const fila = (f, esTotal) => '<tr' + (esTotal ? ' style="background:#F5F3EC;font-weight:600"' : '') + '><td>' + (esTotal ? esc(f.sucursal) : '<div class="flex items-center gap-2"><span class="brand-dot" style="background:' + empColor(f.empresa_id) + '"></span><a href="#" onclick="S.branch=' + f.branch_id + ';ir(\'semaforo\');return false" style="color:inherit">' + esc(f.sucursal) + '</a>' + (f.cerrada ? ' <span class="text-10 text-gray-400">cerrada</span>' : '') + '</div>') + '</td><td class="num text-right">' + pesos0(f.objetivo) + '</td><td class="num text-right">' + pesos0(f.real_mtd) + '</td><td class="num text-right">' + pesos0(f.presupuesto_mtd) + '</td><td class="num text-right"' + (N(f.var_mtd) < 0 ? ' style="color:#8C1F1B"' : '') + '>' + (f.var_mtd >= 0 ? '+' : '') + pesos0(f.var_mtd) + '</td><td class="num text-right">' + pct(f.var_mtd_pct) + '</td><td>' + semHtml(esTotal ? color(f.var_mtd_pct) : f.semaforo, true) + '</td><td class="num text-right">' + pesos0(f.proyeccion) + '</td><td class="num text-right text-gray-600">' + pesos0(f.ly_mtd) + '</td><td class="num text-right">' + pct(f.var_ly_pct) + '</td><td class="num text-right">' + (esTotal ? '' : pct(f.indice_vs_red)) + '</td><td><div class="flex items-center gap-2"><div class="bar" style="width:70px"><div style="width:' + Math.min(100, Math.round(N(f.progreso) * 100)) + '%"></div></div><span class="num text-xs">' + Math.round(N(f.progreso) * 100) + '%</span></div></td><td>' + (esTotal ? '' : (f.alerta ? '<span class="badge badge-rechazada">⚠️ crítico</span>' : '')) + '</td><td class="text-xs text-gray-500">' + (esTotal ? '' : (f.captura === 'al día' ? '✓ al día' : '⌛ ' + esc(f.captura))) + '</td>' + (vp ? '<td class="num text-right text-xs text-gray-500">' + (esTotal ? '' : pct(f.incremento, 0).replace('+', '')) + '</td>' : '') + '</tr>';
+  h += '<div class="bg-white rounded-xl shadow-card overflow-hidden"><div class="overflow-x-auto"><table class="lem-table" style="min-width:1500px"><thead><tr><th>Sucursal</th><th class="text-right">Objetivo mensual</th><th class="text-right">Real MTD</th><th class="text-right">Presupuesto MTD</th><th class="text-right">Var $ MTD</th><th class="text-right">Var % MTD</th><th>Semáforo MTD</th><th class="text-right">Proyección fin de mes</th><th class="text-right">Año pasado MTD</th><th class="text-right">Var % vs AP</th><th class="text-right">Índice vs red</th><th>Progreso</th><th>Alerta</th><th>Captura</th>' + (vp ? '<th class="text-right">% incr.</th>' : '') + '</tr></thead><tbody>';
+  emps.forEach(e => { const list = filas.filter(f => f.empresa_id === e); h += list.map(f => fila(f, false)).join('') + (emps.length > 1 ? fila(Object.assign({ sucursal: 'Total ' + empresaNombre(e) }, tot(list)), true) : ''); });
+  h += fila(Object.assign({ sucursal: 'TOTAL RED' }, red), true) + '</tbody></table></div></div>';
+  if (operaron.length < filas.length) h += '<div class="bg-white rounded-xl shadow-card p-5 mt-6"><div class="text-base font-medium mb-1">La red sin las sucursales cerradas</div><p class="text-sm text-gray-500 mb-3">Una sucursal cerrada (obra, remodelación) sigue cargando su meta y su presupuesto en el TOTAL RED. Aquí se ve la misma red contando solo las que sí operaron. Ninguna meta se modifica.</p><div class="grid grid-4">' + stat('Sin una sola venta en el mes', filas.length - operaron.length) + stat('Presupuesto MTD (operaron)', pesos0(redOp.presupuesto_mtd)) + stat('Variación % (operaron)', pct(redOp.var_mtd_pct), '', color(redOp.var_mtd_pct) === 'verde' ? '#0E5A42' : '#8C1F1B') + stat('Vs año pasado (operaron)', pct(redOp.var_ly_pct), '', redOp.var_ly_pct == null ? null : redOp.var_ly_pct >= 0 ? '#0E5A42' : '#8C1F1B') + '</div></div>';
+  h += '<div class="text-11 text-gray-400 mt-5 leading-relaxed"><strong>Índice vs red</strong> = crecimiento de la sucursal contra el año pasado menos el crecimiento de toda la red: si llovió y caen todas, el índice dice quién cayó por su cuenta. <strong>Proyección</strong> = objetivo × (real ÷ presupuesto al corte). Venta sin IVA.</div>';
+  pon(h + '</div>');
+}
+
+/* ── Metas y parámetros (hoja Parametros; solo admin y contabilidad) ── */
+async function vMetas() {
+  cargando('Metas y parámetros', 'Cargando…'); const d = await api('ven_metas', { anio: S.anio, mes: S.mes }); S.metas = d; const sucs = (d.sucursales || []).filter(s => !S.empresa || s.empresa_id === S.empresa);
+  let h = topbar('Metas y parámetros', mesLabel() + (d.existe ? '' : ' · este mes aún no tiene parámetros (se usarán los valores por defecto hasta que guardes)'), selMes()) + '<div class="p-8">';
+  h += '<div class="rounded-xl p-4 mb-5" style="background:var(--lem-light);border:1px solid var(--border)"><p class="text-sm" style="color:var(--lem-dark)">Confidencial: esta pantalla y los porcentajes de incremento solo los ven administración y contabilidad. Los gerentes ven presupuesto, venta y semáforo, nunca el incremento ni el año pasado.</p></div>';
+  h += '<div class="bg-white rounded-xl shadow-card p-6 mb-5"><h3 class="text-base font-medium mb-4">Parámetros del mes</h3><div class="grid grid-4" style="gap:12px"><div><label class="lbl-sm">Incremento % global (respaldo)</label><input class="inp num" type="number" step="0.1" id="m_global" value="' + (N(d.incremento_global) * 100).toFixed(1) + '"></div><div><label class="lbl-sm">Tolerancia amarillo (%)</label><input class="inp num" type="number" step="0.1" id="m_ama" value="' + (N(d.tolerancia_amarillo) * 100).toFixed(1) + '"></div><div><label class="lbl-sm">Tolerancia rojo / crítico (%)</label><input class="inp num" type="number" step="0.1" id="m_rojo" value="' + (N(d.tolerancia_rojo) * 100).toFixed(1) + '"></div><div><label class="lbl-sm">Fecha de corte manual (opcional)</label><input class="inp num" type="date" id="m_corte" value="' + esc(d.corte_manual ? String(d.corte_manual).slice(0, 10) : '') + '"></div></div><div class="flex items-center gap-4 mt-4 flex-wrap"><label class="flex items-center gap-2 text-sm" style="cursor:pointer"><input type="checkbox" id="m_prov"' + (d.provisional ? ' checked' : '') + '> Metas provisionales (aún no confirmadas)</label><input class="inp flex-1" id="m_notas" placeholder="Notas" value="' + esc(d.notas || '') + '" style="min-width:240px"></div>' + (d.actualizado_por ? '<div class="text-11 text-gray-400 mt-2">Última actualización: ' + esc(d.actualizado_por) + ' · ' + fmtFecha(d.actualizado_en) + '</div>' : '') + '</div>';
+  h += '<div class="bg-white rounded-xl shadow-card overflow-hidden mb-5"><div class="overflow-x-auto"><table class="lem-table"><thead><tr><th>Sucursal</th><th class="text-right">% incremento</th><th class="text-right">Año pasado (mes)</th><th class="text-right">Días AP cargados</th><th class="text-right">Objetivo mensual</th><th>Venta real</th><th></th></tr></thead><tbody>' +
+    sucs.map(s => { const inc = s.incremento == null ? N(d.incremento_global) : N(s.incremento); return '<tr><td><div class="flex items-center gap-2"><span class="brand-dot" style="background:' + empColor(s.empresa_id) + '"></span>' + esc(s.nombre) + '</div></td><td class="text-right"><input class="inp num num-in" type="number" step="0.1" data-b="' + s.branch_id + '" value="' + (s.incremento == null ? '' : (N(s.incremento) * 100).toFixed(1)) + '" placeholder="global ' + (N(d.incremento_global) * 100).toFixed(0) + '%" oninput="recalcObj(this)"></td><td class="num text-right">' + pesos0(s.ly_total) + '</td><td class="num text-right' + (N(s.dias_ly) < 28 ? ' font-medium" style="color:#8C1F1B' : '') + '">' + N(s.dias_ly) + '</td><td class="num text-right font-medium" id="obj_' + s.branch_id + '" data-ly="' + N(s.ly_total) + '">' + pesos0(N(s.ly_total) * (1 + inc)) + '</td><td class="text-sm">' + (s.pos ? '<span class="badge badge-aprobada">POS automático</span>' : '<span class="badge badge-revision">Captura manual</span>') + '</td><td class="text-right"><button class="btn btn-secondary" style="padding:5px 10px;font-size:12px" onclick="abrirCargaLY(' + s.branch_id + ')">Año pasado…</button></td></tr>'; }).join('') + '</tbody></table></div></div>';
+  h += '<div class="flex justify-end gap-2"><button class="btn btn-primary" onclick="guardarMetas()">' + icon('check', 14) + 'Guardar metas del mes</button></div><div class="text-11 text-gray-400 mt-4">Objetivo mensual = venta del año pasado del mes × (1 + % incremento). Si una sucursal no tiene % propio, toma el global. Los cambios quedan historizados.</div>';
+  pon(h + '</div>');
+}
+function recalcObj(inp) { const b = inp.dataset.b; const g = N($('m_global').value) / 100; const inc = inp.value === '' ? g : N(inp.value) / 100; const o = $('obj_' + b); if (o) o.textContent = pesos0(N(o.dataset.ly) * (1 + inc)); }
+async function guardarMetas() {
+  const d = { anio: S.anio, mes: S.mes, incremento_global: N($('m_global').value) / 100, tolerancia_amarillo: N($('m_ama').value) / 100, tolerancia_rojo: N($('m_rojo').value) / 100, corte_manual: $('m_corte').value || null, provisional: $('m_prov').checked, notas: $('m_notas').value,
+    sucursales: [...document.querySelectorAll('input[data-b]')].map(i => ({ branch_id: Number(i.dataset.b), incremento: i.value === '' ? null : N(i.value) / 100 })) };
+  try { await api('ven_metas_guardar', d); toast('Metas del mes guardadas.'); S.cons = null; router(); } catch (e) { errorUI(e); }
+}
+function abrirCargaLY(b) { const s = (S.metas.sucursales || []).find(x => x.branch_id === b); modal('<h2 class="text-lg font-medium">Venta del año pasado · ' + esc(s.nombre) + '</h2><p class="text-sm text-gray-500 mb-4" style="margin-top:2px">' + MESES_L[S.mes - 1] + ' ' + (S.anio - 1) + '. Pega dos columnas: fecha (AAAA-MM-DD o DD/MM/AAAA) y venta sin IVA, una por renglón. Reemplaza los días que ya existan.</p><textarea class="ta" id="ly_txt" style="min-height:220px;font-family:var(--font-mono);font-size:12px" placeholder="2025-09-01\t9356.03\n2025-09-02\t9761.21"></textarea><div class="text-xs mt-2" id="ly_err" style="color:#8C1F1B"></div><div class="flex justify-end gap-2 mt-4"><button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button><button class="btn btn-primary" onclick="guardarLY(' + b + ')">Cargar</button></div>', 560); }
+async function guardarLY(b) { const filas = []; for (const l of $('ly_txt').value.split('\n')) { const t = l.trim().split(/[\t;,]+|\s{2,}/); if (t.length < 2) continue; let f = t[0].trim(); const m = f.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) f = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); const v = Number(String(t[t.length - 1]).replace(/[$,\s]/g, '')); if (/^\d{4}-\d{2}-\d{2}$/.test(f) && !isNaN(v)) filas.push({ fecha: f, venta: v }); }
+  if (!filas.length) { $('ly_err').textContent = 'No reconocí ningún renglón con fecha y venta.'; return; } try { const r = await api('ven_ly_guardar', { branch_id: b, filas }); cerrarModal(); toast(r.filas + ' día(s) cargados.'); router(); } catch (e) { errorUI(e); } }
+
+/* ── Captura manual (sucursales sin POS en Postgres) ── */
+async function vCaptura() {
+  const sucs = sucs_().filter(s => !s.pos); const hoy = new Date(); const ayer = new Date(hoy.getTime() - 86400000).toISOString().slice(0, 10);
+  pon(topbar('Captura manual de venta', 'Solo sucursales sin POS conectado a Postgres (The Wings). La venta es del día, sin IVA.') + '<div class="p-8">' + (sucs.length ? '<div class="bg-white rounded-xl shadow-card p-6" style="max-width:560px"><div class="space-y-4"><div><label class="lbl-sm">Sucursal</label><select class="inp" id="c_suc">' + sucs.map(s => '<option value="' + s.branch_id + '">' + esc(s.nombre) + '</option>').join('') + '</select></div><div class="grid grid-2" style="gap:12px"><div><label class="lbl-sm">Fecha</label><input class="inp num" type="date" id="c_fecha" value="' + ayer + '"></div><div><label class="lbl-sm">Venta sin IVA</label><input class="inp num" type="number" min="0" step="0.01" id="c_venta" placeholder="0.00"></div></div><div class="text-xs" id="c_err" style="color:#8C1F1B"></div><div class="flex justify-end"><button class="btn btn-primary" onclick="capturarVenta()">' + icon('check', 14) + 'Guardar venta</button></div></div></div>' : '<div class="msg-card">Todas tus sucursales tienen venta automática del POS. No hay nada que capturar a mano.</div>') + '</div>');
+}
+async function capturarVenta() { const d = { branch_id: Number($('c_suc').value), fecha: $('c_fecha').value, venta_sin_iva: Number($('c_venta').value) }; if (!d.fecha || !$('c_venta').value) { $('c_err').textContent = 'Indica la fecha y la venta.'; return; } try { await api('ven_capturar', d); toast('Venta guardada.'); $('c_venta').value = ''; $('c_err').textContent = ''; } catch (e) { if (e.negocio) $('c_err').textContent = e.message; else errorUI(e); } }
+
+if (S.token) arrancar(); else vLogin();
+</script>
+</body>
+</html>
