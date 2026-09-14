@@ -95,7 +95,8 @@ async function api(accion, datos) {
 const MODULOS = {
   compras:     { clase: 'compras',     ico: '🛒', titulo: 'Compras',     texto: 'Gestiona proveedores, pedidos de sucursal, órdenes de compra y recepciones.', href: '/compras/', boton: 'Ir a Compras →' },
   inventarios: { clase: 'inventarios', ico: '📦', titulo: 'Inventarios', texto: 'Conteos diarios de guisos, postres y bebidas por sucursal, eficiencia contra el POS y captura del día.', href: '/inventarios/', boton: 'Ir a Inventarios →' },
-  nominas:     { clase: 'nomina',      ico: '👥', titulo: 'Nóminas',     texto: 'Pre-nómina semanal: captura del gerente, revisión y cierre de contabilidad, horas extra y nómina calculada.', href: '/nominas/', boton: 'Ir a Nóminas →' }
+  nominas:     { clase: 'nomina',      ico: '👥', titulo: 'Nóminas',     texto: 'Pre-nómina semanal: captura del gerente, revisión y cierre de contabilidad, horas extra y nómina calculada.', href: '/nominas/', boton: 'Ir a Nóminas →' },
+  ventas:      { clase: 'ventas',      ico: '🚦', titulo: 'Ventas',      texto: 'Semáforo diario de ventas por sucursal: presupuesto del día, avance del mes y proyección.', href: '/ventas/', boton: 'Ir a Ventas →' }
 };
 function vLogin(msj) {
   $('hUser').innerHTML = 'ERP modular';
@@ -114,7 +115,7 @@ function pintar(p) {
   $('hUser').innerHTML = esc(p.usuario) + '<button onclick="salir()">Salir</button>';
   if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; return; }
   let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div class="grid">';
-  for (const k of ['compras', 'nominas', 'inventarios']) {
+  for (const k of ['compras', 'nominas', 'inventarios', 'ventas']) {
     if (!mods.includes(k)) continue; const m = MODULOS[k];
     h += '<div class="mod ' + m.clase + '">' + (m.etiqueta ? '<span class="etq">' + m.etiqueta + '</span>' : '') + '<div class="ico">' + m.ico + '</div><h3>' + m.titulo + '</h3><p>' + m.texto + '</p><a href="' + m.href + '">' + m.boton + '</a></div>';
   }
