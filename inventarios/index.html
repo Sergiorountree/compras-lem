@@ -46,7 +46,8 @@ td.f-ger { background: #fffde7 !important; } td.f-adm { background: #e3f2fd !imp
 .tab { padding: 11px 12px; font-size: 14px; font-weight: 500; color: var(--text-soft); position: relative; cursor: pointer; border: none; background: transparent; white-space: nowrap; }
 .tab.on { color: var(--lem); } .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--lem); border-radius: 2px 2px 0 0; }
 /* contenido */
-.main { padding: 16px; max-width: 1180px; margin: 0 auto; }
+.main { padding: 16px; max-width: none; margin: 0; }   /* a todo lo ancho, como la app (Sergio, 16-sep) */
+#genGrupos, #genResumen { max-width: 1100px; }
 .main.con-barra { padding-bottom: 96px; }
 .sec { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .sec h2 { font-size: 18px; font-weight: 600; }
