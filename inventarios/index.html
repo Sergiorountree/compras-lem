@@ -17,11 +17,11 @@
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body { font-family: var(--font); background: var(--ground); color: var(--text); font-size: 15px; line-height: 1.45; min-height: 100vh; }
-button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
+button, input, select { font-family: inherit; font-size: inherit; color: inherit; line-height: inherit; }
 a { color: var(--lem); }
 .num { font-variant-numeric: tabular-nums; }
 /* cabecera */
-.topbar { background: var(--surface); border-bottom: 1px solid var(--divider); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; position: sticky; top: 0; z-index: 60; }
+.topbar { background: var(--surface); border-bottom: 1px solid var(--divider); padding: 10px 16px; min-height: 59px; display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; position: sticky; top: 0; z-index: 60; }
 .topbar h1 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .topbar h1 a { color: var(--text-soft); text-decoration: none; font-size: 15px; }
 .topbar h1 em { font-style: normal; font-size: 15px; font-weight: 500; color: var(--text-soft); }
@@ -54,9 +54,9 @@ a { color: var(--lem); }
 .main.con-barra { padding-bottom: 110px; }
 .vista-hdr { padding: 18px 0 12px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; justify-content: space-between; }
 .vista-hdr h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-.vista-hdr p, .hint { font-size: 14px; color: var(--text-soft); }
+.vista-hdr p, .hint { font-size: 14px; color: var(--text-soft); } .vista-hdr p { margin-top: 2px; }
 .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.inp { padding: 8px 11px; border-radius: 8px; border: 1px solid var(--divider); background: var(--surface); font-size: 14px; font-weight: 500; min-height: 38px; }
+.inp { padding: 7px 11px; border-radius: 8px; border: 1px solid var(--divider); background: var(--surface); font-size: 14px; font-weight: 500; min-height: 38px; }
 .inp:focus { outline: 2px solid var(--lem); outline-offset: 1px; }
 .card { background: var(--surface); border: 1px solid var(--divider); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
 .card > h3 { font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 12px; }
@@ -103,7 +103,8 @@ table.registro { border-collapse: separate; border-spacing: 0; width: 100%; min-
 .ef-row { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 3px 0; } .ef-row span { color: var(--text-soft); font-size: 14px; } .ef-row b { font-variant-numeric: tabular-nums; }
 .ef-pct { margin-top: 8px; display: inline-flex; padding: 4px 10px; border-radius: 7px; font-size: 16px; font-weight: 700; }
 /* destacados: racha y productos problema */
-.destacados { display: grid; gap: 12px; grid-template-columns: minmax(250px, 310px) 1fr; margin-bottom: 14px; align-items: start; }
+.destacados { display: grid; gap: 12px; grid-template-columns: minmax(250px, 310px) 1fr; margin-bottom: 14px; align-items: start; } .destacados .card { margin-bottom: 0; }
+.card.ef { margin-top: 18px; }
 .racha-card { border-top: 4px solid var(--lem); }
 .racha-num { display: flex; align-items: baseline; gap: 10px; font-size: 46px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
 .racha-num em { font-style: normal; font-size: 34px; } .racha-num span { font-size: 16px; font-weight: 600; color: var(--text-soft); }
@@ -338,7 +339,8 @@ function cuentaHtml(enModal) {
   if (S.rol === 'admin') h += '<span class="pill">Ver como <select onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de tienda') + op('aprobador', 'Asesor') + '</select></span>';
   if (emps.length > 1) h += '<span class="pill">Empresa <select onchange="cambiarEmpresa(this.value)">' + emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></span>';
   else if (emps.length === 1) h += '<span class="pill">' + esc(emps[0].nombre) + '</span>';
-  h += '<span class="pill">' + esc(S.perfil.usuario) + '</span><a class="btn btn-sm" href="/">Portal</a>';
+  if (vista() === 'gerente' && S.gerenteElegido) h += '<button class="btn btn-sm" onclick="S.gerenteElegido=false;S.tab=null;cerrarModal();pintar()">↔ Otro gerente</button>';
+  h += '<span class="pill">' + esc(S.perfil.usuario) + '</span><a class="btn" href="/">Portal</a>';
   return enModal ? '<h3>Tu cuenta</h3><div style="display:grid;gap:10px;margin-top:10px">' + h.replace(/<span class="pill/g, '<span style="justify-content:space-between" class="pill') + '</div>' : h;
 }
 function abrirCuenta() { modal(cuentaHtml(true) + '<div class="acts"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>'); }
@@ -350,7 +352,7 @@ function pintar() {
     h += '<main class="main"><div class="card" style="margin-top:16px"><h3>¿Qué gerente quieres ser?</h3><p class="hint" style="margin-bottom:10px">Verás exactamente lo que ve ese gerente: solo su tienda.</p><div class="lista">' + S.sucursales.map(s => '<button class="btn" style="justify-content:flex-start" onclick="elegirGerente(' + s.branch_id + ')">🏪 ' + esc(corto(s.nombre)) + '</button>').join('') + '</div></div></main>';
     app().innerHTML = h; return;
   }
-  h += '<div class="tabs-wrap"><div class="tabs-row"><nav class="tabs">' + tabs.map(t => '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + (vista() === 'gerente' ? '<button class="tab" onclick="S.gerenteElegido=false;S.tab=null;pintar()">↔ Otro gerente</button>' : '') + '</nav>' + (esGerente() ? '<div class="kpis" id="kpis"></div>' : '') + '</div></div>' +
+  h += '<div class="tabs-wrap"><div class="tabs-row"><nav class="tabs">' + tabs.map(t => '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '' + '</nav>' + (esGerente() ? '<div class="kpis" id="kpis"></div>' : '') + '</div></div>' +
     '<main class="main" id="main"><div class="loading">Cargando…</div></main>';
   app().innerHTML = h; if (esGerente()) cargarKpis(); router();
 }
@@ -395,7 +397,7 @@ function tablaRegistroHTML(d, cajas) {
 }
 function efCardsHTML(lineas) {
   const { c, e } = calcEff(lineas);
-  return '<div class="card"><h3>Eficiencia del día</h3><div class="ef-grid">' + CATS.map(k => { const div = k === 'guiso' ? 1000 : 1, un = k === 'guiso' ? 'kg' : 'pzas';
+  return '<div class="card ef"><h3>Eficiencia del día</h3><div class="ef-grid">' + CATS.map(k => { const div = k === 'guiso' ? 1000 : 1, un = k === 'guiso' ? 'kg' : 'pzas';
     return '<div class="ef-col"><h4>' + CAT_LABEL[k] + '</h4><div class="ef-row"><span>Vendidos</span><b>' + fmt(c[k].vend / div) + ' ' + un + '</b></div><div class="ef-row"><span>Consumo</span><b>' + fmt(c[k].cons / div) + ' ' + un + '</b></div><div class="ef-row"><span>Diferencia</span><b>' + fmt((c[k].vend - c[k].cons) / div) + ' ' + un + '</b></div><div class="ef-pct" style="' + estilo(e[k]) + '">' + (e[k] == null ? '—' : e[k] + '%') + '</div></div>'; }).join('') + '</div></div>';
 }
 function leyendaHTML() { return '<div class="leyenda"><span><i style="background:#F1F5F9"></i>Solo consulta: lo pone administración</span><span><i style="background:#FFF8DB;border-color:#967015"></i>Captura del gerente (en la app)</span><span><i style="background:#FFFFFF"></i>Automático: lo calcula el sistema</span><span><i style="background:#FEE2E2;border-color:#DC2626"></i>Diferencia teórica fuera de ±10 gorditas</span></div>'; }
