@@ -6,120 +6,171 @@
 <title>Inventarios · Grupo LEM</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
 <style>
-/* ── Rediseño 15-sep-2026: mismo sistema visual que Nóminas (el estilo con el que se unifica el portal, empezando aquí) ── */
-:root { --font-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --lem: #534AB7; --lem-dark: #3C3489; --lem-light: #EEEDFE; --bg: #FAFAF7; --surface: #FFFFFF; --border: #E8E6DF; --border-strong: #D5D2C7;
-  --text: #1A1A1A; --text-soft: #6B6B66; --text-faint: #9B9A92; --ok: #0E5A42; --ok-bg: #DAF1E9; --warn: #7A4B05; --warn-bg: #FCEFD5; --bad: #8C1F1B; --bad-bg: #FCE7E5; --info-bg: #DEEBF8; --info: #0F4471; }
+/* ── Inventarios · diseño del mockup aprobado por Sergio el 16-sep-2026 (paleta suya; el morado del portal solo para navegación) ── */
+:root { --font: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ground: #F8FAFC; --surface: #FFFFFF; --text: #1F2937; --consulta: #F1F5F9; --captura: #FFF8DB; --captura-hdr: #FFF0B3; --input-border: #967015; --divider: #DCE2E9;
+  --text-soft: #6B7280; --text-faint: #8A94A3; --band: #EEF2F7; --auto-hdr: #E7ECF2; --alert: #B91C1C; --alert-bg: #FEE2E2; --alert-line: #DC2626;
+  --ok: #0E5A42; --ok-bg: #DAF1E9; --warn: #7A4B05; --warn-bg: #FCEFD5; --lem: #534AB7; --lem-dark: #3C3489; --lem-light: #EEEDFE; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
-body { font-family: var(--font-sans); background: var(--bg); color: var(--text); font-size: 14px; letter-spacing: -0.005em; min-height: 100vh; }
+body { font-family: var(--font); background: var(--ground); color: var(--text); font-size: 15px; line-height: 1.45; min-height: 100vh; }
 button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
-.num { font-variant-numeric: tabular-nums; }
 a { color: var(--lem); }
+.num { font-variant-numeric: tabular-nums; }
 /* cabecera */
-.topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; position: sticky; top: 0; z-index: 60; }
-.topbar h1 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.topbar { background: var(--surface); border-bottom: 1px solid var(--divider); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; position: sticky; top: 0; z-index: 60; }
+.topbar h1 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .topbar h1 a { color: var(--text-soft); text-decoration: none; font-size: 15px; }
+.topbar h1 em { font-style: normal; font-size: 15px; font-weight: 500; color: var(--text-soft); }
 .topbar .der { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.pill { display: inline-flex; align-items: center; gap: 6px; background: var(--lem-light); color: var(--lem-dark); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 500; white-space: nowrap; }
-.pill select { border: none; background: transparent; font-weight: 600; color: var(--lem-dark); max-width: 160px; }
-.pill.soft { background: #F1EFE8; color: var(--text-soft); font-weight: 400; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; background: var(--surface); text-decoration: none; transition: background .1s; }
-.btn-primary { background: var(--lem); color: #fff; } .btn-primary:hover { background: var(--lem-dark); }
-.btn-sec { background: var(--surface); border-color: var(--border-strong); color: var(--text); } .btn-sec:hover { background: var(--bg); }
-.btn-ok { background: var(--ok); color: #fff; } .btn-ok:hover { background: #0B4A36; }
-.btn-lg { padding: 12px 20px; font-size: 15px; border-radius: 10px; }
-.btn-sm { padding: 5px 10px; font-size: 12px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; background: var(--consulta); color: var(--text-soft); border-radius: 999px; padding: 5px 12px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.pill.rol { background: var(--lem-light); color: var(--lem-dark); font-weight: 600; }
+.pill select { border: none; background: transparent; font-weight: 600; color: inherit; max-width: 170px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid var(--divider); background: var(--surface); color: var(--text); text-decoration: none; }
+.btn:hover { background: var(--ground); }
+.btn-primary { background: var(--lem); border-color: var(--lem); color: #fff; } .btn-primary:hover { background: var(--lem-dark); }
+.btn-ok { background: var(--ok); border-color: var(--ok); color: #fff; } .btn-ok:hover { background: #0B4A36; }
+.btn-lg { padding: 12px 20px; font-size: 16px; border-radius: 10px; } .btn-sm { padding: 6px 11px; font-size: 14px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .solo-pc { display: flex; } .solo-tel { display: none; }
-/* pestañas */
-.tabs-wrap { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 49px; z-index: 50; }
-.tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.tabs { display: flex; gap: 2px; padding: 0 12px; overflow-x: auto; scrollbar-width: none; } .tabs::-webkit-scrollbar { display: none; }
-.kpis { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 6px 12px; }
-.kpis .chip { font-size: 12px; } .kpis .racha { background: var(--lem); color: #fff; }
-th.c-si { background: #827717 !important; color: #fff; } th.c-ent { background: #0d47a1 !important; color: #fff; } th.c-ub { background: #f57f17 !important; color: #fff; } th.c-sf { background: #880e4f !important; color: #fff; } th.c-dz { background: #1b5e20 !important; color: #fff; } th.c-df { background: #4a148c !important; color: #fff; }
-td.f-ger { background: #fffde7 !important; } td.f-adm { background: #e3f2fd !important; } td.f-calc { background: #fce4ec !important; font-weight: 600; color: #880e4f; }
-.ef-tbl td { width: 33.33%; text-align: center; padding: 8px 10px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); } .ef-tbl td:last-child { border-right: none; } .ef-tbl tr:last-child td { border-bottom: none; }
-.ef-lbl { font-size: 12px; font-weight: 600; margin-bottom: 2px; } .ef-val { font-size: 16px; font-variant-numeric: tabular-nums; } .ef-val small { color: var(--text-soft); font-size: 11px; }
-.leyenda { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-soft); margin-bottom: 8px; } .leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong); vertical-align: -2px; margin-right: 4px; }
-.tab { padding: 11px 12px; font-size: 14px; font-weight: 500; color: var(--text-soft); position: relative; cursor: pointer; border: none; background: transparent; white-space: nowrap; }
-.tab.on { color: var(--lem); } .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--lem); border-radius: 2px 2px 0 0; }
+/* pestañas + indicadores */
+.tabs-wrap { background: var(--surface); border-bottom: 1px solid var(--divider); position: sticky; top: 53px; z-index: 55; }
+.tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; padding: 0 16px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; } .tabs::-webkit-scrollbar { display: none; }
+.tab { position: relative; border: 0; background: transparent; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--text-soft); padding: 13px 12px; white-space: nowrap; }
+.tab.on { color: var(--lem-dark); } .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 3px; background: var(--lem); border-radius: 3px 3px 0 0; }
+.kpis { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 8px 0; }
+.kpis .ayer { font-size: 14px; color: var(--text-soft); }
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 4px 11px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.chip.racha { background: var(--lem); color: #fff; } .chip.racha small { font-weight: 400; opacity: .8; font-size: 13px; }
+.chip.v, .b-ok { background: var(--ok-bg); color: var(--ok); } .chip.a, .b-warn { background: var(--warn-bg); color: var(--warn); } .chip.r, .b-alert, .b-bad { background: var(--alert-bg); color: var(--alert); } .chip.gris, .b-gris { background: var(--consulta); color: var(--text-soft); }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.badge.mini { font-size: 12px; padding: 2px 8px; }
 /* contenido */
-.main { padding: 16px; max-width: none; margin: 0; }   /* a todo lo ancho, como la app (Sergio, 16-sep) */
-#genGrupos, #genResumen { max-width: 1100px; }
-.main.con-barra { padding-bottom: 96px; }
-.sec { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.sec h2 { font-size: 18px; font-weight: 600; }
-.sec p, .hint { color: var(--text-soft); font-size: 13px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
-.card h3 { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 8px; }
+.main { padding: 0 16px 48px; }
+.main.con-barra { padding-bottom: 110px; }
+.vista-hdr { padding: 18px 0 12px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; justify-content: space-between; }
+.vista-hdr h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.vista-hdr p, .hint { font-size: 14px; color: var(--text-soft); }
+.acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inp { padding: 8px 11px; border-radius: 8px; border: 1px solid var(--divider); background: var(--surface); font-size: 14px; font-weight: 500; min-height: 38px; }
+.inp:focus { outline: 2px solid var(--lem); outline-offset: 1px; }
+.card { background: var(--surface); border: 1px solid var(--divider); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.card > h3 { font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 12px; }
 .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 12px; }
-.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; border-top: 4px solid var(--border-strong); }
-.stat .k { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-soft); }
-.stat .v { font-size: 24px; font-weight: 700; margin: 4px 0 2px; } .stat .s { font-size: 12px; color: var(--text-soft); }
-.stat.ok { border-top-color: var(--ok); } .stat.warn { border-top-color: #E0A82E; } .stat.bad { border-top-color: #C0392B; } .stat.lem { border-top-color: var(--lem); }
+.stat { background: var(--surface); border: 1px solid var(--divider); border-radius: 12px; padding: 14px 16px; border-top: 4px solid var(--divider); }
+.stat .k { font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-soft); } .stat .v { font-size: 26px; font-weight: 700; margin: 4px 0 2px; } .stat .s { font-size: 13px; color: var(--text-soft); }
+.stat.ok { border-top-color: var(--ok); } .stat.warn { border-top-color: #E0A82E; } .stat.bad { border-top-color: var(--alert-line); } .stat.lem { border-top-color: var(--lem); }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-.inp { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); font-size: 14px; min-height: 38px; }
-.inp:focus { outline: 2px solid var(--lem); outline-offset: 1px; border-color: var(--lem); }
-.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
-.b-ok { background: var(--ok-bg); color: var(--ok); } .b-warn { background: var(--warn-bg); color: var(--warn); } .b-bad { background: var(--bad-bg); color: var(--bad); } .b-gris { background: #F1EFE8; color: #565550; } .b-info { background: var(--info-bg); color: var(--info); } .b-lem { background: var(--lem-light); color: var(--lem-dark); }
-.chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.sem { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.sem div { border-radius: 10px; padding: 10px 6px; text-align: center; } .sem b { display: block; font-size: 20px; } .sem span { font-size: 11px; font-weight: 500; }
-.nota { background: var(--lem-light); color: var(--lem-dark); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
-.nota.warn { background: var(--warn-bg); color: var(--warn); } .nota.ok { background: var(--ok-bg); color: var(--ok); } .nota.bad { background: var(--bad-bg); color: var(--bad); }
-.vacio { background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 12px; padding: 28px; text-align: center; color: var(--text-soft); font-size: 14px; }
+.nota { border-radius: 10px; padding: 11px 13px; font-size: 15px; margin-bottom: 12px; background: var(--lem-light); color: var(--lem-dark); }
+.nota.warn { background: var(--warn-bg); color: var(--warn); } .nota.ok { background: var(--ok-bg); color: var(--ok); } .nota.bad { background: var(--alert-bg); color: var(--alert); }
+.vacio { background: var(--surface); border: 1px dashed var(--divider); border-radius: 12px; padding: 28px; text-align: center; color: var(--text-soft); }
 .loading { text-align: center; padding: 40px; color: var(--text-soft); }
-/* tablas */
-.tbl { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin-bottom: 12px; }
-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
-thead th { background: #F5F3EC; font-size: 11px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: .05em; padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; }
-tbody td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; background: var(--surface); }
-tbody tr:last-child td { border-bottom: none; }
-tbody tr.clic { cursor: pointer; } tbody tr.clic:hover td { background: var(--bg); }
-tfoot td { padding: 9px 10px; background: #F5F3EC; font-weight: 600; }
-td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
-.tbl.compacta thead th, .tbl.compacta tbody td { padding: 7px 8px; }
-.cat-hdr td { background: var(--lem-light) !important; color: var(--lem-dark); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 6px 10px; }
-/* contar */
-.grp { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
-.grp > button { width: 100%; border: none; background: transparent; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; cursor: pointer; text-align: left; }
-.grp > button b { font-size: 15px; font-weight: 600; } .grp > button .st { font-size: 12px; color: var(--text-soft); }
-.grp > button .sub { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.grp .items { border-top: 1px solid var(--border); padding: 2px 14px 8px; }
-.item { padding: 10px 0; border-bottom: 1px solid var(--border); } .item:last-child { border-bottom: none; }
-.item .l1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.item .nm { font-weight: 500; font-size: 14px; } .item .un { font-size: 11px; color: var(--text-faint); margin-left: 6px; font-weight: 400; }
-.item .l2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-soft); margin-top: 4px; flex-wrap: wrap; }
-.item .l2 a { font-size: 12px; cursor: pointer; text-decoration: underline; }
-.ninp { width: 118px; border: 1px solid var(--border-strong); border-radius: 8px; padding: 9px 10px; font-size: 16px; text-align: right; background: #FFFDF2; font-variant-numeric: tabular-nums; min-height: 40px; }
-.ninp:focus { outline: 2px solid var(--lem); outline-offset: 1px; border-color: var(--lem); }
-.ninp[readonly] { background: #F1EFE8; color: var(--text-soft); }
-.desg { display: none; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; } .desg.on { display: grid; }
-.desg label { display: grid; gap: 3px; font-size: 11px; color: var(--text-soft); } .desg .ninp { width: 100%; font-size: 14px; padding: 7px 8px; min-height: 36px; }
-.barra { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 -8px 24px rgba(0,0,0,.06); z-index: 70; }
-.barra .t { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; } .barra .t small { display: block; font-size: 12px; color: var(--text-soft); font-weight: 400; }
-.barra .acc { display: flex; gap: 8px; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; color: var(--text-soft); padding: 2px 0 12px; align-items: center; }
+.leyenda span { display: inline-flex; align-items: center; gap: 7px; } .leyenda i { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--divider); display: inline-block; }
+/* tabla del registro (mockup) */
+.tabla-caja { background: var(--surface); border: 1px solid var(--divider); border-radius: 12px; overflow-x: auto; margin-bottom: 12px; }
+table.registro { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1150px; background: var(--surface); }
+.registro thead tr.banda th { font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 9px 12px; text-align: center; color: var(--text-soft); background: var(--band); border-bottom: 1px solid var(--divider); border-left: 1px solid var(--divider); }
+.registro thead tr.banda th:first-child { border-left: 0; text-align: left; }
+.registro thead tr.banda th.g-captura { background: var(--captura-hdr); color: #7A5B0C; } .registro thead tr.banda th.g-consulta { background: var(--consulta); color: #4B5563; } .registro thead tr.banda th.g-auto { background: var(--auto-hdr); color: #4B5563; }
+.registro thead tr.cols th { font-size: 14px; font-weight: 600; color: var(--text-soft); padding: 8px 10px; text-align: right; white-space: nowrap; background: var(--surface); border-bottom: 2px solid var(--divider); }
+.registro thead tr.cols th:first-child { text-align: left; }
+.registro thead tr.cols th.h-consulta { background: var(--consulta); color: #4B5563; } .registro thead tr.cols th.h-captura { background: var(--captura-hdr); color: #7A5B0C; }
+.registro th.prod, .registro td.prod { position: sticky; left: 0; z-index: 3; background: var(--surface); text-align: left; width: 230px; min-width: 230px; border-right: 1px solid var(--divider); }
+.registro thead th.prod { z-index: 5; }
+.nombre { font-size: 16px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.unidad { font-size: 14px; font-weight: 400; color: var(--text-faint); margin-left: 6px; white-space: nowrap; }
+.registro tbody td { padding: 9px 10px; text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--divider); background: var(--surface); }
+.registro tbody td.prod { padding: 9px 14px; } .registro tbody tr:last-child td { border-bottom: 0; }
+.registro td.c-consulta { background: var(--consulta); color: var(--text); } .registro td.c-captura { background: var(--captura); font-size: 16px; font-weight: 500; } .registro td.c-auto { background: var(--surface); font-weight: 600; }
+.registro tr.cat td { font-size: 18px; font-weight: 700; background: var(--band); color: var(--text); padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--divider); border-top: 1px solid var(--divider); }
+.registro tr.cat td.prod { position: sticky; left: 0; z-index: 3; background: var(--band); }
+.registro td.dif { font-weight: 600; }
+.registro td.dif.fuera { background: var(--alert-bg); color: var(--alert); font-weight: 700; font-size: 16px; box-shadow: inset 3px 0 0 var(--alert-line), inset -3px 0 0 var(--alert-line); }
+.registro td.prod.fila-fuera { box-shadow: inset 4px 0 0 var(--alert-line); }
+.flecha { font-size: 13px; margin-left: 2px; }
+.registro tfoot td { padding: 11px 12px; text-align: right; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--band); border-top: 2px solid var(--divider); }
+.registro tfoot td.prod { text-align: left; background: var(--band); position: sticky; left: 0; z-index: 3; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-soft); }
+/* eficiencia del día */
+.ef-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.ef-col { border: 1px solid var(--divider); border-radius: 10px; padding: 12px 14px; background: var(--consulta); }
+.ef-col h4 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.ef-row { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 3px 0; } .ef-row span { color: var(--text-soft); font-size: 14px; } .ef-row b { font-variant-numeric: tabular-nums; }
+.ef-pct { margin-top: 8px; display: inline-flex; padding: 4px 10px; border-radius: 7px; font-size: 16px; font-weight: 700; }
+/* destacados: racha y productos problema */
+.destacados { display: grid; gap: 12px; grid-template-columns: minmax(250px, 310px) 1fr; margin-bottom: 14px; align-items: start; }
+.racha-card { border-top: 4px solid var(--lem); }
+.racha-num { display: flex; align-items: baseline; gap: 10px; font-size: 46px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+.racha-num em { font-style: normal; font-size: 34px; } .racha-num span { font-size: 16px; font-weight: 600; color: var(--text-soft); }
+.racha-sub { font-size: 15px; margin-top: 8px; } .racha-sub b { color: var(--lem-dark); }
+.tira { display: flex; gap: 5px; margin-top: 14px; } .tira i { flex: 1; height: 28px; border-radius: 5px; display: block; border: 1px solid rgba(31,41,55,.10); }
+.tira-lbl { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-faint); margin-top: 6px; }
+.pie { font-size: 13px; color: var(--text-soft); margin-top: 12px; line-height: 1.4; }
+.prob-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.prob-hdr h3 { font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-soft); margin: 0; } .prob-hdr .dia-et { font-size: 14px; color: var(--text-faint); }
+.prob-lista { display: grid; gap: 8px; }
+.prob { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; padding: 10px 13px; border-radius: 10px; background: var(--alert-bg); border: 1px solid #F3C4C1; }
+.prob .nm { font-size: 16px; font-weight: 600; } .prob .det { font-size: 14px; color: #7F2E2B; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.prob .cifra { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } .prob .cifra b { display: block; font-size: 20px; font-weight: 700; color: var(--alert); line-height: 1.15; } .prob .cifra small { font-size: 13px; color: #7F2E2B; }
+.prob-ok { background: var(--ok-bg); border: 1px solid #B7E0D2; color: var(--ok); padding: 14px; border-radius: 10px; font-size: 15px; font-weight: 600; }
+.prob-gris { background: var(--consulta); border: 1px solid var(--divider); color: var(--text-soft); padding: 14px; border-radius: 10px; font-size: 15px; }
+.prob-resumen { font-size: 15px; color: var(--text-soft); margin-bottom: 2px; } .prob-resumen b { color: var(--alert); font-size: 16px; }
+.prob-toggle { width: 100%; border: 1px dashed #E7A9A5; background: transparent; border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--alert); cursor: pointer; padding: 11px 13px; display: flex; align-items: center; gap: 9px; text-align: left; }
+.prob-toggle:hover { background: var(--alert-bg); }
+/* historial y eficiencias (acordeones) */
+.dias { display: grid; gap: 8px; }
+.dia { background: var(--surface); border: 1px solid var(--divider); border-radius: 10px; overflow: hidden; }
+.dia-hdr { width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; }
+.dia-hdr:hover { background: var(--ground); } .dia-hdr.on { background: var(--band); }
+.dia-hdr .f { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 9px; } .dia-hdr .chev { display: inline-block; color: var(--text-faint); font-size: 13px; transition: transform .15s ease; } .dia-hdr.on .chev { transform: rotate(90deg); }
+.dia-hdr .sem { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.dia-det { border-top: 1px solid var(--divider); padding: 14px; background: var(--ground); }
+.det-hdr { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 10px; } .det-hdr h4 { font-size: 17px; font-weight: 700; } .det-hdr p { font-size: 14px; color: var(--text-soft); }
+.mes-dias { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 8px; }
+.mdia { border: 1px solid var(--divider); border-radius: 9px; padding: 8px 10px; background: var(--surface); } .mdia .d { font-size: 14px; font-weight: 600; color: var(--text-soft); text-transform: capitalize; }
+.mdia .p { display: flex; gap: 4px; margin-top: 6px; } .mdia .p span { font-size: 13px; font-weight: 700; padding: 3px 6px; border-radius: 5px; font-variant-numeric: tabular-nums; flex: 1; text-align: center; }
+.mdia.gen { background: var(--consulta); border-style: dashed; } .mdia .sin { font-size: 13px; color: var(--alert); font-weight: 600; margin-top: 6px; }
+/* inventario general (contar) */
+.grp { background: var(--surface); border: 1px solid var(--divider); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+.grp > button { width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; }
+.grp > button b { font-size: 18px; font-weight: 700; } .grp > button .st { font-size: 14px; color: var(--text-soft); font-weight: 500; margin-left: 8px; } .grp > button .sub { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grp .items { border-top: 1px solid var(--divider); padding: 2px 16px 12px; background: var(--captura); }
+.item { padding: 13px 0; border-bottom: 1px solid #E7DCB4; } .item:last-child { border-bottom: 0; }
+.item-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
+.item .nm { font-size: 16px; font-weight: 600; } .item .tot { text-align: right; white-space: nowrap; } .item .tot b { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; } .item .tot small { display: block; font-size: 14px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.ubic { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 190px)); gap: 8px 10px; margin-top: 10px; justify-content: start; }
+.ubic label { display: grid; gap: 4px; font-size: 14px; font-weight: 500; color: #7A5B0C; }
+input.cap { font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; width: 100%; padding: 9px 11px; background: var(--surface); color: var(--text); border: 1.5px solid var(--input-border); border-radius: 7px; min-height: 42px; }
+input.cap:focus { outline: 2px solid var(--input-border); outline-offset: 1px; }
+.ubic .cap-txt { font-size: 16px; font-weight: 600; padding: 9px 0; }
+.barra { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--divider); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; box-shadow: 0 -6px 20px rgba(31,41,55,.07); z-index: 70; }
+.barra .t { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; } .barra .t small { display: block; font-size: 14px; font-weight: 400; color: var(--text-soft); }
+/* tablas de administración */
+.tbl { overflow-x: auto; border: 1px solid var(--divider); border-radius: 12px; background: var(--surface); margin-bottom: 12px; }
+table.simple { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
+.simple th { font-size: 13px; font-weight: 600; color: var(--text-soft); text-align: left; padding: 9px 12px; background: var(--band); border-bottom: 1px solid var(--divider); white-space: nowrap; }
+.simple td { padding: 9px 12px; border-bottom: 1px solid var(--divider); vertical-align: middle; font-variant-numeric: tabular-nums; } .simple tr:last-child td { border-bottom: 0; }
+.simple tfoot td { background: var(--band); font-weight: 700; } .simple tr.clic { cursor: pointer; } .simple tr.clic:hover td { background: var(--ground); }
+td.n, th.n { text-align: right; }
 /* login, modal, toast */
 .login { min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .login .card { max-width: 360px; width: 100%; text-align: center; padding: 30px 24px; }
-.login h2 { color: var(--lem); font-size: 20px; margin: 8px 0 4px; } .login p { color: var(--text-soft); font-size: 13px; margin-bottom: 14px; }
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center; z-index: 100; padding: 0; }
+.login h2 { color: var(--lem); font-size: 20px; margin: 8px 0 4px; } .login p { color: var(--text-soft); font-size: 14px; margin-bottom: 14px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(31,41,55,.45); display: flex; align-items: flex-end; justify-content: center; z-index: 100; }
 .modal-card { background: var(--surface); border-radius: 16px 16px 0 0; width: 100%; max-width: 560px; max-height: 86vh; overflow: auto; padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -10px 40px rgba(0,0,0,.2); }
-.modal-card h3 { font-size: 17px; font-weight: 600; margin-bottom: 8px; } .modal-card p { color: var(--text-soft); font-size: 14px; margin-bottom: 8px; }
+.modal-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; } .modal-card p { color: var(--text-soft); font-size: 15px; margin-bottom: 8px; }
 .modal-card .acts { display: flex; gap: 8px; margin-top: 14px; } .modal-card .acts .btn { flex: 1; }
-.toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 200; background: #1A1A1A; color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 13px; max-width: 92%; box-shadow: 0 10px 32px rgba(0,0,0,.2); }
-.aviso { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 8px 16px; }
+.toast { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); z-index: 200; background: #1F2937; color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; max-width: 92%; box-shadow: 0 10px 32px rgba(0,0,0,.2); }
+.aviso { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 8px 16px; }
 .lista { display: grid; gap: 8px; }
-.dia { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.dia > button { width: 100%; border: none; background: transparent; padding: 11px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; text-align: left; flex-wrap: wrap; }
-.dia .f { font-weight: 600; font-size: 14px; } .dia .det { border-top: 1px solid var(--border); padding: 12px 14px; }
 @media (min-width: 641px) { .modal-backdrop { align-items: center; padding: 20px; } .modal-card { border-radius: 14px; } }
-@media (max-width: 640px) { .solo-pc { display: none !important; } .solo-tel { display: inline-flex; } .topbar { padding: 10px 12px; } .tabs-wrap { top: 49px; } .main { padding: 12px; } .sem b { font-size: 18px; } .ninp { width: 104px; } .stat .v { font-size: 20px; } }
+@media (max-width: 860px) { .destacados { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .solo-pc { display: none !important; } .solo-tel { display: inline-flex; } .topbar { padding: 10px 12px; } .tabs-wrap { top: 53px; } .tabs-row { padding: 0 8px; } .main { padding: 0 12px 48px; } .vista-hdr h2 { font-size: 19px; } .registro th.prod, .registro td.prod { width: 190px; min-width: 190px; } .tab { font-size: 14px; padding: 12px 10px; } .dia-det { padding: 10px; } .stat .v { font-size: 22px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -154,26 +205,34 @@ window.LEMDC = {
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const API = 'https://rountree.app.n8n.cloud/webhook/compras-api';
 const APP_CAPTURA = 'https://inventariotota.grupolem.com/';
+const UMBRAL = 10;   // gorditas / piezas fuera de rango en la diferencia teórica (Sergio, 16-sep)
 const $ = (id) => document.getElementById(id);
 const app = () => $('app');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const corto = (n) => String(n || '').replace(' Chihuahua', '');
 const num = (v) => parseFloat(v) || 0;
-function fmt(n) { if (n === null || n === undefined || n === '') return ''; const v = parseFloat(n); if (isNaN(v)) return ''; return (v % 1 === 0 ? v : parseFloat(v.toFixed(3))).toLocaleString('es-MX'); }
+function fmt(n) { if (n === null || n === undefined || n === '') return '—'; const v = parseFloat(n); if (isNaN(v)) return '—'; return (Math.round(v * 10) / 10).toLocaleString('es-MX', { maximumFractionDigits: 1 }); }
+function fmt3(n) { if (n === null || n === undefined || n === '') return ''; const v = parseFloat(n); if (isNaN(v)) return ''; return (v % 1 === 0 ? v : parseFloat(v.toFixed(3))).toLocaleString('es-MX'); }
+const pesos = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('es-MX');
 const money = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pesosU = (n) => '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: n < 100 ? 2 : 0, maximumFractionDigits: n < 100 ? 2 : 0 });
 function fmtFecha(iso) { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; }
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MESES_L = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 function fmtDia(iso) { if (!iso) return ''; const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); return DIAS[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()]; }
-function fmtLargo(iso) { if (!iso) return ''; const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); const L = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'], M = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']; return L[d.getDay()] + ' ' + d.getDate() + ' de ' + M[d.getMonth()]; }
+function fmtDiaA(iso) { return iso ? fmtDia(iso) + ' ' + String(iso).slice(0, 4) : ''; }
+function fmtLargo(iso) { if (!iso) return ''; const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); const L = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']; return L[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES_L[d.getMonth()] + ' de ' + d.getFullYear(); }
 const fmtTs = (ts) => ts ? new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function addDias(iso, n) { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 const ayerStr = () => addDias(todayStr(), -1);
-function semClase(v) { return v == null ? 'b-gris' : v >= 95 ? 'b-ok' : v >= 90 ? 'b-warn' : 'b-bad'; }
-function efChip(v, label) { return '<span class="chip ' + semClase(v) + '" title="' + esc(label) + '">' + esc(label) + ' ' + (v == null ? '—' : Math.round(v) + '%') + '</span>'; }
-const CATS = ['guiso', 'postre', 'bebida'], CAT_LABEL = { guiso: 'Guisos', postre: 'Postres', bebida: 'Bebidas' };
-function calcEff(lineas) { const c = { guiso: { vend: 0, cons: 0 }, postre: { vend: 0, cons: 0 }, bebida: { vend: 0, cons: 0 } }; (lineas || []).forEach(l => { const k = l.categoria; if (!c[k]) return; const f = k === 'guiso' ? 1000 : 1; c[k].vend += num(l.dritzline) / f; c[k].cons += num(l.consumo_real) / f; }); const e = {}; CATS.forEach(k => { e[k] = c[k].cons > 0 ? Math.round(c[k].vend / c[k].cons * 100) : null; }); return { c, e }; }
-function effDeDia(d) { const e = {}; e.guiso = num(d.guisos_cons) > 0 ? Math.round(num(d.guisos_vend) / num(d.guisos_cons) * 100) : null; e.postre = num(d.postre_cons) > 0 ? Math.round(num(d.postre_vend) / num(d.postre_cons) * 100) : null; e.bebida = num(d.bebida_cons) > 0 ? Math.round(num(d.bebida_vend) / num(d.bebida_cons) * 100) : null; return e; }
+const nomMes = (m) => MESES_L[Number(m.slice(5, 7)) - 1].replace(/^./, c => c.toUpperCase()) + ' ' + m.slice(0, 4);
+function clase(p) { return p == null ? 'gris' : p >= 95 ? 'v' : p >= 90 ? 'a' : 'r'; }
+function estilo(p) { return p == null ? 'background:#F1F5F9;color:#4B5563' : p >= 95 ? 'background:#DAF1E9;color:#0E5A42' : p >= 90 ? 'background:#FCEFD5;color:#7A4B05' : 'background:#FEE2E2;color:#B91C1C'; }
+function efChip(v, label) { return '<span class="chip ' + clase(v) + '">' + esc(label) + ' ' + (v == null ? '—' : Math.round(v) + '%') + '</span>'; }
+const CATS = ['guiso', 'postre', 'bebida'], CAT_LABEL = { guiso: 'Guisos', postre: 'Postres', bebida: 'Bebidas' }, ORDEN_CHIPS = ['guiso', 'bebida', 'postre'];
+function calcEff(lineas) { const c = { guiso: { vend: 0, cons: 0 }, postre: { vend: 0, cons: 0 }, bebida: { vend: 0, cons: 0 } }; (lineas || []).forEach(l => { const k = l.categoria; if (!c[k]) return; c[k].vend += num(l.dritzline); c[k].cons += num(l.consumo_real); }); const e = {}; CATS.forEach(k => { e[k] = c[k].cons > 0 && c[k].vend > 0 ? Math.round(c[k].vend / c[k].cons * 100) : null; }); return { c, e }; }
+function effDeDia(d) { const e = {}; e.guiso = num(d.guisos_cons) > 0 && num(d.guisos_vend) > 0 ? Math.round(num(d.guisos_vend) / num(d.guisos_cons) * 100) : null; e.postre = num(d.postre_cons) > 0 && num(d.postre_vend) > 0 ? Math.round(num(d.postre_vend) / num(d.postre_cons) * 100) : null; e.bebida = num(d.bebida_cons) > 0 && num(d.bebida_vend) > 0 ? Math.round(num(d.bebida_vend) / num(d.bebida_cons) * 100) : null; return e; }
 function toast(msg) { const t = $('toast'); t.innerHTML = '<div class="toast">' + esc(msg) + '</div>'; clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.innerHTML = ''; }, 3200); }
 function modal(html) { $('modal').innerHTML = '<div class="modal-backdrop" onclick="if(event.target===this)cerrarModal()"><div class="modal-card">' + html + '</div></div>'; }
 function cerrarModal() { $('modal').innerHTML = ''; }
@@ -182,7 +241,7 @@ window.addEventListener('error', (e) => aviso('Error en la página: ' + e.messag
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
 const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], tab: null, empresa: null,
   vista: (function(){ try { return localStorage.getItem('lem_vista_inv') || 'admin'; } catch(e){ return 'admin'; } })(), gerenteElegido: false,
-  cache: {}, filtroMes: '', filtroSuc: '', gen: { branch: null, fecha: '', data: null, abierto: null, busca: '', vals: {} }, val: { fecha: '', data: null }, diario: { branch: null, fecha: '' } };
+  cache: {}, filtroMes: '', kpis: null, gen: { branch: null, fecha: '', data: null, abierto: null, busca: '', vals: {} }, val: { fecha: '', data: null }, diario: { branch: null, fecha: '' } };
 
 /* ── API: SQL Connect (window.LEMDC) con respaldo n8n solo para lecturas (auditoría 12-sep, S04) ── */
 const SOLO_N8N = new Set(['correo_oc']);
@@ -228,7 +287,7 @@ async function apiN8n(accion, datos) {
 
 /* ── Sesión ── */
 function vLogin(msj) {
-  app().innerHTML = '<div class="login"><div class="card"><div style="font-size:2.4rem">🫓</div><h2>Inventarios · Grupo LEM</h2><p>' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div></div>';
+  app().innerHTML = '<div class="login"><div class="card"><div style="font-size:2.4rem">📦</div><h2>Inventarios · Grupo LEM</h2><p>' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div></div>';
   if (window.google) {
     google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
       error_callback: (e) => aviso('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Permite ventanas emergentes para este sitio y reintenta.'),
@@ -250,7 +309,7 @@ async function arrancar() {
 function vista() { return S.rol === 'admin' ? S.vista : 'propia'; }
 function esGerente() { return vista() === 'gerente' || (vista() === 'propia' && S.rol === 'gerente'); }
 function esAdmin() { return vista() === 'admin' || (vista() === 'propia' && S.rol === 'admin'); }
-function cambiarVista(v) { S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista_inv', v); } catch (e) {} if (v !== 'gerente' && S.sucursales.length) S.branch = S.sucursales[0].branch_id; S.tab = null; cerrarModal(); pintar(); }
+function cambiarVista(v) { S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista_inv', v); } catch (e) {} if (v !== 'gerente' && S.sucursales.length) S.branch = S.sucursales[0].branch_id; S.tab = null; S.kpis = null; cerrarModal(); pintar(); }
 function fijarEmpresa() {
   const p = S.perfil || {}; const emps = p.empresas || [];
   if (emps.length <= 1) { S.empresa = null; S.sucursales = p.sucursales || []; return; }
@@ -260,266 +319,288 @@ function fijarEmpresa() {
   if (!S.sucursales.some(s => s.branch_id === S.branch)) S.branch = (S.sucursales[0] || {}).branch_id || null;
 }
 function conEmpresa(datos) { const d = Object.assign({}, datos || {}); if (S.empresa && d.empresa_id == null) d.empresa_id = S.empresa; return d; }
-function cambiarEmpresa(v) { try { localStorage.setItem('lem_empresa', String(Number(v))); } catch (e) {} S.branch = null; S.gerenteElegido = false; S.filtroSuc = ''; S.gen.branch = null; S.diario.branch = null; S.cache = {}; fijarEmpresa(); cerrarModal(); pintar(); }
+function cambiarEmpresa(v) { try { localStorage.setItem('lem_empresa', String(Number(v))); } catch (e) {} S.branch = null; S.gerenteElegido = false; S.gen.branch = null; S.diario.branch = null; S.cache = {}; S.kpis = null; fijarEmpresa(); cerrarModal(); pintar(); }
 function sucNombre(b) { const s = S.sucursales.find(x => x.branch_id === Number(b)); return s ? s.nombre : ''; }
+function empresaNombre() { const e = ((S.perfil || {}).empresas || []).find(x => x.empresa_id === S.empresa); return e ? e.nombre : (((S.perfil || {}).empresas || [])[0] || {}).nombre || ''; }
 function selSuc(id, valor, onchange, todas) { return '<select class="inp" id="' + id + '" onchange="' + onchange + '">' + (todas ? '<option value="">Todas las tiendas</option>' : '<option value="">Elige la tienda</option>') + S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (String(valor) === String(s.branch_id) ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>'; }
 
 /* ── Cabecera, pestañas y ruteo ── */
 function tabsDe() {
-  if (esGerente()) return [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📈 Eficiencias'], ['contar', '📦 Inventario general']];
-  if (esAdmin()) return [['panel', '📊 Panel'], ['contar', '📦 Contar'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
+  if (esGerente()) return [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📊 Eficiencias'], ['contar', '📦 Inventario general']];
+  if (esAdmin()) return [['panel', '📊 Panel'], ['contar', '📦 Inventario general'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
   return [['panel', '📊 Panel'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
 }
 function cuentaHtml(enModal) {
   const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
   const emps = (S.perfil && S.perfil.empresas) || [];
-  let h = '';
+  let h = '<span class="pill rol">' + (esGerente() ? 'Gerente' : esAdmin() ? 'Administración' : 'Asesor') + '</span>';
   if (S.rol === 'admin') h += '<span class="pill">Ver como <select onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de tienda') + op('aprobador', 'Asesor') + '</select></span>';
   if (emps.length > 1) h += '<span class="pill">Empresa <select onchange="cambiarEmpresa(this.value)">' + emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></span>';
-  h += '<span class="pill soft">' + esc(S.perfil.usuario) + '</span><a class="btn btn-sec btn-sm" href="/">Portal</a>';
+  else if (emps.length === 1) h += '<span class="pill">' + esc(emps[0].nombre) + '</span>';
+  h += '<span class="pill">' + esc(S.perfil.usuario) + '</span><a class="btn btn-sm" href="/">Portal</a>';
   return enModal ? '<h3>Tu cuenta</h3><div style="display:grid;gap:10px;margin-top:10px">' + h.replace(/<span class="pill/g, '<span style="justify-content:space-between" class="pill') + '</div>' : h;
 }
-function abrirCuenta() { modal(cuentaHtml(true) + '<div class="acts"><button class="btn btn-sec" onclick="cerrarModal()">Cerrar</button></div>'); }
+function abrirCuenta() { modal(cuentaHtml(true) + '<div class="acts"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>'); }
 function pintar() {
-  const rolTxt = esGerente() ? '👤 Gerente' : esAdmin() ? '👑 Administración' : '👁 Asesor';
   const tabs = tabsDe(); if (!S.tab || !tabs.some(t => t[0] === S.tab)) S.tab = tabs[0][0];
-  let h = '<header class="topbar"><h1><a href="/" title="Volver a los módulos">⌂</a> 🫓 Inventarios' + (esGerente() && S.branch ? ' <span class="pill">' + esc(corto(sucNombre(S.branch))) + '</span>' : ' <span class="pill soft">' + rolTxt + '</span>') + '</h1>' +
-    '<div class="der solo-pc">' + cuentaHtml(false) + '</div><button class="btn btn-sec btn-sm solo-tel" onclick="abrirCuenta()">Cuenta</button></header>';
+  let h = '<header class="topbar"><h1><a href="/" title="Volver a los módulos">⌂</a> 📦 Inventarios <em>· ' + esc(esGerente() && S.branch ? corto(sucNombre(S.branch)) : empresaNombre() || 'Grupo LEM') + '</em></h1>' +
+    '<div class="der solo-pc">' + cuentaHtml(false) + '</div><button class="btn btn-sm solo-tel" onclick="abrirCuenta()">Cuenta</button></header>';
   if (vista() === 'gerente' && !S.gerenteElegido) {
-    h += '<div class="main"><div class="card"><h3>¿Qué gerente quieres ser?</h3><p class="hint" style="margin-bottom:10px">Verás exactamente lo que ve ese gerente: solo su tienda.</p><div class="lista">' + S.sucursales.map(s => '<button class="btn btn-sec" style="justify-content:flex-start" onclick="elegirGerente(' + s.branch_id + ')">🏪 ' + esc(corto(s.nombre)) + '</button>').join('') + '</div></div></div>';
+    h += '<main class="main"><div class="card" style="margin-top:16px"><h3>¿Qué gerente quieres ser?</h3><p class="hint" style="margin-bottom:10px">Verás exactamente lo que ve ese gerente: solo su tienda.</p><div class="lista">' + S.sucursales.map(s => '<button class="btn" style="justify-content:flex-start" onclick="elegirGerente(' + s.branch_id + ')">🏪 ' + esc(corto(s.nombre)) + '</button>').join('') + '</div></div></main>';
     app().innerHTML = h; return;
   }
-  h += '<div class="tabs-wrap"><div class="tabs-row"><div class="tabs">' + tabs.map(t => '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + (vista() === 'gerente' ? '<button class="tab" onclick="S.gerenteElegido=false;S.tab=null;pintar()">↔ Otro gerente</button>' : '') + '</div>' + (esGerente() ? '<div class="kpis" id="kpis"></div>' : '') + '</div></div>' +
+  h += '<div class="tabs-wrap"><div class="tabs-row"><nav class="tabs">' + tabs.map(t => '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + (vista() === 'gerente' ? '<button class="tab" onclick="S.gerenteElegido=false;S.tab=null;pintar()">↔ Otro gerente</button>' : '') + '</nav>' + (esGerente() ? '<div class="kpis" id="kpis"></div>' : '') + '</div></div>' +
     '<main class="main" id="main"><div class="loading">Cargando…</div></main>';
   app().innerHTML = h; if (esGerente()) cargarKpis(); router();
 }
-function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.tab = 'registro'; S.cache = {}; S.kpis = null; pintar(); }
+function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.tab = 'registro'; S.cache = {}; S.kpis = null; S.diario.fecha = ''; pintar(); }
 function irTab(t) { S.tab = t; pintar(); }
 function router() { ({ registro: vRegistro, contar: vContar, diario: vDiario, hist: vHistorial, ef: vEficiencia, panel: vPanel, valor: vValor }[S.tab] || vRegistro)(); }
 const M = () => $('main');
 
 /* ── Datos con caché ── */
-async function diasDe(branch, mes, dias) { const k = branch + '|' + (mes || ('d' + (dias || 60))); if (!S.cache[k]) S.cache[k] = (await api('inv_dias', { branch_id: branch, mes: mes || null, dias: dias || 60 })).dias; return S.cache[k]; }
+async function diasDe(branch, mes, dias) { const k = branch + '|' + (mes || ('d' + (dias || 60))); if (!S.cache[k]) S.cache[k] = (await api('inv_dias', { branch_id: branch, mes: mes || null, dias: dias || 60 })).dias || []; return S.cache[k]; }
 async function diaDe(branch, fecha) { const k = 'dia|' + branch + '|' + fecha; if (!S.cache[k]) S.cache[k] = await api('inv_dia', { branch_id: branch, fecha }); return S.cache[k]; }
-
-/* ── Indicadores del gerente (racha de días en verde y eficiencias del día anterior), como los pidió Sergio el 16-sep ── */
+async function kpisDe() { if (!S.kpis || S.kpis.branch !== S.branch) { const e = await api('inv_hoy', { branch_id: S.branch }); S.kpis = Object.assign({ branch: S.branch }, e); } return S.kpis; }
 async function cargarKpis() {
   const el = $('kpis'); if (!el || !S.branch) return;
-  if (!S.kpis || S.kpis.branch !== S.branch) { try { S.kpis = Object.assign({ branch: S.branch }, await api('inv_hoy', { branch_id: S.branch })); } catch (e) { return; } }
-  const e = S.kpis; if (e.error) { el.innerHTML = ''; return; }
+  let e; try { e = await kpisDe(); } catch (x) { return; }
+  if (e.error) { el.innerHTML = ''; return; }
   const r = e.racha_verde || {}, ea = e.ef_ayer || {};
-  el.innerHTML = '<span class="chip racha" title="Días seguidos con eficiencia de guisos de 95 % o más (récord: ' + (r.record || 0) + ')">🔥 Racha en verde: ' + (r.actual || 0) + ' día' + (r.actual === 1 ? '' : 's') + (r.record ? ' <span style="opacity:.75;font-weight:400">· récord ' + r.record + '</span>' : '') + '</span>' +
-    '<span class="hint">' + (e.ultimo_diario ? 'Ayer (' + fmtDia(e.ultimo_diario) + '):' : 'Día anterior:') + '</span>' + efChip(ea.guiso, 'Guisos') + efChip(ea.bebida, 'Bebidas') + efChip(ea.postre, 'Postres');
+  el.innerHTML = '<span class="chip racha" title="Días seguidos con eficiencia de guisos de 95 % o más">🔥 Racha en verde: ' + (r.actual || 0) + ' día' + (r.actual === 1 ? '' : 's') + (r.record ? ' <small>· récord ' + r.record + '</small>' : '') + '</span>' +
+    '<span class="ayer">' + (e.ultimo_diario ? 'Ayer (' + fmtDia(e.ultimo_diario) + '):' : 'Día anterior:') + '</span>' + ORDEN_CHIPS.map(k => efChip(ea[k], CAT_LABEL[k])).join('');
 }
 
-/* ── REGISTRO DEL DÍA (gerente): la misma tabla de la app; la captura sigue en la app ── */
-const EF_UNIT = { guiso: 'Kg', postre: 'PZAS', bebida: 'PZAS' };
-function efTablaHTML(c) {
-  const r3 = (v) => fmt(Math.round(v * 1000) / 1000);
-  const fila = (cls, lbl, val) => '<tr>' + CATS.map(k => '<td><div class="ef-lbl" style="color:' + cls + '">' + lbl(k) + '</div><div class="ef-val">' + val(k) + '</div></td>').join('') + '</tr>';
-  return '<div class="card"><h3>Eficiencia del día</h3><div class="tbl" style="margin:0"><table class="ef-tbl" style="min-width:480px"><tbody>' +
-    fila('#2e7d32', k => 'Total ' + CAT_LABEL[k] + ' ' + EF_UNIT[k] + ' vendidos', k => '<b>' + r3(c[k].vend) + '</b> <small>' + EF_UNIT[k] + '</small>') +
-    fila('#1565c0', k => 'Total ' + CAT_LABEL[k] + ' ' + EF_UNIT[k] + ' consumo', k => '<b>' + r3(c[k].cons) + '</b> <small>' + EF_UNIT[k] + '</small>') +
-    fila('#e65100', k => 'Diferencia ' + CAT_LABEL[k] + ' ' + EF_UNIT[k], k => { const dif = Math.round((c[k].vend - c[k].cons) * 1000) / 1000; return '<b style="color:' + (dif >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + fmt(dif) + '</b> <small>' + EF_UNIT[k] + '</small>'; }) +
-    fila('#6a1b9a', k => 'Eficiencia ' + CAT_LABEL[k], k => { const ef = c[k].cons > 0 ? Math.round(c[k].vend / c[k].cons * 100) : null; return '<span class="badge ' + semClase(ef) + '" style="font-size:16px;padding:4px 10px">' + (ef == null ? '—' : ef + '%') + '</span>'; }) +
-    '</tbody></table></div></div>';
-}
-function registroHTML(d) {
-  const { c } = calcEff(d.lineas); const tot = { si: 0, ent: 0, bano: 0, refri: 0, cong: 0, sf: 0, cr: 0, dz: 0 };
-  let rows = '';
+/* ── Tabla del registro (mockup aprobado): misma pieza para Registro, Historial y Diario ── */
+function unidadTxt(u) { u = String(u || '').toLowerCase(); return u === 'pza' ? 'pza' : u; }
+function tablaRegistroHTML(d) {
+  const tot = { si: 0, ent: 0, bano: 0, refri: 0, cong: 0, sf: 0, cr: 0, dz: 0 }; let fuera = 0, rows = '';
   CATS.forEach(k => { const ls = (d.lineas || []).filter(l => l.categoria === k); if (!ls.length) return;
-    rows += '<tr class="cat-hdr"><td colspan="12">' + CAT_LABEL[k] + '</td></tr>';
+    rows += '<tr class="cat"><td class="prod" colspan="11">' + CAT_LABEL[k] + '</td></tr>';
     ls.forEach(l => { tot.si += num(l.saldo_inicial); tot.ent += num(l.entradas); tot.bano += num(l.bano); tot.refri += num(l.refri); tot.cong += num(l.congelador); tot.sf += num(l.saldo_final); tot.cr += num(l.consumo_real); tot.dz += num(l.dritzline);
-      rows += '<tr><td>' + esc(l.producto) + '</td><td>' + esc(l.unidad) + '</td><td class="n f-adm">' + fmt(l.saldo_inicial) + '</td><td class="n f-adm">' + fmt(l.entradas) + '</td><td class="n f-ger">' + fmt(l.bano) + '</td><td class="n f-ger">' + fmt(l.refri) + '</td><td class="n f-ger">' + fmt(l.congelador) + '</td><td class="n f-calc">' + fmt(l.saldo_final) + '</td><td class="n f-calc">' + fmt(l.consumo_real) + '</td><td class="n f-adm">' + (l.dritzline != null ? fmt(l.dritzline) : '—') + '</td><td class="n f-calc">' + (l.dif_gorditas != null ? fmt(l.dif_gorditas) : '—') + '</td><td class="n f-calc">' + (l.diferencia_g != null ? fmt(l.diferencia_g) : '—') + '</td></tr>'; }); });
-  return '<div class="leyenda"><span><i style="background:#fffde7"></i>Gerente</span><span><i style="background:#e3f2fd"></i>Admin</span><span><i style="background:#fce4ec"></i>Calculado</span>' + (d.estado === 'autogenerado' ? '<span class="badge b-bad">Generado sin captura</span>' : '<span class="badge b-ok">Capturado ' + esc(d.capturado_por || '') + '</span>') + '</div>' +
-    '<div class="tbl compacta"><table style="min-width:960px"><thead><tr><th>Producto</th><th>Unidad</th><th class="n c-si">Saldo Inicial</th><th class="n c-ent">Entrada</th><th class="n c-ub">Baño María</th><th class="n c-ub">Refrigerador</th><th class="n c-ub">Congelador</th><th class="n c-sf">Saldo Final</th><th class="n c-sf">Consumo Real</th><th class="n c-dz">Dritzline</th><th class="n c-df">Df. Teórica</th><th class="n c-df">Diferencia (g)</th></tr></thead><tbody>' + rows +
-    '</tbody><tfoot><tr><td colspan="2">TOTAL</td><td class="n">' + fmt(tot.si) + '</td><td class="n">' + fmt(tot.ent) + '</td><td class="n">' + fmt(tot.bano) + '</td><td class="n">' + fmt(tot.refri) + '</td><td class="n">' + fmt(tot.cong) + '</td><td class="n">' + fmt(tot.sf) + '</td><td class="n">' + fmt(tot.cr) + '</td><td class="n">' + fmt(tot.dz) + '</td><td></td><td></td></tr></tfoot></table></div>' +
-    efTablaHTML(c);
+      const dg = l.dif_gorditas == null ? null : num(l.dif_gorditas); const alerta = dg != null && Math.abs(dg) > UMBRAL; if (alerta) fuera++;
+      rows += '<tr><td class="prod' + (alerta ? ' fila-fuera' : '') + '"><span class="nombre">' + esc(l.producto) + '<span class="unidad">' + esc(unidadTxt(l.unidad)) + '</span></span></td>' +
+        '<td class="c-consulta">' + fmt(l.saldo_inicial) + '</td><td class="c-consulta">' + fmt(l.entradas) + '</td>' +
+        '<td class="c-captura">' + fmt(l.bano) + '</td><td class="c-captura">' + fmt(l.refri) + '</td><td class="c-captura">' + fmt(l.congelador) + '</td>' +
+        '<td class="c-auto">' + fmt(l.saldo_final) + '</td><td class="c-auto">' + fmt(l.consumo_real) + '</td><td class="c-consulta">' + (l.dritzline != null ? fmt(l.dritzline) : '—') + '</td>' +
+        '<td class="c-auto dif' + (alerta ? ' fuera' : '') + '">' + (dg == null ? '—' : fmt(dg)) + (alerta ? '<span class="flecha">' + (dg > 0 ? '▲' : '▼') + '</span>' : '') + '</td>' +
+        '<td class="c-auto">' + (l.diferencia_g != null ? fmt(l.diferencia_g) : '—') + '</td></tr>'; }); });
+  const html = '<div class="tabla-caja"><table class="registro"><thead>' +
+    '<tr class="banda"><th class="prod">Producto</th><th class="g-consulta" colspan="2">Solo consulta</th><th class="g-captura" colspan="3">Captura del gerente</th><th class="g-auto" colspan="2">Automático</th><th class="g-auto" colspan="3">Contra POS</th></tr>' +
+    '<tr class="cols"><th class="prod">Nombre y unidad</th><th class="h-consulta">Saldo inicial</th><th class="h-consulta">Entrada</th><th class="h-captura">Baño María</th><th class="h-captura">Refrigerador</th><th class="h-captura">Congelador</th><th>Saldo final</th><th>Consumo real</th><th>Dritzline</th><th>Dif. teórica</th><th>Diferencia (g)</th></tr></thead><tbody>' + rows +
+    '</tbody><tfoot><tr><td class="prod">Total</td><td>' + fmt(tot.si) + '</td><td>' + fmt(tot.ent) + '</td><td>' + fmt(tot.bano) + '</td><td>' + fmt(tot.refri) + '</td><td>' + fmt(tot.cong) + '</td><td>' + fmt(tot.sf) + '</td><td>' + fmt(tot.cr) + '</td><td>' + fmt(tot.dz) + '</td><td></td><td>' + fmt(tot.cr - tot.dz) + '</td></tr></tfoot></table></div>';
+  return { html, fuera };
 }
+function efCardsHTML(lineas) {
+  const { c, e } = calcEff(lineas);
+  return '<div class="card"><h3>Eficiencia del día</h3><div class="ef-grid">' + CATS.map(k => { const div = k === 'guiso' ? 1000 : 1, un = k === 'guiso' ? 'kg' : 'pzas';
+    return '<div class="ef-col"><h4>' + CAT_LABEL[k] + '</h4><div class="ef-row"><span>Vendidos</span><b>' + fmt(c[k].vend / div) + ' ' + un + '</b></div><div class="ef-row"><span>Consumo</span><b>' + fmt(c[k].cons / div) + ' ' + un + '</b></div><div class="ef-row"><span>Diferencia</span><b>' + fmt((c[k].vend - c[k].cons) / div) + ' ' + un + '</b></div><div class="ef-pct" style="' + estilo(e[k]) + '">' + (e[k] == null ? '—' : e[k] + '%') + '</div></div>'; }).join('') + '</div></div>';
+}
+function leyendaHTML() { return '<div class="leyenda"><span><i style="background:#F1F5F9"></i>Solo consulta: lo pone administración</span><span><i style="background:#FFF8DB;border-color:#967015"></i>Captura del gerente (en la app)</span><span><i style="background:#FFFFFF"></i>Automático: lo calcula el sistema</span><span><i style="background:#FEE2E2;border-color:#DC2626"></i>Diferencia teórica fuera de ±10 gorditas</span></div>'; }
+function chipsDia(d, fuera) { return '<span class="badge ' + (d.estado === 'autogenerado' ? 'b-warn' : 'b-ok') + '">' + (d.estado === 'autogenerado' ? '⚠︎ Generado sin captura' : '✓ Capturado por ' + esc(d.capturado_por || 'la app')) + '</span>' + '<span class="badge ' + (fuera ? 'b-alert' : 'b-ok') + '">' + (fuera ? fuera + (fuera === 1 ? ' producto fuera' : ' productos fuera') + ' de ±10 gorditas' : 'Todo dentro de ±10 gorditas') + '</span>'; }
+
+/* ── Racha y productos problema (tarjetas del Registro) ── */
+function costoLinea(l) { const p = num(l.precio); if (!p || l.diferencia_g == null) return null; return String(l.unidad).toLowerCase() === 'g' ? Math.abs(num(l.diferencia_g)) / 1000 * p : Math.abs(num(l.diferencia_g)) * p; }
+function rachaCardHTML(e, dias) {
+  const r = (e && e.racha_verde) || {}; const n = r.actual || 0, rec = r.record || 0, falta = rec - n;
+  const ult = (dias || []).slice(0, 8).slice().reverse();
+  const colores = { v: '#7BC4A8', a: '#EBC77A', r: '#E88A85', gris: '#D6DCE4' };
+  const tira = ult.map(x => { const p = x.estado === 'autogenerado' ? null : effDeDia(x).guiso; return '<i style="background:' + colores[clase(p)] + '" title="' + esc(fmtDiaA(x.fecha)) + ' · ' + (p == null ? 'generado sin captura' : 'guisos ' + p + '%') + '"></i>'; }).join('');
+  return '<section class="card racha-card"><h3>Racha en verde</h3><div class="racha-num"><em>🔥</em><span style="font-size:46px;font-weight:700;color:var(--text)">' + n + '</span><span>' + (n === 1 ? 'día seguido' : 'días seguidos') + '</span></div>' +
+    '<p class="racha-sub">' + (rec ? (falta > 0 ? 'Tu récord es de <b>' + rec + ' días</b>. Te ' + (falta === 1 ? 'falta <b>1 día</b>' : 'faltan <b>' + falta + ' días</b>') + ' para igualarlo.' : (n > 0 ? '<b>Estás en tu récord.</b> Cada día en verde lo alarga.' : 'Tu récord es de <b>' + rec + ' días</b>.')) : 'Todavía no hay días en verde registrados.') + '</p>' +
+    (ult.length ? '<div class="tira">' + tira + '</div><div class="tira-lbl"><span>' + esc(fmtDia(ult[0].fecha)) + '</span><span>' + esc(fmtDia(ult[ult.length - 1].fecha)) + '</span></div>' : '') +
+    '<p class="pie">Días seguidos con eficiencia de guisos de 95 % o más. Un día generado sin captura la corta.</p></section>';
+}
+function problemasHTML(prev) {
+  let cuerpo;
+  if (!prev) cuerpo = '<div class="prob-gris">No hay un día anterior registrado.</div>';
+  else if (prev.estado === 'autogenerado') cuerpo = '<div class="prob-gris">⚠︎ El día anterior se generó sin captura, así que no hay diferencias que revisar. Capturar antes de la 1:30 pm evita que se pierda el dato.</div>';
+  else {
+    const malos = (prev.lineas || []).filter(l => l.dif_gorditas != null && Math.abs(num(l.dif_gorditas)) > UMBRAL).sort((a, b) => (costoLinea(b) || 0) - (costoLinea(a) || 0) || Math.abs(num(b.dif_gorditas)) - Math.abs(num(a.dif_gorditas)));
+    if (!malos.length) cuerpo = '<div class="prob-ok">✓ Ningún producto se salió de ±10 gorditas el ' + esc(fmtDia(prev.fecha)) + '. Bien hecho.</div>';
+    else {
+      const VIS = 3; let tot = 0, ocultos = 0; malos.forEach((l, k) => { const c = costoLinea(l) || 0; tot += c; if (k >= VIS) ocultos += c; });
+      const filas = malos.map((l, k) => { const arriba = num(l.dif_gorditas) > 0; const c = costoLinea(l); const un = unidadTxt(l.unidad);
+        return '<div class="prob"' + (k >= VIS ? ' data-extra hidden' : '') + '><div><div class="nm">' + esc(l.producto) + '<span class="unidad">' + esc(un) + '</span></div><div class="det">' + (arriba ? 'Se consumió de más' : 'Se consumió de menos') + ' · consumo ' + fmt(l.consumo_real) + ' vs venta ' + fmt(l.dritzline) + ' ' + esc(un) + '</div></div><div class="cifra"><b>' + (c ? pesos(c) : 'sin precio') + '</b><small>' + (arriba ? '+' : '') + fmt(l.dif_gorditas) + ' gorditas</small></div></div>'; }).join('');
+      cuerpo = '<div class="prob-resumen">' + malos.length + ' producto' + (malos.length === 1 ? '' : 's') + ' fuera de ±10 gorditas · <b>' + pesos(tot) + '</b> a precio de la OC</div>' + filas +
+        (malos.length > VIS ? '<button class="prob-toggle" type="button" data-mas="Ver los ' + (malos.length - VIS) + ' restantes' + (ocultos ? ' · ' + pesos(ocultos) : '') + '" onclick="toggleProb(this)"><span class="chev">▶</span><span class="txt">Ver los ' + (malos.length - VIS) + ' restantes' + (ocultos ? ' · ' + pesos(ocultos) : '') + '</span></button>' : '');
+    }
+  }
+  return '<section class="card"><div class="prob-hdr"><h3>Productos problema del día anterior</h3><span class="dia-et">' + (prev ? esc(fmtDiaA(prev.fecha)) : '') + '</span></div><div class="prob-lista">' + cuerpo + '</div></section>';
+}
+function toggleProb(b) { const abierto = b.dataset.abierto === '1'; b.dataset.abierto = abierto ? '0' : '1'; b.closest('.prob-lista').querySelectorAll('.prob[data-extra]').forEach(x => { x.hidden = abierto; }); b.querySelector('.txt').textContent = abierto ? b.dataset.mas : 'Ver menos'; b.querySelector('.chev').style.transform = abierto ? '' : 'rotate(90deg)'; }
+
+/* ── REGISTRO DEL DÍA (gerente): espejo de la app, sin captura ── */
 async function vRegistro() {
   M().className = 'main'; M().innerHTML = '<div class="loading">Cargando…</div>';
   const dias = await diasDe(S.branch, null, 10); const ult = dias[0];
-  let h = '<div class="sec"><h2>📋 Registro del Día</h2><div class="controls" style="margin:0"><input class="inp" type="date" id="regFecha" value="' + esc(S.diario.fecha || (ult ? ult.fecha : '')) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vRegistro()"><a class="btn btn-primary btn-sm" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✏️ Capturar hoy en la app</a></div></div>';
+  const fecha = S.diario.fecha || (ult ? ult.fecha : '');
+  let h = '<div class="vista-hdr"><div><h2>📋 Registro del Día</h2><p>' + esc(corto(sucNombre(S.branch))) + (fecha ? ' · ' + fmtLargo(fecha) : '') + '</p></div><div class="acciones"><input class="inp" type="date" id="regFecha" value="' + esc(fecha) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vRegistro()"><a class="btn btn-primary" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✏️ Capturar hoy en la app</a></div></div>';
   if (!ult) { M().innerHTML = h + '<div class="vacio">Esta tienda no tiene registros del diario.</div>'; return; }
-  const fecha = S.diario.fecha || ult.fecha;
   const d = await diaDe(S.branch, fecha);
   if (d.error) { M().innerHTML = h + '<div class="vacio">No hay registro del ' + fmtDia(fecha) + '. El último es del ' + fmtDia(ult.fecha) + '.</div>'; return; }
-  M().innerHTML = h + '<div class="controls"><button class="btn btn-sec btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vRegistro()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><span class="pill">' + fmtLargo(d.fecha) + '</span><button class="btn btn-sec btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vRegistro()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button><span class="hint">Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.</span></div>' + registroHTML(d);
-}
-
-/* ── EFICIENCIAS (gerente): promedio por mes y detalle diario, como en la app ── */
-async function vEficiencia() {
-  let h = '<div class="sec"><h2>📈 Eficiencias</h2><div class="controls" style="margin:0"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vEficiencia()"><button class="btn btn-sec" onclick="S.filtroMes=\'\';vEficiencia()">Todos los meses</button></div></div>';
-  M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
-  const dias = await diasDe(S.branch, null, 400);
-  const porMes = {}; dias.forEach(x => { const m = x.fecha.slice(0, 7); if (S.filtroMes && m !== S.filtroMes) return; (porMes[m] = porMes[m] || []).push(x); });
-  const meses = Object.keys(porMes).sort().reverse();
-  if (!meses.length) { M().innerHTML = h + '<div class="vacio">No hay datos de eficiencia en este periodo.</div>'; return; }
-  const prom = (arr, k) => { const vs = arr.map(x => effDeDia(x)[k]).filter(v => v != null); return vs.length ? Math.round(vs.reduce((a, b) => a + b, 0) / vs.length) : null; };
-  const nomMes = (m) => ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4);
-  h += '<div class="tbl"><table style="min-width:520px"><thead><tr><th>Mes</th><th>Guisos</th><th>Postres</th><th>Bebidas</th><th class="n">Días</th><th class="n">Verdes en guisos</th></tr></thead><tbody>' + meses.map(m => { const r = porMes[m]; return '<tr><td><b>' + nomMes(m) + '</b></td>' + CATS.map(k => '<td>' + efChip(prom(r, k), '') + '</td>').join('') + '<td class="n">' + r.length + '</td><td class="n">' + r.filter(x => (effDeDia(x).guiso || 0) >= 95).length + '</td></tr>'; }).join('') + '</tbody></table></div>';
-  h += meses.map(m => '<div class="card"><h3>' + nomMes(m) + ' · detalle diario</h3><div class="tbl compacta" style="margin:0"><table style="min-width:420px"><thead><tr><th>Fecha</th><th>Guisos</th><th>Postres</th><th>Bebidas</th></tr></thead><tbody>' + porMes[m].map(x => { const e = effDeDia(x); return '<tr><td>' + fmtDia(x.fecha) + (x.estado === 'autogenerado' ? ' <span class="badge b-bad">generado</span>' : '') + '</td>' + CATS.map(k => '<td>' + efChip(e[k], '') + '</td>').join('') + '</tr>'; }).join('') + '</tbody></table></div></div>').join('');
+  let e = null; try { e = await kpisDe(); } catch (x) {}
+  const prev = d.anterior ? await diaDe(S.branch, d.anterior) : null;
+  const t = tablaRegistroHTML(d);
+  h += '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '</div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vRegistro()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vRegistro()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' +
+    '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + leyendaHTML() + t.html + efCardsHTML(d.lineas) +
+    '<p class="hint">Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.</p>';
   M().innerHTML = h;
 }
 
-/* ── CONTAR (inventario general) ── */
-function ubicDe(g) { return g.ubicaciones || []; }
-function valsDesde(d) {
-  const v = {};
-  (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => { const u = ubicDe(g); const x = { bano: num(l.bano), refri: num(l.refri), congelador: num(l.congelador), almacen: num(l.almacen), sin_desglose: num(l.sin_desglose) };
-    x.desg = u.length > 1 && (x.bano + x.refri + x.congelador) > 0; v[l.inventario_producto_id] = x; }));
-  return v;
+/* ── HISTORIAL (gerente): cada día abre el registro completo ── */
+async function vHistorial() {
+  M().className = 'main';
+  let h = '<div class="vista-hdr"><div><h2>📅 Historial</h2><p id="histSub">Toca un día para abrirlo completo.</p></div><div class="acciones"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vHistorial()"><button class="btn btn-sm" onclick="S.filtroMes=\'\';vHistorial()">Últimos 60 días</button><button class="btn btn-sm" onclick="exportar(' + S.branch + ')">⬇︎ Excel</button></div></div>';
+  M().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const dias = S.filtroMes ? await diasDe(S.branch, S.filtroMes) : await diasDe(S.branch, null, 60);
+  if (!dias.length) { M().innerHTML = h + '<div class="vacio">No hay registros en este periodo.</div>'; return; }
+  const prom = {}; CATS.forEach(k => { const vs = dias.map(x => effDeDia(x)[k]).filter(v => v != null); prom[k] = vs.length ? Math.round(vs.reduce((a, b) => a + b, 0) / vs.length) : null; });
+  h = h.replace('Toca un día para abrirlo completo.', 'Toca un día para abrirlo completo · promedio del periodo: ' + ORDEN_CHIPS.map(k => CAT_LABEL[k] + ' ' + (prom[k] == null ? '—' : prom[k] + '%')).join(' · '));
+  h += '<div class="dias">' + dias.map(x => { const e = effDeDia(x); const id = 'h_' + x.fecha.replace(/-/g, '');
+    return '<div class="dia"><button class="dia-hdr" id="b_' + id + '" onclick="toggleDiaHist(\'' + id + '\',' + S.branch + ',\'' + x.fecha + '\')"><span class="f"><span class="chev">▶</span>' + fmtDiaA(x.fecha) + '</span><span class="sem">' + (x.estado === 'autogenerado' ? '<span class="badge b-alert">Generado sin captura</span>' : ORDEN_CHIPS.map(k => efChip(e[k], CAT_LABEL[k])).join('')) + '</span></button><div class="dia-det" id="' + id + '" hidden></div></div>'; }).join('') + '</div>';
+  M().innerHTML = h;
 }
+async function toggleDiaHist(id, branch, fecha) {
+  const el = $(id), b = $('b_' + id); if (!el) return;
+  if (!el.hidden) { el.hidden = true; b.classList.remove('on'); return; }
+  el.hidden = false; b.classList.add('on');
+  if (el.dataset.ok) return;
+  el.innerHTML = '<div class="loading">Cargando…</div>';
+  const d = await diaDe(branch, fecha);
+  if (d.error) { el.innerHTML = '<div class="vacio">Sin datos</div>'; return; }
+  const t = tablaRegistroHTML(d);
+  el.innerHTML = '<div class="det-hdr"><div><h4>' + fmtLargo(d.fecha).replace(/^./, c => c.toUpperCase()) + '</h4><p>' + (d.estado === 'autogenerado' ? 'Sin captura del gerente' : 'Capturado por ' + esc(d.capturado_por || 'la app')) + (t.fuera ? ' · <b style="color:var(--alert)">' + t.fuera + ' fuera de ±10 gorditas</b>' : '') + '</p></div>' + (esGerente() ? '<button class="btn btn-sm" onclick="S.diario.fecha=\'' + d.fecha + '\';irTab(\'registro\')">Ver en Registro del Día →</button>' : '') + '</div>' +
+    (d.estado === 'autogenerado' ? '<div class="nota warn">⚠︎ Día generado por el sistema: no hubo captura antes de la 1:30 pm. El saldo quedó igual al del día anterior y el consumo en cero.</div>' : '') + t.html + efCardsHTML(d.lineas);
+  el.dataset.ok = '1';
+}
+
+/* ── EFICIENCIAS (gerente): un mes por renglón, se abre con todos sus días ── */
+function resumenMes(ds) { let n = 0, verdes = 0, gen = 0; const acc = { guiso: 0, bebida: 0, postre: 0 }, cnt = { guiso: 0, bebida: 0, postre: 0 };
+  ds.forEach(x => { if (x.estado === 'autogenerado') { gen++; return; } n++; const e = effDeDia(x); if (e.guiso != null && e.guiso >= 95) verdes++; CATS.forEach(k => { if (e[k] != null) { acc[k] += e[k]; cnt[k]++; } }); });
+  const r = { verdes, capturados: n, generados: gen, total: ds.length }; CATS.forEach(k => { r[k] = cnt[k] ? Math.round(acc[k] / cnt[k]) : null; }); return r; }
+async function vEficiencia() {
+  M().className = 'main';
+  let h = '<div class="vista-hdr"><div><h2>📊 Eficiencias</h2><p>Toca un mes para ver todos sus días · verde desde 95 %, amarillo desde 90 %</p></div></div>';
+  M().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const dias = await diasDe(S.branch, null, 400);
+  const porMes = {}; dias.forEach(x => { const m = x.fecha.slice(0, 7); (porMes[m] = porMes[m] || []).push(x); });
+  const meses = Object.keys(porMes).sort().reverse();
+  if (!meses.length) { M().innerHTML = h + '<div class="vacio">No hay datos de eficiencia.</div>'; return; }
+  S.cache.porMes = porMes;
+  h += '<div class="dias">' + meses.map(m => { const r = resumenMes(porMes[m]); const id = 'm_' + m.replace('-', '');
+    return '<div class="dia"><button class="dia-hdr" id="b_' + id + '" onclick="toggleMes(\'' + id + '\',\'' + m + '\')"><span class="f"><span class="chev">▶</span>' + nomMes(m) + '</span><span class="sem">' + ORDEN_CHIPS.map(k => efChip(r[k], CAT_LABEL[k])).join('') + '<span class="chip gris">' + r.verdes + ' de ' + r.total + ' en verde</span>' + (r.generados ? '<span class="chip r">' + r.generados + ' generado' + (r.generados === 1 ? '' : 's') + '</span>' : '') + '</span></button><div class="dia-det" id="' + id + '" hidden></div></div>'; }).join('') + '</div>';
+  M().innerHTML = h;
+}
+function toggleMes(id, m) {
+  const el = $(id), b = $('b_' + id); if (!el) return;
+  if (!el.hidden) { el.hidden = true; b.classList.remove('on'); return; }
+  el.hidden = false; b.classList.add('on'); if (el.dataset.ok) return;
+  const ds = (S.cache.porMes[m] || []).slice().sort((a, b2) => a.fecha < b2.fecha ? -1 : 1); const r = resumenMes(ds);
+  el.innerHTML = '<div class="det-hdr"><div><h4>' + nomMes(m) + '</h4><p>' + r.capturados + ' día' + (r.capturados === 1 ? '' : 's') + ' con captura' + (r.generados ? ' · ' + r.generados + ' generado' + (r.generados === 1 ? '' : 's') + ' sin captura' : '') + ' · ' + r.verdes + ' en verde</p></div></div>' +
+    '<div class="mes-dias">' + ds.map(x => { if (x.estado === 'autogenerado') return '<div class="mdia gen"><div class="d">' + fmtDia(x.fecha) + '</div><div class="sin">sin captura</div></div>'; const e = effDeDia(x);
+      return '<div class="mdia"><div class="d">' + fmtDia(x.fecha) + '</div><div class="p"><span class="' + clase(e.guiso) + '" title="Guisos">G ' + (e.guiso == null ? '—' : e.guiso) + '</span><span class="' + clase(e.bebida) + '" title="Bebidas">B ' + (e.bebida == null ? '—' : e.bebida) + '</span><span class="' + clase(e.postre) + '" title="Postres">P ' + (e.postre == null ? '—' : e.postre) + '</span></div></div>'; }).join('') + '</div>';
+  el.dataset.ok = '1';
+}
+
+/* ── INVENTARIO GENERAL (contar): por concepto, ubicaciones siempre visibles ── */
+const UB_LABEL = { bano: 'Baño María', refri: 'Refrigerador', congelador: 'Congelador', almacen: 'Almacén' };
+function valsDesde(d) { const v = {}; (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => { v[l.inventario_producto_id] = { bano: num(l.bano), refri: num(l.refri), congelador: num(l.congelador), almacen: num(l.almacen), sin_desglose: num(l.sin_desglose) }; })); return v; }
 function saldoDe(x) { return num(x.bano) + num(x.refri) + num(x.congelador) + num(x.almacen) + num(x.sin_desglose); }
 function valorDe(l, saldo) { return l.sin_precio ? null : Math.round(saldo * num(l.precio) / (l.unidad === 'g' ? 1000 : 1) * 100) / 100; }
 function claveBorrador() { return 'lem_inv_borrador_' + S.gen.branch + '_' + S.gen.fecha; }
-function guardarBorrador() { clearTimeout(S.gen.bt); S.gen.bt = setTimeout(() => { try { localStorage.setItem(claveBorrador(), JSON.stringify({ ts: Date.now(), vals: S.gen.vals })); const c = $('chipBorrador'); if (c) { c.textContent = 'Borrador guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); c.hidden = false; } } catch (e) {} }, 500); }
+function guardarBorrador() { clearTimeout(S.gen.bt); S.gen.bt = setTimeout(() => { try { localStorage.setItem(claveBorrador(), JSON.stringify({ ts: Date.now(), vals: S.gen.vals })); const c = $('chipBorrador'); if (c) { c.textContent = 'Borrador guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); c.hidden = false; } const bd = $('btnDescartar'); if (bd) bd.hidden = false; } catch (e) {} }, 500); }
 function leerBorrador() { try { const j = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); return j && j.vals ? j : null; } catch (e) { return null; } }
 function borrarBorrador() { try { localStorage.removeItem(claveBorrador()); } catch (e) {} }
 async function vContar() {
   const hoy = todayStr(); if (!S.gen.fecha) S.gen.fecha = hoy;
   S.gen.branch = esGerente() ? S.branch : (S.gen.branch || null);
-  let h = '<div class="sec"><h2>📦 Inventario general</h2><p>Cuenta todo lo que se compra: mismos productos y precios de la OC. Teclea el total por producto; en guisos puedes desglosar por ubicación.</p></div>' +
-    '<div class="controls">' + (esGerente() ? '' : selSuc('genSuc', S.gen.branch, 'S.gen.branch=Number(this.value)||null;S.gen.abierto=null;vContar()', false)) +
-    '<input class="inp" type="date" id="genFecha" value="' + esc(S.gen.fecha) + '" max="' + hoy + '"' + (esGerente() ? ' min="' + ayerStr() + '"' : '') + ' onchange="S.gen.fecha=this.value;S.gen.abierto=null;vContar()">' +
-    (S.gen.fecha !== hoy ? '<button class="btn btn-sec" onclick="S.gen.fecha=todayStr();vContar()">Hoy</button>' : '') + '</div>';
+  let h = '<div class="vista-hdr"><div><h2>📦 Inventario general</h2><p>Todo el catálogo de Compras por concepto, valuado al precio de la orden de compra. Un campo por ubicación; el total se calcula solo.</p></div><div class="acciones">' + (esGerente() ? '' : selSuc('genSuc', S.gen.branch, 'S.gen.branch=Number(this.value)||null;S.gen.abierto=null;vContar()', false)) +
+    '<input class="inp" type="date" id="genFecha" value="' + esc(S.gen.fecha) + '" max="' + hoy + '"' + (esGerente() ? ' min="' + ayerStr() + '"' : '') + ' onchange="S.gen.fecha=this.value;S.gen.abierto=null;vContar()">' + (S.gen.fecha !== hoy ? '<button class="btn btn-sm" onclick="S.gen.fecha=todayStr();vContar()">Hoy</button>' : '') + '<span id="genExcel"></span></div></div>';
   if (!S.gen.branch) { M().className = 'main'; M().innerHTML = h + '<div class="vacio">Elige la tienda.</div>'; return; }
   M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
   let d; try { d = await api('inv_general', { branch_id: S.gen.branch, fecha: S.gen.fecha }); } catch (e) { M().innerHTML = h + '<div class="vacio">' + esc(e.detalle || e.message) + '</div>'; return; }
   if (d.error) { M().innerHTML = h + '<div class="vacio">' + esc(d.detalle || d.error) + '</div>'; return; }
   S.gen.data = d; S.gen.vals = valsDesde(d); S.gen.busca = '';
   if (S.gen.abierto == null) S.gen.abierto = (d.grupos[0] || {}).grupo || null;
-  const b = leerBorrador();
-  S.gen.borrador = (b && d.puede_editar && (!d.existe || b.ts > new Date(d.editado_el || d.capturado_el).getTime())) ? b : null;
-  M().className = 'main' + (d.puede_editar ? ' con-barra' : '');
-  M().innerHTML = h + contarHTML(d);
-  pintarGrupos();
+  const b = leerBorrador(); S.gen.borrador = (b && d.puede_editar && (!d.existe || b.ts > new Date(d.editado_el || d.capturado_el).getTime())) ? b : null;
+  M().className = 'main' + (d.puede_editar ? ' con-barra' : ''); M().innerHTML = h + contarHTML(d); pintarGrupos();
+  const ex = $('genExcel'); if (ex && d.existe) ex.innerHTML = '<button class="btn btn-sm" onclick="exportarGeneral()">⬇︎ Excel del conteo</button>';
 }
 function contarHTML(d) {
-  const ed = !!d.puede_editar;
-  let h = '';
+  const ed = !!d.puede_editar; let h = '';
   if (d.existe) h += '<div class="nota ok"><b>' + (d.estado === 'editado' ? 'Corregido' : 'Capturado') + '</b> por ' + esc(d.capturado_por) + ' el ' + fmtTs(d.capturado_el) + (d.editado_por ? ' · última corrección de ' + esc(d.editado_por) + ' el ' + fmtTs(d.editado_el) : '') + (ed ? '. Puedes corregir cantidades y volver a guardar.' : '.') + '</div>';
   else h += '<div class="nota">Sin conteo general del ' + fmtDia(d.fecha) + (ed ? '. Captura las cantidades y guarda.' : '.') + '</div>';
   if (!ed) h += '<div class="nota warn"><b>Solo lectura.</b> ' + (esGerente() ? 'El gerente captura o corrige hoy y ayer; otras fechas las corrige administración.' : 'Tu usuario solo consulta.') + '</div>';
   if (S.gen.borrador) h += '<div class="nota warn" id="notaBorrador"><b>Tienes un borrador sin guardar</b> de las ' + new Date(S.gen.borrador.ts).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + '. <a onclick="restaurarBorrador()" style="cursor:pointer">Restaurar</a> · <a onclick="descartarBorrador()" style="cursor:pointer">Descartar</a></div>';
-  h += '<div class="grid" id="genResumen"></div>';
-  h += '<div class="controls"><input class="inp" style="flex:1;min-width:180px" id="genBusca" placeholder="Buscar producto…" oninput="S.gen.busca=this.value.toLowerCase();pintarGrupos()">' + (d.existe ? '<button class="btn btn-sec" onclick="exportarGeneral()">📥 Excel</button>' : '') + (ed ? '<span class="pill soft" id="chipBorrador" hidden></span>' : '') + '</div>';
-  h += '<div id="genGrupos"></div>';
-  if (ed) h += '<div class="barra"><div class="t" id="barTot">$0.00<small id="barCnt"></small></div><div class="acc"><button class="btn btn-ok btn-lg" onclick="confirmarGuardar()">Guardar</button></div></div>';
+  h += '<div class="acciones" style="margin-bottom:12px"><input class="inp" style="flex:1;min-width:180px" id="genBusca" placeholder="Buscar producto…" oninput="S.gen.busca=this.value.toLowerCase();pintarGrupos()">' + (ed ? '<span class="pill" id="chipBorrador" hidden></span>' : '') + '</div><div id="genGrupos"></div>';
+  if (ed) h += '<div class="barra"><div class="t" id="barTot">$0<small id="barCnt"></small></div><div class="acciones"><button class="btn" id="btnDescartar" onclick="descartarBorrador();vContar()" hidden>Descartar borrador</button><button class="btn btn-ok btn-lg" onclick="confirmarGuardar()">Guardar conteo</button></div></div>';
   return h;
 }
 const slug = (s) => String(s || '').replace(/\W/g, '');
-const UB_LABEL = { bano: 'Baño María', refri: 'Refrigerador', congelador: 'Congelador', almacen: 'Almacén' };
 function pintarGrupos() {
-  const d = S.gen.data; if (!d) return; const ed = !!d.puede_editar; const f = S.gen.busca;
-  const cont = $('genGrupos'); if (!cont) return;
-  let h = '';
-  (d.grupos || []).forEach(g => {
-    const u = ubicDe(g); const items = (g.lineas || []).filter(l => !f || l.producto.toLowerCase().includes(f));
-    if (f && !items.length) return;
+  const d = S.gen.data; if (!d) return; const ed = !!d.puede_editar; const f = S.gen.busca; const cont = $('genGrupos'); if (!cont) return;
+  cont.innerHTML = (d.grupos || []).map(g => { const u = g.ubicaciones || []; const items = (g.lineas || []).filter(l => !f || l.producto.toLowerCase().includes(f)); if (f && !items.length) return '';
     const on = f ? true : S.gen.abierto === g.grupo;
-    h += '<div class="grp"><button onclick="toggleGrupo(\'' + esc(g.grupo) + '\')"><span><b>' + esc(g.grupo) + '</b> <span class="st" id="gc_' + slug(g.grupo) + '"></span></span><span class="sub"><span id="gs_' + slug(g.grupo) + '"></span> ' + (on ? '▴' : '▾') + '</span></button>';
-    if (on) {
-      h += '<div class="items">' + items.map(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const multi = u.length > 1;
-        const totalRO = multi && x.desg;
-        return '<div class="item" id="it_' + id + '"><div class="l1"><span class="nm">' + esc(l.producto) + '<span class="un">' + esc(l.unidad) + '</span>' + (l.sin_precio ? ' <span class="badge b-warn">sin precio</span>' : '') + '</span>' +
-          (!ed ? '<span class="num" style="font-weight:600;font-size:16px" id="t_' + id + '">' + fmt(saldoDe(x)) + '</span>' : '<input class="ninp" type="number" inputmode="decimal" min="0" step="any" placeholder="0" id="t_' + id + '"' + (totalRO ? ' readonly' : '') + ' value="' + (saldoDe(x) || '') + '" oninput="totalCambio(' + id + ',this.value)">') + '</div>' +
-          '<div class="l2"><span id="v_' + id + '"></span>' + (multi && ed ? '<a onclick="toggleDesg(' + id + ')" id="ld_' + id + '">' + (x.desg ? 'Quitar desglose' : 'Desglosar por ubicación') + '</a>' : (multi && x.desg ? '<span>Baño ' + fmt(x.bano) + ' · Refri ' + fmt(x.refri) + ' · Cong ' + fmt(x.congelador) + '</span>' : '')) + '</div>' +
-          (multi && ed ? '<div class="desg' + (x.desg ? ' on' : '') + '" id="d_' + id + '">' + u.map(k => '<label>' + UB_LABEL[k] + '<input class="ninp" type="number" inputmode="decimal" min="0" step="any" placeholder="0" id="u_' + k + '_' + id + '" value="' + (x[k] || '') + '" oninput="ubicCambio(' + id + ',\'' + k + '\',this.value)"></label>').join('') + '</div>' : '') + '</div>'; }).join('') + '</div>';
-    }
-    h += '</div>';
-  });
-  cont.innerHTML = h || '<div class="vacio">Ningún producto coincide.</div>'; recalcContar();
+    return '<div class="grp"><button type="button" onclick="toggleGrupo(\'' + esc(g.grupo) + '\')"><span><b>' + esc(g.grupo) + '</b><span class="st" id="gc_' + slug(g.grupo) + '"></span></span><span class="sub"><span id="gs_' + slug(g.grupo) + '"></span> ' + (on ? '▴' : '▾') + '</span></button>' +
+      (on ? '<div class="items">' + items.map(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const un = unidadTxt(l.unidad);
+        return '<div class="item"><div class="item-top"><div class="nm">' + esc(l.producto) + '<span class="unidad">' + esc(un) + '</span>' + (l.sin_precio ? ' <span class="badge mini b-warn">sin precio</span>' : '') + '</div><div class="tot"><b id="t_' + id + '"></b><small id="v_' + id + '"></small></div></div>' +
+          '<div class="ubic">' + u.map(k => '<label>' + UB_LABEL[k] + (ed ? '<input class="cap" type="number" inputmode="decimal" min="0" step="any" placeholder="0" id="u_' + k + '_' + id + '" value="' + (x[k] || '') + '" oninput="ubicCambio(' + id + ',\'' + k + '\',this.value)">' : '<span class="cap-txt">' + fmt3(x[k]) + '</span>') + '</label>').join('') + (num(x.sin_desglose) ? '<label>Sin ubicación<span class="cap-txt">' + fmt3(x.sin_desglose) + '</span></label>' : '') + '</div></div>'; }).join('') + '</div>' : '') + '</div>'; }).join('') || '<div class="vacio">Ningún producto coincide.</div>';
+  recalcContar();
 }
 function toggleGrupo(g) { S.gen.abierto = S.gen.abierto === g ? null : g; pintarGrupos(); }
-function grupoDe(id) { return (S.gen.data.grupos || []).find(g => (g.lineas || []).some(l => l.inventario_producto_id === id)); }
-function totalCambio(id, v) { const u = ubicDe(grupoDe(id)); const x = S.gen.vals[id];
-  if (u.length > 1) { if (!x.desg) x.sin_desglose = Math.max(0, num(v)); } else { x[u[0]] = Math.max(0, num(v)); }
-  recalcContar(); guardarBorrador(); }
-function ubicCambio(id, k, v) { const x = S.gen.vals[id]; x[k] = Math.max(0, num(v)); x.sin_desglose = 0; const t = $('t_' + id); if (t) t.value = saldoDe(x) || ''; recalcContar(); guardarBorrador(); }
-function toggleDesg(id) { const x = S.gen.vals[id]; x.desg = !x.desg; const t = $('t_' + id), dv = $('d_' + id), ld = $('ld_' + id);
-  if (x.desg) { if (dv) dv.classList.add('on'); if (t) t.readOnly = true; if (ld) ld.textContent = 'Quitar desglose'; }
-  else { x.sin_desglose = saldoDe(x); x.bano = 0; x.refri = 0; x.congelador = 0; ['bano', 'refri', 'congelador'].forEach(k => { const i = $('u_' + k + '_' + id); if (i) i.value = ''; }); if (dv) dv.classList.remove('on'); if (t) { t.readOnly = false; t.value = x.sin_desglose || ''; } if (ld) ld.textContent = 'Desglosar por ubicación'; }
-  recalcContar(); guardarBorrador(); }
+function ubicCambio(id, k, v) { const x = S.gen.vals[id]; x[k] = Math.max(0, num(v)); recalcContar(); guardarBorrador(); }
 function recalcContar() {
-  const d = S.gen.data; if (!d || !$('genResumen')) return;
-  let total = 0, con = 0, n = 0, kg = 0; const porG = [];
+  const d = S.gen.data; if (!d) return; let total = 0, con = 0, n = 0;
   (d.grupos || []).forEach(g => { let sub = 0, c = 0;
-    (g.lineas || []).forEach(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const s = saldoDe(x), v = valorDe(l, s); n++; if (s > 0) { c++; con++; } sub += num(v); if (g.grupo === 'Guisos') kg += s / 1000;
-      const vc = $('v_' + id); if (vc) vc.textContent = (l.sin_precio ? 'sin precio en el catálogo' : money(v)) + (l.unidad === 'g' && s ? ' · ' + (s / 1000).toFixed(2) + ' kg' : ''); });
-    total += sub; porG.push([g.grupo, sub, c, (g.lineas || []).length]); const gs = $('gs_' + slug(g.grupo)), gc = $('gc_' + slug(g.grupo)); if (gs) gs.textContent = money(sub); if (gc) gc.textContent = '· ' + c + ' de ' + (g.lineas || []).length; });
-  $('genResumen').innerHTML = '<div class="stat lem"><div class="k">Total en la tienda</div><div class="v num">' + money(total) + '</div><div class="s">' + con + ' de ' + n + ' productos con cantidad</div></div><div class="stat"><div class="k">Kg de guisos en tienda</div><div class="v num">' + fmt(Math.round(kg * 1000) / 1000) + '</div><div class="s">el subtotal de cada grupo está en su encabezado</div></div>';
-  const bt = $('barTot'); if (bt) { bt.firstChild.textContent = money(total); $('barCnt').textContent = con + ' de ' + n + ' con cantidad · ' + fmtDia(d.fecha); }
+    (g.lineas || []).forEach(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const s = saldoDe(x), v = valorDe(l, s); n++; if (s > 0) { c++; con++; } sub += num(v);
+      const tt = $('t_' + id), vv = $('v_' + id); if (tt) tt.textContent = fmt3(s) + ' ' + unidadTxt(l.unidad); if (vv) vv.textContent = (l.sin_precio ? 'sin precio en el catálogo' : money(v) + ' · ' + pesosU(num(l.precio)) + '/' + (l.unidad === 'g' ? 'kg' : unidadTxt(l.unidad))); });
+    total += sub; const gs = $('gs_' + slug(g.grupo)), gc = $('gc_' + slug(g.grupo)); if (gs) gs.textContent = money(sub); if (gc) gc.textContent = c + ' de ' + (g.lineas || []).length; });
+  const bt = $('barTot'); if (bt) { bt.firstChild.textContent = money(total); $('barCnt').textContent = 'Total contado · ' + con + ' de ' + n + ' productos · ' + fmtDia(d.fecha); }
   S.gen.totales = { total, con, n };
 }
 function restaurarBorrador() { if (!S.gen.borrador) return; Object.keys(S.gen.borrador.vals).forEach(id => { if (S.gen.vals[id]) S.gen.vals[id] = Object.assign({}, S.gen.vals[id], S.gen.borrador.vals[id]); }); S.gen.borrador = null; const nb = $('notaBorrador'); if (nb) nb.remove(); pintarGrupos(); toast('Borrador restaurado. Revisa y guarda.'); }
-function descartarBorrador() { borrarBorrador(); S.gen.borrador = null; const nb = $('notaBorrador'); if (nb) nb.remove(); }
+function descartarBorrador() { borrarBorrador(); S.gen.borrador = null; const nb = $('notaBorrador'); if (nb) nb.remove(); const bd = $('btnDescartar'); if (bd) bd.hidden = true; }
 function confirmarGuardar() { const t = S.gen.totales || {}; const d = S.gen.data;
-  modal('<h3>¿Guardar el inventario general?</h3><p><b>' + esc(corto(sucNombre(d.branch_id))) + '</b> · ' + fmtLargo(d.fecha) + '</p><p><b class="num" style="font-size:22px;color:var(--text)">' + money(t.total) + '</b> en stock · ' + t.con + ' productos con cantidad' + (t.n - t.con ? ' · <b>' + (t.n - t.con) + ' quedan en cero</b>' : '') + '</p>' + (d.existe ? '<p>Se reemplaza el conteo guardado de esta fecha; el cambio queda registrado con tu usuario.</p>' : '') + '<div class="acts"><button class="btn btn-sec" onclick="cerrarModal()">Seguir contando</button><button class="btn btn-ok" onclick="guardarGeneral(this)">Guardar</button></div>'); }
+  modal('<h3>¿Guardar el inventario general?</h3><p><b>' + esc(corto(sucNombre(d.branch_id))) + '</b> · ' + fmtLargo(d.fecha) + '</p><p><b class="num" style="font-size:22px;color:var(--text)">' + money(t.total) + '</b> en stock · ' + t.con + ' productos con cantidad' + (t.n - t.con ? ' · <b>' + (t.n - t.con) + ' quedan en cero</b>' : '') + '</p>' + (d.existe ? '<p>Se reemplaza el conteo guardado de esta fecha; el cambio queda registrado con tu usuario.</p>' : '') + '<div class="acts"><button class="btn" onclick="cerrarModal()">Seguir contando</button><button class="btn btn-ok" onclick="guardarGeneral(this)">Guardar</button></div>'); }
 async function guardarGeneral(btn) {
   const d = S.gen.data; btn.disabled = true;
   const lineas = Object.keys(S.gen.vals).map(id => { const x = S.gen.vals[id]; return { inventario_producto_id: Number(id), bano: x.bano, refri: x.refri, congelador: x.congelador, almacen: x.almacen, sin_desglose: x.sin_desglose }; });
   let r; try { r = await api('inv_general_guardar', { branch_id: d.branch_id, fecha: d.fecha, lineas }); } catch (e) { btn.disabled = false; return; }
   cerrarModal(); if (r.error) { toast('No se guardó: ' + (r.detalle || r.error)); return; }
-  borrarBorrador(); S.cache = {}; S.gen.data = r; S.gen.vals = valsDesde(r); S.gen.borrador = null;
-  const ctr = M().querySelector('.controls'); const cab = Array.prototype.slice.call(M().children, 0, Array.prototype.indexOf.call(M().children, ctr) + 1).map(x => x.outerHTML).join('');
-  M().innerHTML = cab + contarHTML(r); pintarGrupos(); const sel = $('genSuc'); if (sel) sel.value = r.branch_id;
+  borrarBorrador(); S.cache = {}; S.kpis = null; S.gen.data = r; S.gen.vals = valsDesde(r); S.gen.borrador = null;
+  const hdr = M().querySelector('.vista-hdr'); M().innerHTML = hdr.outerHTML + contarHTML(r); pintarGrupos(); const sel = $('genSuc'); if (sel) sel.value = r.branch_id; const ex = $('genExcel'); if (ex) ex.innerHTML = '<button class="btn btn-sm" onclick="exportarGeneral()">⬇︎ Excel del conteo</button>';
   toast('✔ Inventario guardado: ' + money(r.total_valor));
 }
 function exportarGeneral() {
   const d = S.gen.data; if (!d || !window.XLSX) { toast('No hay datos o la librería de Excel no cargó.'); return; }
-  const hdr = ['Grupo', 'Producto', 'U.M.', 'Baño María', 'Refrigerador', 'Congelador', 'Almacén', 'Sin desglose', 'Saldo Final', 'Precio', '$ en inventario'];
+  const hdr = ['Concepto', 'Producto', 'U.M.', 'Baño María', 'Refrigerador', 'Congelador', 'Almacén', 'Sin ubicación', 'Saldo Final', 'Precio', '$ en inventario'];
   const filas = []; (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => filas.push([g.grupo, l.producto, l.unidad, num(l.bano), num(l.refri), num(l.congelador), num(l.almacen), num(l.sin_desglose), num(l.saldo_final), l.precio == null ? '' : num(l.precio), l.valor == null ? '' : num(l.valor)])));
   filas.push(['', 'TOTAL', '', '', '', '', '', '', '', '', num(d.total_valor)]);
   const ws = XLSX.utils.aoa_to_sheet([['Tienda', corto(d.sucursal), 'Fecha', fmtFecha(d.fecha), 'Capturado por', d.capturado_por || ''], []].concat([hdr]).concat(filas)); ws['!cols'] = hdr.map((x, i) => ({ wch: i === 1 ? 34 : 13 }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Inventario general'); XLSX.writeFile(wb, 'inventario_general_' + corto(d.sucursal).replace(/\s+/g, '_') + '_' + d.fecha + '.xlsx');
 }
 
-/* ── DIARIO (lo que se capturó en la app) ── */
-function diaHTML(d) {
-  const { e } = calcEff(d.lineas);
-  let h = '<div class="card"><div class="row"><div><b>' + fmtLargo(d.fecha) + '</b> <span class="badge ' + (d.estado === 'autogenerado' ? 'b-bad' : 'b-ok') + '">' + (d.estado === 'autogenerado' ? 'Generado sin captura' : 'Capturado') + '</span><div class="hint">' + esc(d.capturado_por || '') + (d.capturado_el ? ' · ' + fmtTs(d.capturado_el) : '') + '</div></div><div class="sem" style="min-width:230px">' + CATS.map(k => '<div class="' + semClase(e[k]) + '"><b>' + (e[k] == null ? '—' : e[k] + '%') + '</b><span>' + CAT_LABEL[k] + '</span></div>').join('') + '</div></div></div>';
-  h += '<div class="tbl compacta"><table><thead><tr><th>Producto</th><th class="n">Saldo final</th><th class="n">Consumo</th><th class="n">Venta POS</th><th class="n">Diferencia</th></tr></thead><tbody>';
-  CATS.forEach(k => { const ls = (d.lineas || []).filter(l => l.categoria === k); if (!ls.length) return;
-    h += '<tr class="cat-hdr"><td colspan="5">' + CAT_LABEL[k] + ' <span style="font-weight:400;text-transform:none;letter-spacing:0">(' + (k === 'guiso' ? 'gramos' : 'piezas') + ')</span></td></tr>';
-    ls.forEach(l => { const dif = l.diferencia_g != null ? num(l.diferencia_g) : null; h += '<tr><td>' + esc(l.producto) + '</td><td class="n">' + fmt(l.saldo_final) + '</td><td class="n">' + fmt(l.consumo_real) + '</td><td class="n">' + (l.dritzline != null ? fmt(l.dritzline) : '—') + '</td><td class="n" style="color:' + (dif == null ? 'inherit' : dif < 0 ? 'var(--bad)' : 'var(--ok)') + '">' + (dif == null ? '—' : fmt(dif) + (l.dif_gorditas != null && k === 'guiso' ? ' <span class="hint">(' + fmt(l.dif_gorditas) + ' gord.)</span>' : '')) + '</td></tr>'; }); });
-  return h + '</tbody></table></div>';
-}
+/* ── DIARIO (administración y asesores): la misma tabla del registro, por tienda y fecha ── */
 async function vDiario() {
-  const branch = esGerente() ? S.branch : (S.diario.branch || null);
-  let h = '<div class="sec"><h2>📋 Conteo diario</h2><p>Lo que la app registró cada día (sincronizado de madrugada). Para editarlo usa la app.</p></div>' +
-    '<div class="controls">' + (esGerente() ? '' : selSuc('diaSuc', branch, 'S.diario.branch=Number(this.value)||null;S.diario.fecha=\'\';vDiario()', false)) +
-    '<input class="inp" type="date" id="diaFecha" value="' + esc(S.diario.fecha) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vDiario()">' +
-    (branch ? '<button class="btn btn-sec" onclick="exportar(' + branch + ')">📥 Excel</button>' : '') + '</div>';
-  if (!branch) { M().className = 'main'; M().innerHTML = h + '<div class="vacio">Elige la tienda.</div>'; return; }
-  M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const branch = S.diario.branch || null;
+  let h = '<div class="vista-hdr"><div><h2>📋 Conteo diario</h2><p>Lo que la app registró cada día (sincronizado de madrugada). Para editarlo usa la app.</p></div><div class="acciones">' + selSuc('diaSuc', branch, 'S.diario.branch=Number(this.value)||null;S.diario.fecha=\'\';vDiario()', false) +
+    '<input class="inp" type="date" id="diaFecha" value="' + esc(S.diario.fecha) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vDiario()">' + (branch ? '<button class="btn btn-sm" onclick="exportar(' + branch + ')">⬇︎ Excel</button>' : '') + '</div></div>';
+  M().className = 'main';
+  if (!branch) { M().innerHTML = h + '<div class="vacio">Elige la tienda.</div>'; return; }
+  M().innerHTML = h + '<div class="loading">Cargando…</div>';
   if (!S.diario.fecha) { const ds = await diasDe(branch, null, 10); if (!ds.length) { M().innerHTML = h + '<div class="vacio">Esta tienda no tiene registros del diario.</div>'; return; } S.diario.fecha = ds[0].fecha; }
   const d = await diaDe(branch, S.diario.fecha);
   if (d.error) { M().innerHTML = h + '<div class="vacio">No hay registro del ' + fmtDia(S.diario.fecha) + ' en esta tienda.</div>'; const f = $('diaFecha'); if (f) f.value = S.diario.fecha; return; }
-  M().innerHTML = h + '<div class="controls"><button class="btn btn-sec btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vDiario()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sec btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vDiario()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div>' + diaHTML(d);
+  const t = tablaRegistroHTML(d);
+  M().innerHTML = h + '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '<span class="pill">' + fmtLargo(d.fecha) + '</span></div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vDiario()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vDiario()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' + leyendaHTML() + t.html + efCardsHTML(d.lineas);
   const f = $('diaFecha'); if (f) f.value = S.diario.fecha; const s = $('diaSuc'); if (s) s.value = branch;
 }
-
-/* ── HISTORIAL (gerente) ── */
-async function vHistorial() {
-  let h = '<div class="sec"><h2>📅 Historial</h2><p>Un renglón por día con su eficiencia. Toca un día para ver el detalle.</p></div>' +
-    '<div class="controls"><input class="inp" type="month" id="histMes" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vHistorial()"><button class="btn btn-sec" onclick="S.filtroMes=\'\';vHistorial()">Últimos 60 días</button><button class="btn btn-sec" onclick="exportar(' + S.branch + ')">📥 Excel</button></div>';
-  M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
-  const dias = S.filtroMes ? await diasDe(S.branch, S.filtroMes) : await diasDe(S.branch, null, 60);
-  if (!dias.length) { M().innerHTML = h + '<div class="vacio">No hay registros en este periodo.</div>'; return; }
-  const prom = {}; CATS.forEach(k => { const vs = dias.map(x => effDeDia(x)[k]).filter(v => v != null); prom[k] = vs.length ? Math.round(vs.reduce((a, b) => a + b, 0) / vs.length) : null; });
-  const gen = dias.filter(x => x.estado === 'autogenerado').length;
-  h += '<div class="grid">' + CATS.map(k => '<div class="stat ' + (prom[k] == null ? '' : prom[k] >= 95 ? 'ok' : prom[k] >= 90 ? 'warn' : 'bad') + '"><div class="k">Promedio ' + CAT_LABEL[k] + '</div><div class="v num">' + (prom[k] == null ? '—' : prom[k] + '%') + '</div><div class="s">' + dias.length + ' días</div></div>').join('') + '<div class="stat ' + (gen ? 'bad' : 'ok') + '"><div class="k">Días generados sin captura</div><div class="v num">' + gen + '</div><div class="s">se rellenan en ceros a la 1:30 pm</div></div></div>';
-  h += '<div class="lista">' + dias.map(x => { const e = effDeDia(x); const id = 'h_' + x.fecha.replace(/-/g, '');
-    return '<div class="dia"><button onclick="toggleDia(\'' + id + '\',' + S.branch + ',\'' + x.fecha + '\')"><span class="f">' + fmtDia(x.fecha) + ' <span class="hint">' + x.fecha.slice(0, 4) + '</span></span><span style="display:flex;gap:6px;flex-wrap:wrap">' + (x.estado === 'autogenerado' ? '<span class="badge b-bad">Generado</span>' : '') + CATS.map(k => efChip(e[k], CAT_LABEL[k].slice(0, 1))).join('') + '</span></button><div class="det" id="' + id + '" hidden><div class="loading">Cargando…</div></div></div>'; }).join('') + '</div>';
-  M().innerHTML = h;
-}
-async function toggleDia(id, branch, fecha) { const el = $(id); if (!el) return; if (!el.hidden) { el.hidden = true; return; } el.hidden = false; if (el.dataset.ok) return; const d = await diaDe(branch, fecha); el.innerHTML = d.error ? '<div class="vacio">Sin datos</div>' : diaHTML(d); el.dataset.ok = '1'; }
 
 /* ── PANEL (administración y asesores) ── */
 function waLink(msg) { return 'https://api.whatsapp.com/send?text=' + encodeURIComponent(msg); }
 async function vPanel() {
-  let h = '<div class="sec"><h2>📊 Panel</h2><p>Qué tienda necesita atención hoy. Datos de la app sincronizados cada madrugada; el inventario general es del portal.</p></div>';
+  let h = '<div class="vista-hdr"><div><h2>📊 Panel</h2><p>Qué tienda necesita atención hoy. Datos de la app sincronizados cada madrugada; el inventario general es del portal.</p></div></div>';
   M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
   const p = await api('inv_panel', { mes: S.filtroMes || null });
   if (p.error) { M().innerHTML = h + '<div class="vacio">' + esc(p.detalle || p.error) + '</div>'; return; }
@@ -534,30 +615,29 @@ async function vPanel() {
     '<div class="stat ' + (ef7 == null ? '' : ef7 >= 95 ? 'ok' : ef7 >= 90 ? 'warn' : 'bad') + '"><div class="k">Eficiencia de guisos · 7 días</div><div class="v num">' + (ef7 == null ? '—' : ef7 + '%') + '</div><div class="s">' + T.filter(s => (est(s).ef_7 || {}).guiso != null && est(s).ef_7.guiso < 90).length + ' tiendas por debajo de 90 %</div></div>' +
     '<div class="stat lem"><div class="k">Valor del stock · este mes</div><div class="v num">' + money(stock) + '</div><div class="s">' + conGen.length + ' de ' + T.length + ' tiendas con inventario general este mes</div></div>' +
     '<div class="stat ' + (esCierre ? 'warn' : '') + '"><div class="k">Cierre de mes</div><div class="v num">' + (esCierre ? contaronCierre + ' / ' + T.length : diasCierre + ' días') + '</div><div class="s">' + (esCierre ? 'tiendas con conteo de hoy, ' + fmtDia(p.fin_mes) : 'próximo cierre ' + fmtDia(p.fin_mes) + ' · el anterior (' + fmtDia(p.fin_mes_anterior) + ') lo contaron ' + contaronCierre + ' de ' + T.length) + '</div></div></div>';
-  h += '<div class="tbl"><table><thead><tr><th>Tienda</th><th>Diario</th><th>Eficiencia 7 días</th><th>Inventario general</th><th>Alertas</th><th></th></tr></thead><tbody>' + T.map(s => { const e = est(s); const e7 = e.ef_7 || {}; const ug = e.ultimo_general; const nombre = corto(s.corto || s.nombre);
-    const diario = e.sin_actividad ? '<span class="badge b-gris">Sin actividad</span>' + (e.ultimo_diario ? '<div class="hint">' + fmtFecha(e.ultimo_diario) + '</div>' : '') : (e.al_dia ? '<span class="badge b-ok">Al día</span><div class="hint">' + fmtDia(e.ultimo_diario) + '</div>' : '<span class="badge b-bad">Falta ' + fmtDia(e.dia_esperado) + '</span><div class="hint">último: ' + (e.ultimo_diario ? fmtDia(e.ultimo_diario) + (e.ultimo_diario_estado === 'autogenerado' ? ' (generado)' : '') : '—') + '</div>');
-    const al = []; if (num(e.generados_mes)) al.push('<span class="badge b-warn">' + e.generados_mes + ' generado' + (e.generados_mes === 1 ? '' : 's') + ' este mes</span>'); if (ug && num(ug.sin_precio)) al.push('<span class="badge b-warn">' + ug.sin_precio + ' sin precio</span>'); if ((e7.postre != null && e7.postre < 90) || (e7.bebida != null && e7.bebida < 90)) al.push('<span class="badge b-bad">eficiencia baja</span>');
+  h += '<div class="tbl"><table class="simple"><thead><tr><th>Tienda</th><th>Diario</th><th>Eficiencia 7 días</th><th>Inventario general</th><th>Alertas</th><th></th></tr></thead><tbody>' + T.map(s => { const e = est(s); const e7 = e.ef_7 || {}; const ug = e.ultimo_general; const nombre = corto(s.corto || s.nombre);
+    const diario = e.sin_actividad ? '<span class="badge mini b-gris">Sin actividad</span>' + (e.ultimo_diario ? '<div class="hint">' + fmtFecha(e.ultimo_diario) + '</div>' : '') : (e.al_dia ? '<span class="badge mini b-ok">Al día</span><div class="hint">' + fmtDia(e.ultimo_diario) + '</div>' : '<span class="badge mini b-bad">Falta ' + fmtDia(e.dia_esperado) + '</span><div class="hint">último: ' + (e.ultimo_diario ? fmtDia(e.ultimo_diario) + (e.ultimo_diario_estado === 'autogenerado' ? ' (generado)' : '') : '—') + '</div>');
+    const al = []; if (num(e.generados_mes)) al.push('<span class="badge mini b-warn">' + e.generados_mes + ' generado' + (e.generados_mes === 1 ? '' : 's') + ' este mes</span>'); if (ug && num(ug.sin_precio)) al.push('<span class="badge mini b-warn">' + ug.sin_precio + ' sin precio</span>'); if ((e7.postre != null && e7.postre < 90) || (e7.bebida != null && e7.bebida < 90)) al.push('<span class="badge mini b-bad">eficiencia baja</span>');
     const msg = 'Hola, ' + nombre + ': no se registró el inventario del ' + fmtFecha(e.dia_esperado) + ' en la app (o quedó generado en ceros). Por favor pasa los datos reales a administración para corregirlo.';
-    return '<tr><td><b>' + esc(nombre) + '</b></td><td>' + diario + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + CATS.map(k => efChip(e7[k], CAT_LABEL[k].slice(0, 1))).join('') + '</span></td><td>' + (ug ? '<b class="num">' + money(ug.total_valor) + '</b><div class="hint">' + fmtDia(ug.fecha) + (e.general_hoy ? ' (hoy)' : '') + '</div>' : '<span class="hint">sin conteo</span>') + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + (al.join('') || '<span class="hint">—</span>') + '</span></td><td style="white-space:nowrap">' + (!e.al_dia && !e.sin_actividad ? '<a class="btn btn-sec btn-sm" target="_blank" rel="noopener" href="' + waLink(msg) + '">💬 WhatsApp</a> ' : '') + '<button class="btn btn-sec btn-sm" onclick="S.diario.branch=' + s.branch_id + ';S.diario.fecha=\'\';irTab(\'diario\')">Ver</button></td></tr>'; }).join('') + '</tbody></table></div>';
+    return '<tr><td><b>' + esc(nombre) + '</b></td><td>' + diario + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + ORDEN_CHIPS.map(k => efChip(e7[k], CAT_LABEL[k].slice(0, 1))).join('') + '</span></td><td>' + (ug ? '<b class="num">' + money(ug.total_valor) + '</b><div class="hint">' + fmtDia(ug.fecha) + (e.general_hoy ? ' (hoy)' : '') + '</div>' : '<span class="hint">sin conteo</span>') + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + (al.join('') || '<span class="hint">—</span>') + '</span></td><td style="white-space:nowrap">' + (!e.al_dia && !e.sin_actividad ? '<a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink(msg) + '">💬 WhatsApp</a> ' : '') + '<button class="btn btn-sm" onclick="S.diario.branch=' + s.branch_id + ';S.diario.fecha=\'\';irTab(\'diario\')">Ver</button></td></tr>'; }).join('') + '</tbody></table></div>';
   const ag = p.autogenerados || [];
-  h += '<div class="card"><div class="row"><h3 style="margin:0">Días generados sin captura' + (S.filtroMes ? ' · ' + S.filtroMes : ' · todos') + '</h3><div class="controls" style="margin:0"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vPanel()"><button class="btn btn-sec btn-sm" onclick="exportar(null)">📥 Excel global</button></div></div>' +
-    (ag.length ? '<div class="lista" style="margin-top:10px">' + ag.slice(0, 40).map(a => '<div class="row" style="border-bottom:1px solid var(--border);padding:6px 0"><span>🏪 <b>' + esc(a.sucursal || '') + '</b> · ' + fmtFecha(a.fecha) + '</span><a class="btn btn-sec btn-sm" target="_blank" rel="noopener" href="' + waLink('Hola, no se registró el inventario de ' + (a.sucursal || '') + ' del ' + fmtFecha(a.fecha) + '. El sistema lo generó en ceros. Por favor pasar los datos reales a administración para corregirlo.') + '">💬 WhatsApp</a></div>').join('') + (ag.length > 40 ? '<div class="hint">…y ' + (ag.length - 40) + ' más</div>' : '') + '</div>' : '<div class="hint" style="margin-top:8px">Ninguno en este periodo.</div>') + '</div>';
+  h += '<div class="card"><div class="row"><h3 style="margin:0">Días generados sin captura' + (S.filtroMes ? ' · ' + S.filtroMes : ' · todos') + '</h3><div class="acciones"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vPanel()"><button class="btn btn-sm" onclick="exportar(null)">⬇︎ Excel global</button></div></div>' +
+    (ag.length ? '<div class="lista" style="margin-top:10px">' + ag.slice(0, 40).map(a => '<div class="row" style="border-bottom:1px solid var(--divider);padding:6px 0"><span>🏪 <b>' + esc(a.sucursal || '') + '</b> · ' + fmtFecha(a.fecha) + '</span><a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink('Hola, no se registró el inventario de ' + (a.sucursal || '') + ' del ' + fmtFecha(a.fecha) + '. El sistema lo generó en ceros. Por favor pasar los datos reales a administración para corregirlo.') + '">💬 WhatsApp</a></div>').join('') + (ag.length > 40 ? '<div class="hint">…y ' + (ag.length - 40) + ' más</div>' : '') + '</div>' : '<div class="hint" style="margin-top:8px">Ninguno en este periodo.</div>') + '</div>';
   M().innerHTML = h;
 }
 
 /* ── VALOR DEL INVENTARIO ── */
 async function vValor() {
   const hoy = todayStr(); if (!S.val.fecha) S.val.fecha = hoy;
-  let h = '<div class="sec"><h2>💰 Valor del inventario</h2><p>Lo que hay en stock a precio de la OC según el inventario general de cada tienda. Si una tienda no contó ese día, se toma su último conteo anterior (⚠️).</p></div>' +
-    '<div class="controls"><input class="inp" type="date" id="valFecha" value="' + esc(S.val.fecha) + '" max="' + hoy + '" onchange="S.val.fecha=this.value;vValor()"><button class="btn btn-sec" onclick="S.val.fecha=todayStr();vValor()">Hoy</button><button class="btn btn-sec" id="btnFinMes">Fin de mes anterior</button><button class="btn btn-primary" onclick="exportarValor()">📥 Excel</button></div>';
+  let h = '<div class="vista-hdr"><div><h2>💰 Valor del inventario</h2><p>Lo que hay en stock a precio de la OC según el inventario general de cada tienda. Si una tienda no contó ese día, se toma su último conteo anterior (⚠️).</p></div><div class="acciones"><input class="inp" type="date" id="valFecha" value="' + esc(S.val.fecha) + '" max="' + hoy + '" onchange="S.val.fecha=this.value;vValor()"><button class="btn btn-sm" onclick="S.val.fecha=todayStr();vValor()">Hoy</button><button class="btn btn-sm" id="btnFinMes">Fin de mes anterior</button><button class="btn btn-primary btn-sm" onclick="exportarValor()">⬇︎ Excel</button></div></div>';
   M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
   const r = await api('inv_general_valor', { fecha: S.val.fecha }); S.val.data = r;
   if (r.error) { M().innerHTML = h + '<div class="vacio">' + esc(r.detalle || r.error) + '</div>'; return; }
   const G = r.grupos || []; const tot = {}; let total = 0, kg = 0, con = 0;
   const rows = (r.sucursales || []).map(s => { const c = !!s.fecha_conteo; if (c) con++; G.forEach(g => { tot[g] = (tot[g] || 0) + num((s.por_grupo || {})[g]); }); total += num(s.total_valor); kg += num(s.kg_guisos);
-    return '<tr class="clic" onclick="S.gen.branch=' + s.branch_id + ';S.gen.fecha=\'' + (s.fecha_conteo || S.val.fecha) + '\';S.gen.abierto=null;irTab(\'contar\')"><td><b>' + esc(corto(s.sucursal)) + '</b></td><td>' + (c ? (s.exacto ? fmtDia(s.fecha_conteo) : '<span class="badge b-warn">⚠️ ' + fmtDia(s.fecha_conteo) + '</span>') : '<span class="hint">sin conteo</span>') + (num(s.sin_precio) ? ' <span class="badge b-warn">' + s.sin_precio + ' sin precio</span>' : '') + '</td>' + G.map(g => '<td class="n">' + (c ? money((s.por_grupo || {})[g] || 0) : '') + '</td>').join('') + '<td class="n"><b>' + (c ? money(s.total_valor) : '') + '</b></td><td class="n">' + (c ? fmt(s.kg_guisos) : '') + '</td></tr>'; }).join('');
-  M().innerHTML = h + '<div class="grid"><div class="stat lem"><div class="k">Total en stock</div><div class="v num">' + money(total) + '</div><div class="s">' + con + ' de ' + (r.sucursales || []).length + ' tiendas con conteo</div></div><div class="stat"><div class="k">Kg de guisos</div><div class="v num">' + fmt(Math.round(kg * 1000) / 1000) + '</div><div class="s">al ' + fmtDia(r.fecha) + '</div></div></div>' +
-    '<div class="tbl"><table><thead><tr><th>Tienda</th><th>Conteo</th>' + G.map(g => '<th class="n">' + esc(g) + '</th>').join('') + '<th class="n">Total</th><th class="n">Kg guisos</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><td colspan="2">TOTAL</td>' + G.map(g => '<td class="n">' + money(tot[g] || 0) + '</td>').join('') + '<td class="n">' + money(total) + '</td><td class="n">' + fmt(Math.round(kg * 1000) / 1000) + '</td></tr></tfoot></table></div><p class="hint">Toca una tienda para ver o corregir su conteo.</p>';
+    return '<tr class="clic" onclick="S.gen.branch=' + s.branch_id + ';S.gen.fecha=\'' + (s.fecha_conteo || S.val.fecha) + '\';S.gen.abierto=null;irTab(\'contar\')"><td><b>' + esc(corto(s.sucursal)) + '</b></td><td>' + (c ? (s.exacto ? fmtDia(s.fecha_conteo) : '<span class="badge mini b-warn">⚠️ ' + fmtDia(s.fecha_conteo) + '</span>') : '<span class="hint">sin conteo</span>') + (num(s.sin_precio) ? ' <span class="badge mini b-warn">' + s.sin_precio + ' sin precio</span>' : '') + '</td>' + G.map(g => '<td class="n">' + (c ? money((s.por_grupo || {})[g] || 0) : '') + '</td>').join('') + '<td class="n"><b>' + (c ? money(s.total_valor) : '') + '</b></td><td class="n">' + (c ? fmt3(s.kg_guisos) : '') + '</td></tr>'; }).join('');
+  M().innerHTML = h + '<div class="grid"><div class="stat lem"><div class="k">Total en stock</div><div class="v num">' + money(total) + '</div><div class="s">' + con + ' de ' + (r.sucursales || []).length + ' tiendas con conteo</div></div><div class="stat"><div class="k">Kg de guisos</div><div class="v num">' + fmt3(Math.round(kg * 1000) / 1000) + '</div><div class="s">al ' + fmtDia(r.fecha) + '</div></div></div>' +
+    '<div class="tbl"><table class="simple"><thead><tr><th>Tienda</th><th>Conteo</th>' + G.map(g => '<th class="n">' + esc(g) + '</th>').join('') + '<th class="n">Total</th><th class="n">Kg guisos</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><td colspan="2">TOTAL</td>' + G.map(g => '<td class="n">' + money(tot[g] || 0) + '</td>').join('') + '<td class="n">' + money(total) + '</td><td class="n">' + fmt3(Math.round(kg * 1000) / 1000) + '</td></tr></tfoot></table></div><p class="hint">Toca una tienda para ver o corregir su conteo.</p>';
   const b = $('btnFinMes'); if (b) b.onclick = () => { S.val.fecha = r.fin_mes_anterior; vValor(); };
 }
 function exportarValor() {
