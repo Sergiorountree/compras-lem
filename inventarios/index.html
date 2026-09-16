@@ -80,6 +80,10 @@ tr.total-row td{background:var(--orl);font-weight:700}
 .aviso{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:10px;padding:10px 12px;font-size:14px;margin:8px 14px}
 .eff-tbl{width:100%;border-collapse:collapse;font-size:.82rem;background:var(--card);border-radius:10px;overflow:hidden;border:1px solid var(--bdr);margin-top:4px;min-width:0}
 .eff-tbl td{padding:7px 10px;border:1px solid var(--bdr)}
+.inp-inv{width:82px;padding:5px 6px;border:1px solid var(--bdr);border-radius:6px;text-align:right;font-size:.82rem;font-family:inherit;background:#fffde7}
+.tot-card{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.tot-card div{background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:9px 11px}
+.tot-card .k{font-size:.72rem;color:var(--mut)}.tot-card .v{font-size:1rem;font-weight:700;color:var(--or)}
 @media(max-width:480px){thead th,td{padding:5px 3px;font-size:.76rem}}
 </style>
 </head>
@@ -125,7 +129,7 @@ window.addEventListener('error', (e) => aviso('Error en la página: ' + e.messag
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
 const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], tab: null,
   vista: (function(){ try { return localStorage.getItem('lem_vista_inv') || 'admin'; } catch(e){ return 'admin'; } })(), gerenteElegido: false,
-  cache: {}, panelOpen: {}, filtroMes: '', filtroSuc: '', efMes: '', capSuc: null, capFecha: '' };
+  cache: {}, panelOpen: {}, filtroMes: '', filtroSuc: '', efMes: '', capSuc: null, capFecha: '', genBranch: null, genFecha: '', genData: null, valFecha: '', valData: null };
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const corto = (n) => String(n || '').replace(' Chihuahua', '');
 function fmtDate(iso) { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; }
@@ -162,7 +166,7 @@ function effHTML(c) {
    además es la ÚNICA ruta para correo_oc (n8n manda el correo). Forzar n8n para diagnóstico:
    localStorage.setItem('lem_api', 'n8n'). ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
+const LECTURAS = new Set(['perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','inv_general','inv_general_valor','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -281,9 +285,9 @@ function sucNombre(b) { const s = S.sucursales.find(x => x.branch_id === Number(
 function buildTabs() {
   const bar = $('tabsBar'); bar.style.display = '';
   let tabs;
-  if (esGerenteVista()) tabs = [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📈 Eficiencias']];
-  else if (esAdminVista()) tabs = [['panel', '📊 Panel'], ['capturar', '✏️ Capturar'], ['efadm', '📈 Eficiencias']];
-  else tabs = [['panel', '📊 Panel'], ['efadm', '📈 Eficiencias']];
+  if (esGerenteVista()) tabs = [['registro', '📋 Registro'], ['general', '📦 Inventario general'], ['hist', '📅 Historial'], ['ef', '📈 Eficiencias']];
+  else if (esAdminVista()) tabs = [['panel', '📊 Panel'], ['general', '📦 Inventario general'], ['valor', '💰 Valor del inventario'], ['capturar', '✏️ Capturar'], ['efadm', '📈 Eficiencias']];
+  else tabs = [['panel', '📊 Panel'], ['general', '📦 Inventario general'], ['valor', '💰 Valor del inventario'], ['efadm', '📈 Eficiencias']];
   if (!S.tab || !tabs.some(t => t[0] === S.tab)) S.tab = tabs[0][0];
   $('tabs').innerHTML = tabs.map(t => '<button class="tab' + (esGerenteVista() ? '' : ' adm-tab') + (S.tab === t[0] ? ' active' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') +
     (vista() === 'gerente' && S.gerenteElegido ? '<button class="tab" onclick="S.gerenteElegido=false;S.tab=null;router()">↔ Otro gerente</button>' : '');
@@ -291,7 +295,7 @@ function buildTabs() {
 function irTab(t) { S.tab = t; buildTabs(); router(); }
 function router() {
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
-  ({ registro: vRegistro, hist: vHistorial, ef: vEficiencia, panel: vPanel, capturar: vCapturar, efadm: vEfAdmin }[S.tab] || vHistorial)();
+  ({ registro: vRegistro, hist: vHistorial, ef: vEficiencia, panel: vPanel, capturar: vCapturar, efadm: vEfAdmin, general: vGeneral, valor: vValor }[S.tab] || vHistorial)();
 }
 function vElegirGerente() {
   $('tabs').innerHTML = '';
@@ -466,6 +470,121 @@ async function vCapturar() {
 }
 
 /* La configuración (sucursales, productos, usuarios) vivirá en el panel central del portal para todos los módulos. */
+
+/* ── Inventario general (mig. 065, 15-sep-2026): conteo de TODO el catálogo por tienda, con las tablas de la hoja de Sergio.
+   El gerente captura hoy o ayer en su tienda; el administrador cualquier fecha en cualquier tienda; el asesor solo lee.
+   Los números (saldo, valor, totales) los da SQL al guardar; en pantalla se recalculan solo como vista previa. ── */
+const UBIC = { bano: 'Baño María', refri: 'Refrigerador', congelador: 'Congelador', almacen: 'Almacén' };
+const money = (v) => '$' + (Number(v) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const slug = (s) => String(s || '').replace(/\W/g, '');
+const fmtTs = (ts) => ts ? new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+function ayerStr() { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+async function vGeneral() {
+  const hoy = todayStr(); if (!S.genFecha) S.genFecha = hoy;
+  const branch = esGerenteVista() ? S.branch : (S.genBranch || null);
+  let h = '<div class="sec-header"><h2>📦 Inventario general</h2><div style="display:flex;gap:6px;flex-wrap:wrap">' + (esGerenteVista() ? '<span class="badge badge-or">' + esc(corto(sucNombre(branch))) + '</span>' : '') + '<span class="badge badge-date">' + fmtDate(S.genFecha) + '</span></div></div>' +
+    '<div class="nota">Se cuenta todo lo que se compra (mismos productos y precios de la OC): guisos en gramos por ubicación, gorditas y refrescos en piezas, el resto en almacén. Sirve para el pedido a Cadena de Comida y para el cierre de mes (el conteo del último día del mes es el que vale).</div>' +
+    '<div class="hist-controls">' + (esGerenteVista() ? '' : selectorSucAdmin('genSuc', 'S.genBranch=Number(this.value)||null;vGeneral()', false)) +
+    '<input type="date" id="genFecha" value="' + esc(S.genFecha) + '" max="' + hoy + '"' + (esGerenteVista() ? ' min="' + ayerStr() + '"' : '') + ' onchange="S.genFecha=this.value;vGeneral()">' +
+    '<button class="btn btn-sec" onclick="S.genFecha=todayStr();vGeneral()">Hoy</button></div>';
+  if (!branch) { app().innerHTML = h + '<div class="empty-state">Selecciona una sucursal.</div>'; return; }
+  app().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const d = await api('inv_general', { branch_id: branch, fecha: S.genFecha });
+  if (d.error) { app().innerHTML = h + '<div class="empty-state">' + esc(d.detalle || d.error) + '</div>'; return; }
+  S.genData = d; app().innerHTML = h + generalHTML(d); recalcGeneral();
+  const sel = $('genSuc'); if (sel) sel.value = branch;
+}
+function generalHTML(d) {
+  const ed = !!d.puede_editar;
+  const estado = d.existe
+    ? '✅ ' + (d.estado === 'editado' ? 'Corregido' : 'Capturado') + ' por ' + esc(d.capturado_por) + ' el ' + fmtTs(d.capturado_el) + (d.editado_por ? ' · última corrección de ' + esc(d.editado_por) + ' el ' + fmtTs(d.editado_el) : '')
+    : '📝 Sin conteo general del ' + fmtDate(d.fecha) + (ed ? ': captura las cantidades y guarda.' : '.');
+  let h = '<div class="nota" style="background:' + (d.existe ? '#e8f5e9;border-left-color:#1b5e20' : '#fff3e0') + '">' + estado + (ed ? '' : ' <b>Solo lectura</b>' + (esGerenteVista() ? ' (el gerente captura o corrige hoy y ayer; otras fechas las corrige administración).' : '.')) + '</div>';
+  h += '<div class="tot-card" id="genTot"></div>';
+  h += '<div class="action-bar">' + (ed ? '<button class="btn btn-grn" id="btnGenGuardar" onclick="guardarGeneral(this)">💾 Guardar inventario general</button>' : '') + (d.existe ? '<button class="btn btn-sec" onclick="exportarGeneral()">📥 Excel</button>' : '') +
+    ((d.conteos || []).length ? '<span style="font-size:.78rem;color:var(--mut);align-self:center">Conteos anteriores: ' + d.conteos.slice(0, 6).map(x => '<a href="#" onclick="S.genFecha=\'' + x.fecha + '\';vGeneral();return false">' + fmtDate(x.fecha) + '</a>').join(' · ') + '</span>' : '') + '</div>';
+  (d.grupos || []).forEach(g => {
+    const ubs = g.ubicaciones || [];
+    h += '<div class="tbl-wrap"><table style="min-width:560px"><thead><tr><th>' + esc(g.grupo) + '</th><th>U. M.</th>' + ubs.map(u => '<th style="background:#f57f17">' + UBIC[u] + (g.grupo === 'Guisos' ? ' (g)' : '') + '</th>').join('') + '<th>Saldo Final</th><th style="background:#1b5e20">$ en inventario</th></tr></thead><tbody>';
+    (g.lineas || []).forEach(l => { const id = l.inventario_producto_id;
+      h += '<tr data-g="' + esc(g.grupo) + '"><td>' + esc(l.producto) + (l.sin_precio ? ' <span title="sin precio en el catálogo: captura el precio en Compras" style="color:var(--red);font-size:.7rem;font-weight:700">sin precio</span>' : '') + '</td><td>' + esc(l.unidad) + '</td>' +
+        ubs.map(u => '<td class="c-yellow">' + (ed ? '<input class="inp-inv" type="number" inputmode="decimal" min="0" step="any" data-u="' + u + '" data-id="' + id + '" value="' + (d.existe && num(l[u]) ? num(l[u]) : '') + '" oninput="recalcGeneral()">' : (num(l[u]) || '')) + '</td>').join('') +
+        '<td class="c-calc" id="g_sf_' + id + '">' + (d.existe ? fmt(l.saldo_final) : '') + '</td><td class="c-green" id="g_val_' + id + '">' + (l.sin_precio ? '—' : (d.existe ? money(l.valor) : '')) + '</td></tr>'; });
+    h += '</tbody><tfoot><tr class="total-row"><td colspan="' + (2 + ubs.length) + '" style="text-align:right">' + (g.grupo === 'Guisos' ? 'Kg en tienda: <span id="g_kg">' + (d.existe ? fmt(g.total_kg) : '0') + '</span> &nbsp;·&nbsp; ' : '') + '$ total en inventario · ' + esc(g.grupo) + '</td><td></td><td id="g_tv_' + slug(g.grupo) + '">' + money(g.total_valor) + '</td></tr></tfoot></table></div>';
+  });
+  return h;
+}
+function recalcGeneral() {
+  const d = S.genData; if (!d || !$('genTot')) return;
+  const inputs = document.querySelectorAll('input.inp-inv'); const cap = {};
+  inputs.forEach(i => { const id = i.dataset.id; (cap[id] = cap[id] || {})[i.dataset.u] = num(i.value); });
+  const tot = {}; let total = 0, kg = 0;
+  (d.grupos || []).forEach(g => { let tv = 0;
+    (g.lineas || []).forEach(l => { const id = l.inventario_producto_id; const c = cap[id]; let saldo, valor;
+      if (c) { saldo = (g.ubicaciones || []).reduce((a, u) => a + num(c[u]), 0); valor = l.sin_precio ? null : Math.round(saldo * num(l.precio) / (l.unidad === 'g' ? 1000 : 1) * 100) / 100;
+        const sf = $('g_sf_' + id), vl = $('g_val_' + id); if (sf) sf.textContent = fmt(saldo); if (vl) vl.textContent = l.sin_precio ? '—' : money(valor); }
+      else { saldo = num(l.saldo_final); valor = l.sin_precio ? null : num(l.valor); }
+      tv += num(valor); if (g.grupo === 'Guisos') kg += saldo / 1000; });
+    tot[g.grupo] = tv; total += tv; const el = $('g_tv_' + slug(g.grupo)); if (el) el.textContent = money(tv); });
+  const kgEl = $('g_kg'); if (kgEl) kgEl.textContent = fmt(Math.round(kg * 1000) / 1000);
+  $('genTot').innerHTML = '<div><div class="k">$ total en la tienda</div><div class="v">' + money(total) + '</div></div>' + (d.grupos || []).map(g => '<div><div class="k">' + esc(g.grupo) + '</div><div class="v" style="font-size:.9rem">' + money(tot[g.grupo]) + '</div></div>').join('') + '<div><div class="k">Kg de guisos en tienda</div><div class="v" style="font-size:.9rem">' + fmt(Math.round(kg * 1000) / 1000) + '</div></div>';
+}
+async function guardarGeneral(btn) {
+  const d = S.genData; if (!d) return;
+  const lineas = {}; document.querySelectorAll('input.inp-inv').forEach(i => { const id = Number(i.dataset.id); (lineas[id] = lineas[id] || { inventario_producto_id: id })[i.dataset.u] = i.value === '' ? 0 : num(i.value); });
+  const arr = Object.values(lineas); const conDatos = arr.filter(l => ['bano', 'refri', 'congelador', 'almacen'].some(u => num(l[u]) > 0)).length;
+  if (!confirm('¿Guardar el inventario general de ' + corto(sucNombre(d.branch_id)) + ' del ' + fmtDate(d.fecha) + '?' + (conDatos ? '' : '\n\nNo capturaste ninguna cantidad: se guardará todo en cero.'))) return;
+  btn.disabled = true;
+  let r; try { r = await api('inv_general_guardar', { branch_id: d.branch_id, fecha: d.fecha, lineas: arr }); } catch (e) { btn.disabled = false; return; }
+  btn.disabled = false;
+  if (r.error) { alert('No se guardó: ' + (r.detalle || r.error)); return; }
+  S.genData = r; S.cache = {};
+  const cab = app().querySelector('.hist-controls'); const idx = cab ? Array.prototype.indexOf.call(app().children, cab) : -1;
+  const partes = Array.prototype.slice.call(app().children, 0, idx + 1).map(x => x.outerHTML).join('');
+  app().innerHTML = partes + generalHTML(r); recalcGeneral();
+  const sel = $('genSuc'); if (sel) sel.value = r.branch_id;
+  alert('✔ Inventario general guardado: ' + money(r.total_valor) + ' en ' + corto(sucNombre(r.branch_id)) + ' al ' + fmtDate(r.fecha) + '.');
+}
+function exportarGeneral() {
+  const d = S.genData; if (!d || !window.XLSX) { alert('No hay datos o la librería de Excel no cargó.'); return; }
+  const hdr = ['Grupo', 'Producto', 'U.M.', 'Baño María', 'Refrigerador', 'Congelador', 'Almacén', 'Saldo Final', 'Precio', '$ en inventario'];
+  const filas = []; (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => filas.push([g.grupo, l.producto, l.unidad, num(l.bano), num(l.refri), num(l.congelador), num(l.almacen), num(l.saldo_final), l.precio == null ? '' : num(l.precio), l.valor == null ? '' : num(l.valor)])));
+  filas.push(['', 'TOTAL', '', '', '', '', '', '', '', num(d.total_valor)]);
+  const ws = XLSX.utils.aoa_to_sheet([['Sucursal', corto(d.sucursal), 'Fecha', fmtDate(d.fecha), 'Capturado por', d.capturado_por || ''], []].concat([hdr]).concat(filas)); ws['!cols'] = hdr.map((x, i) => ({ wch: i === 1 ? 34 : 13 }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Inventario general');
+  XLSX.writeFile(wb, 'inventario_general_' + corto(d.sucursal).replace(/\s+/g, '_') + '_' + d.fecha + '.xlsx');
+}
+/* ── Valor del inventario (administrador y asesores): todas las tiendas a una fecha ── */
+async function vValor() {
+  const hoy = todayStr(); if (!S.valFecha) S.valFecha = hoy;
+  let h = '<div class="sec-header"><h2>💰 Valor del inventario</h2><span class="badge badge-date">' + fmtDate(S.valFecha) + '</span></div>' +
+    '<div class="nota">Lo que hay en stock a precio de la OC según el inventario general de cada tienda. Si una tienda no contó ese día, se muestra su último conteo anterior (marcado ⚠️). Para el cierre de mes usa el último día natural del mes.</div>' +
+    '<div class="hist-controls"><input type="date" id="valFecha" value="' + esc(S.valFecha) + '" max="' + hoy + '" onchange="S.valFecha=this.value;vValor()"><button class="btn btn-sec" onclick="S.valFecha=todayStr();vValor()">Hoy</button><button class="btn btn-sec" id="btnFinMes">Fin de mes anterior</button><button class="btn btn-adm" onclick="exportarValor()">📥 Excel</button></div>';
+  app().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const r = await api('inv_general_valor', { fecha: S.valFecha }); S.valData = r;
+  if (r.error) { app().innerHTML = h + '<div class="empty-state">' + esc(r.detalle || r.error) + '</div>'; return; }
+  const G = r.grupos || []; const tot = {}; let total = 0, kg = 0, conConteo = 0;
+  let rows = '';
+  (r.sucursales || []).forEach(s => {
+    const con = !!s.fecha_conteo; if (con) conConteo++;
+    G.forEach(g => { tot[g] = (tot[g] || 0) + num((s.por_grupo || {})[g]); }); total += num(s.total_valor); kg += num(s.kg_guisos);
+    rows += '<tr style="cursor:pointer" onclick="S.genBranch=' + s.branch_id + ';S.genFecha=\'' + (s.fecha_conteo || S.valFecha) + '\';irTab(\'general\')"><td>🏪 ' + esc(corto(s.sucursal)) + '</td><td>' + (con ? (s.exacto ? fmtDate(s.fecha_conteo) : '<span style="color:#b26a00">⚠️ ' + fmtDate(s.fecha_conteo) + '</span>') : '<span style="color:var(--mut)">Sin conteo</span>') + (num(s.sin_precio) ? ' <span title="productos contados sin precio" style="color:var(--red);font-size:.7rem">' + s.sin_precio + ' sin precio</span>' : '') + '</td>' +
+      G.map(g => '<td>' + (con ? money((s.por_grupo || {})[g] || 0) : '') + '</td>').join('') + '<td class="c-green" style="font-weight:700">' + (con ? money(s.total_valor) : '') + '</td><td>' + (con ? fmt(s.kg_guisos) : '') + '</td></tr>';
+  });
+  app().innerHTML = h + '<div class="tot-card"><div><div class="k">$ total en stock (' + conConteo + ' de ' + (r.sucursales || []).length + ' tiendas con conteo)</div><div class="v">' + money(total) + '</div></div><div><div class="k">Kg de guisos</div><div class="v">' + fmt(Math.round(kg * 1000) / 1000) + '</div></div></div>' +
+    '<div class="tbl-wrap"><table style="min-width:900px"><thead><tr><th>Sucursal</th><th>Conteo</th>' + G.map(g => '<th>' + esc(g) + '</th>').join('') + '<th style="background:#1b5e20">Total</th><th>Kg guisos</th></tr></thead><tbody>' + rows +
+    '</tbody><tfoot><tr class="total-row"><td colspan="2">TOTAL</td>' + G.map(g => '<td>' + money(tot[g] || 0) + '</td>').join('') + '<td>' + money(total) + '</td><td>' + fmt(Math.round(kg * 1000) / 1000) + '</td></tr></tfoot></table></div>' +
+    '<div style="font-size:.78rem;color:var(--mut)">Da clic en una tienda para ver o corregir su conteo.</div>';
+  const b = $('btnFinMes'); if (b) b.onclick = () => { S.valFecha = r.fin_mes_anterior; vValor(); };
+}
+function exportarValor() {
+  const r = S.valData; if (!r || !window.XLSX) { alert('No hay datos o la librería de Excel no cargó.'); return; }
+  const G = r.grupos || []; const hdr = ['Sucursal', 'Fecha del conteo', 'Exacto'].concat(G).concat(['Total', 'Kg guisos', 'Capturado por']);
+  const filas = (r.sucursales || []).map(s => [corto(s.sucursal), s.fecha_conteo ? fmtDate(s.fecha_conteo) : 'Sin conteo', s.fecha_conteo ? (s.exacto ? 'Sí' : 'No, último anterior') : ''].concat(G.map(g => num((s.por_grupo || {})[g]))).concat([num(s.total_valor), num(s.kg_guisos), s.capturado_por || '']));
+  const ws = XLSX.utils.aoa_to_sheet([['Valor del inventario al', fmtDate(r.fecha)], []].concat([hdr]).concat(filas)); ws['!cols'] = hdr.map(() => ({ wch: 16 }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Valor inventario');
+  XLSX.writeFile(wb, 'valor_inventario_' + r.fecha + '.xlsx');
+}
 
 /* ── Excel ─────────────────────────────────────────────── */
 async function exportar(branch) {
