@@ -38,7 +38,7 @@ a { color: var(--lem); }
 .solo-pc { display: flex; } .solo-tel { display: none; }
 /* pestañas + indicadores */
 .tabs-wrap { background: var(--surface); border-bottom: 1px solid var(--divider); position: sticky; top: 53px; z-index: 55; }
-.tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; padding: 0 16px; }
+.tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; padding: 0 16px; max-width: 1320px; margin: 0 auto; }
 .tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; } .tabs::-webkit-scrollbar { display: none; }
 .tab { position: relative; border: 0; background: transparent; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--text-soft); padding: 13px 12px; white-space: nowrap; }
 .tab.on { color: var(--lem-dark); } .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 3px; background: var(--lem); border-radius: 3px 3px 0 0; }
@@ -50,7 +50,7 @@ a { color: var(--lem); }
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 .badge.mini { font-size: 12px; padding: 2px 8px; }
 /* contenido */
-.main { padding: 0 16px 48px; }
+.main { padding: 0 16px 48px; max-width: 1320px; margin: 0 auto; }   /* mismo ancho del mockup: centrado y legible en monitores grandes */
 .main.con-barra { padding-bottom: 110px; }
 .vista-hdr { padding: 18px 0 12px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; justify-content: space-between; }
 .vista-hdr h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
