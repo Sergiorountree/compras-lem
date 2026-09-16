@@ -87,6 +87,7 @@ table.registro { border-collapse: separate; border-spacing: 0; width: 100%; min-
 .registro tbody td { padding: 9px 10px; text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--divider); background: var(--surface); }
 .registro tbody td.prod { padding: 9px 14px; } .registro tbody tr:last-child td { border-bottom: 0; }
 .registro td.c-consulta { background: var(--consulta); color: var(--text); } .registro td.c-captura { background: var(--captura); font-size: 16px; font-weight: 500; } .registro td.c-auto { background: var(--surface); font-weight: 600; }
+.cap-box { display: inline-block; min-width: 96px; padding: 7px 9px; border: 1.5px solid var(--input-border); border-radius: 7px; background: var(--surface); color: var(--text); font-size: 16px; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
 .registro tr.cat td { font-size: 18px; font-weight: 700; background: var(--band); color: var(--text); padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--divider); border-top: 1px solid var(--divider); }
 .registro tr.cat td.prod { position: sticky; left: 0; z-index: 3; background: var(--band); }
 .registro td.dif { font-weight: 600; }
@@ -373,7 +374,8 @@ async function cargarKpis() {
 
 /* ── Tabla del registro (mockup aprobado): misma pieza para Registro, Historial y Diario ── */
 function unidadTxt(u) { u = String(u || '').toLowerCase(); return u === 'pza' ? 'pza' : u; }
-function tablaRegistroHTML(d) {
+function tablaRegistroHTML(d, cajas) {
+  const cap = (v) => cajas ? '<span class="cap-box">' + fmt(v) + '</span>' : fmt(v);
   const tot = { si: 0, ent: 0, bano: 0, refri: 0, cong: 0, sf: 0, cr: 0, dz: 0 }; let fuera = 0, rows = '';
   CATS.forEach(k => { const ls = (d.lineas || []).filter(l => l.categoria === k); if (!ls.length) return;
     rows += '<tr class="cat"><td class="prod" colspan="11">' + CAT_LABEL[k] + '</td></tr>';
@@ -381,7 +383,7 @@ function tablaRegistroHTML(d) {
       const dg = l.dif_gorditas == null ? null : num(l.dif_gorditas); const alerta = dg != null && Math.abs(dg) > UMBRAL; if (alerta) fuera++;
       rows += '<tr><td class="prod' + (alerta ? ' fila-fuera' : '') + '"><span class="nombre">' + esc(l.producto) + '<span class="unidad">' + esc(unidadTxt(l.unidad)) + '</span></span></td>' +
         '<td class="c-consulta">' + fmt(l.saldo_inicial) + '</td><td class="c-consulta">' + fmt(l.entradas) + '</td>' +
-        '<td class="c-captura">' + fmt(l.bano) + '</td><td class="c-captura">' + fmt(l.refri) + '</td><td class="c-captura">' + fmt(l.congelador) + '</td>' +
+        '<td class="c-captura">' + cap(l.bano) + '</td><td class="c-captura">' + cap(l.refri) + '</td><td class="c-captura">' + cap(l.congelador) + '</td>' +
         '<td class="c-auto">' + fmt(l.saldo_final) + '</td><td class="c-auto">' + fmt(l.consumo_real) + '</td><td class="c-consulta">' + (l.dritzline != null ? fmt(l.dritzline) : '—') + '</td>' +
         '<td class="c-auto dif' + (alerta ? ' fuera' : '') + '">' + (dg == null ? '—' : fmt(dg)) + (alerta ? '<span class="flecha">' + (dg > 0 ? '▲' : '▼') + '</span>' : '') + '</td>' +
         '<td class="c-auto">' + (l.diferencia_g != null ? fmt(l.diferencia_g) : '—') + '</td></tr>'; }); });
@@ -441,7 +443,7 @@ async function vRegistro() {
   if (d.error) { M().innerHTML = h + '<div class="vacio">No hay registro del ' + fmtDia(fecha) + '. El último es del ' + fmtDia(ult.fecha) + '.</div>'; return; }
   let e = null; try { e = await kpisDe(); } catch (x) {}
   const prev = d.anterior ? await diaDe(S.branch, d.anterior) : null;
-  const t = tablaRegistroHTML(d);
+  const t = tablaRegistroHTML(d, true);
   h += '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '</div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vRegistro()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vRegistro()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' +
     '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + leyendaHTML() + t.html + efCardsHTML(d.lineas) +
     '<p class="hint">Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.</p>';
@@ -592,7 +594,7 @@ async function vDiario() {
   if (!S.diario.fecha) { const ds = await diasDe(branch, null, 10); if (!ds.length) { M().innerHTML = h + '<div class="vacio">Esta tienda no tiene registros del diario.</div>'; return; } S.diario.fecha = ds[0].fecha; }
   const d = await diaDe(branch, S.diario.fecha);
   if (d.error) { M().innerHTML = h + '<div class="vacio">No hay registro del ' + fmtDia(S.diario.fecha) + ' en esta tienda.</div>'; const f = $('diaFecha'); if (f) f.value = S.diario.fecha; return; }
-  const t = tablaRegistroHTML(d);
+  const t = tablaRegistroHTML(d, true);
   M().innerHTML = h + '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '<span class="pill">' + fmtLargo(d.fecha) + '</span></div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vDiario()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vDiario()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' + leyendaHTML() + t.html + efCardsHTML(d.lineas);
   const f = $('diaFecha'); if (f) f.value = S.diario.fecha; const s = $('diaSuc'); if (s) s.value = branch;
 }
