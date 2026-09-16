@@ -42,6 +42,8 @@ a { color: var(--lem); }
 .kpis .chip { font-size: 12px; } .kpis .racha { background: var(--lem); color: #fff; }
 th.c-si { background: #827717 !important; color: #fff; } th.c-ent { background: #0d47a1 !important; color: #fff; } th.c-ub { background: #f57f17 !important; color: #fff; } th.c-sf { background: #880e4f !important; color: #fff; } th.c-dz { background: #1b5e20 !important; color: #fff; } th.c-df { background: #4a148c !important; color: #fff; }
 td.f-ger { background: #fffde7 !important; } td.f-adm { background: #e3f2fd !important; } td.f-calc { background: #fce4ec !important; font-weight: 600; color: #880e4f; }
+.ef-tbl td { width: 33.33%; text-align: center; padding: 8px 10px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); } .ef-tbl td:last-child { border-right: none; } .ef-tbl tr:last-child td { border-bottom: none; }
+.ef-lbl { font-size: 12px; font-weight: 600; margin-bottom: 2px; } .ef-val { font-size: 16px; font-variant-numeric: tabular-nums; } .ef-val small { color: var(--text-soft); font-size: 11px; }
 .leyenda { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-soft); margin-bottom: 8px; } .leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong); vertical-align: -2px; margin-right: 4px; }
 .tab { padding: 11px 12px; font-size: 14px; font-weight: 500; color: var(--text-soft); position: relative; cursor: pointer; border: none; background: transparent; white-space: nowrap; }
 .tab.on { color: var(--lem); } .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--lem); border-radius: 2px 2px 0 0; }
@@ -311,8 +313,19 @@ async function cargarKpis() {
 }
 
 /* ── REGISTRO DEL DÍA (gerente): la misma tabla de la app; la captura sigue en la app ── */
+const EF_UNIT = { guiso: 'Kg', postre: 'PZAS', bebida: 'PZAS' };
+function efTablaHTML(c) {
+  const r3 = (v) => fmt(Math.round(v * 1000) / 1000);
+  const fila = (cls, lbl, val) => '<tr>' + CATS.map(k => '<td><div class="ef-lbl" style="color:' + cls + '">' + lbl(k) + '</div><div class="ef-val">' + val(k) + '</div></td>').join('') + '</tr>';
+  return '<div class="card"><h3>Eficiencia del día</h3><div class="tbl" style="margin:0"><table class="ef-tbl" style="min-width:480px"><tbody>' +
+    fila('#2e7d32', k => 'Total ' + CAT_LABEL[k] + ' ' + EF_UNIT[k] + ' vendidos', k => '<b>' + r3(c[k].vend) + '</b> <small>' + EF_UNIT[k] + '</small>') +
+    fila('#1565c0', k => 'Total ' + CAT_LABEL[k] + ' ' + EF_UNIT[k] + ' consumo', k => '<b>' + r3(c[k].cons) + '</b> <small>' + EF_UNIT[k] + '</small>') +
+    fila('#e65100', k => 'Diferencia ' + CAT_LABEL[k] + ' ' + EF_UNIT[k], k => { const dif = Math.round((c[k].vend - c[k].cons) * 1000) / 1000; return '<b style="color:' + (dif >= 0 ? 'var(--ok)' : 'var(--bad)') + '">' + fmt(dif) + '</b> <small>' + EF_UNIT[k] + '</small>'; }) +
+    fila('#6a1b9a', k => 'Eficiencia ' + CAT_LABEL[k], k => { const ef = c[k].cons > 0 ? Math.round(c[k].vend / c[k].cons * 100) : null; return '<span class="badge ' + semClase(ef) + '" style="font-size:16px;padding:4px 10px">' + (ef == null ? '—' : ef + '%') + '</span>'; }) +
+    '</tbody></table></div></div>';
+}
 function registroHTML(d) {
-  const { e } = calcEff(d.lineas); const tot = { si: 0, ent: 0, bano: 0, refri: 0, cong: 0, sf: 0, cr: 0, dz: 0 };
+  const { c } = calcEff(d.lineas); const tot = { si: 0, ent: 0, bano: 0, refri: 0, cong: 0, sf: 0, cr: 0, dz: 0 };
   let rows = '';
   CATS.forEach(k => { const ls = (d.lineas || []).filter(l => l.categoria === k); if (!ls.length) return;
     rows += '<tr class="cat-hdr"><td colspan="12">' + CAT_LABEL[k] + '</td></tr>';
@@ -321,7 +334,7 @@ function registroHTML(d) {
   return '<div class="leyenda"><span><i style="background:#fffde7"></i>Gerente</span><span><i style="background:#e3f2fd"></i>Admin</span><span><i style="background:#fce4ec"></i>Calculado</span>' + (d.estado === 'autogenerado' ? '<span class="badge b-bad">Generado sin captura</span>' : '<span class="badge b-ok">Capturado ' + esc(d.capturado_por || '') + '</span>') + '</div>' +
     '<div class="tbl compacta"><table style="min-width:960px"><thead><tr><th>Producto</th><th>Unidad</th><th class="n c-si">Saldo Inicial</th><th class="n c-ent">Entrada</th><th class="n c-ub">Baño María</th><th class="n c-ub">Refrigerador</th><th class="n c-ub">Congelador</th><th class="n c-sf">Saldo Final</th><th class="n c-sf">Consumo Real</th><th class="n c-dz">Dritzline</th><th class="n c-df">Df. Teórica</th><th class="n c-df">Diferencia (g)</th></tr></thead><tbody>' + rows +
     '</tbody><tfoot><tr><td colspan="2">TOTAL</td><td class="n">' + fmt(tot.si) + '</td><td class="n">' + fmt(tot.ent) + '</td><td class="n">' + fmt(tot.bano) + '</td><td class="n">' + fmt(tot.refri) + '</td><td class="n">' + fmt(tot.cong) + '</td><td class="n">' + fmt(tot.sf) + '</td><td class="n">' + fmt(tot.cr) + '</td><td class="n">' + fmt(tot.dz) + '</td><td></td><td></td></tr></tfoot></table></div>' +
-    '<div class="card"><h3>Eficiencia del día</h3><div class="sem" style="max-width:420px">' + CATS.map(k => '<div class="' + semClase(e[k]) + '"><b>' + (e[k] == null ? '—' : e[k] + '%') + '</b><span>' + CAT_LABEL[k] + '</span></div>').join('') + '</div></div>';
+    efTablaHTML(c);
 }
 async function vRegistro() {
   M().className = 'main'; M().innerHTML = '<div class="loading">Cargando…</div>';
