@@ -36,7 +36,13 @@ a { color: var(--lem); }
 .solo-pc { display: flex; } .solo-tel { display: none; }
 /* pestañas */
 .tabs-wrap { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 49px; z-index: 50; }
+.tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .tabs { display: flex; gap: 2px; padding: 0 12px; overflow-x: auto; scrollbar-width: none; } .tabs::-webkit-scrollbar { display: none; }
+.kpis { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 6px 12px; }
+.kpis .chip { font-size: 12px; } .kpis .racha { background: var(--lem); color: #fff; }
+th.c-si { background: #827717 !important; color: #fff; } th.c-ent { background: #0d47a1 !important; color: #fff; } th.c-ub { background: #f57f17 !important; color: #fff; } th.c-sf { background: #880e4f !important; color: #fff; } th.c-dz { background: #1b5e20 !important; color: #fff; } th.c-df { background: #4a148c !important; color: #fff; }
+td.f-ger { background: #fffde7 !important; } td.f-adm { background: #e3f2fd !important; } td.f-calc { background: #fce4ec !important; font-weight: 600; color: #880e4f; }
+.leyenda { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-soft); margin-bottom: 8px; } .leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong); vertical-align: -2px; margin-right: 4px; }
 .tab { padding: 11px 12px; font-size: 14px; font-weight: 500; color: var(--text-soft); position: relative; cursor: pointer; border: none; background: transparent; white-space: nowrap; }
 .tab.on { color: var(--lem); } .tab.on::after { content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--lem); border-radius: 2px 2px 0 0; }
 /* contenido */
@@ -257,7 +263,7 @@ function selSuc(id, valor, onchange, todas) { return '<select class="inp" id="' 
 
 /* ── Cabecera, pestañas y ruteo ── */
 function tabsDe() {
-  if (esGerente()) return [['hoy', '☀️ Hoy'], ['contar', '📦 Contar'], ['diario', '📋 Diario'], ['hist', '📅 Historial']];
+  if (esGerente()) return [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📈 Eficiencias'], ['contar', '📦 Inventario general']];
   if (esAdmin()) return [['panel', '📊 Panel'], ['contar', '📦 Contar'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
   return [['panel', '📊 Panel'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
 }
@@ -280,39 +286,66 @@ function pintar() {
     h += '<div class="main"><div class="card"><h3>¿Qué gerente quieres ser?</h3><p class="hint" style="margin-bottom:10px">Verás exactamente lo que ve ese gerente: solo su tienda.</p><div class="lista">' + S.sucursales.map(s => '<button class="btn btn-sec" style="justify-content:flex-start" onclick="elegirGerente(' + s.branch_id + ')">🏪 ' + esc(corto(s.nombre)) + '</button>').join('') + '</div></div></div>';
     app().innerHTML = h; return;
   }
-  h += '<div class="tabs-wrap"><div class="tabs">' + tabs.map(t => '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + (vista() === 'gerente' ? '<button class="tab" onclick="S.gerenteElegido=false;S.tab=null;pintar()">↔ Otro gerente</button>' : '') + '</div></div>' +
+  h += '<div class="tabs-wrap"><div class="tabs-row"><div class="tabs">' + tabs.map(t => '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + (vista() === 'gerente' ? '<button class="tab" onclick="S.gerenteElegido=false;S.tab=null;pintar()">↔ Otro gerente</button>' : '') + '</div>' + (esGerente() ? '<div class="kpis" id="kpis"></div>' : '') + '</div></div>' +
     '<main class="main" id="main"><div class="loading">Cargando…</div></main>';
-  app().innerHTML = h; router();
+  app().innerHTML = h; if (esGerente()) cargarKpis(); router();
 }
-function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.tab = 'hoy'; S.cache = {}; pintar(); }
+function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.tab = 'registro'; S.cache = {}; S.kpis = null; pintar(); }
 function irTab(t) { S.tab = t; pintar(); }
-function router() { ({ hoy: vHoy, contar: vContar, diario: vDiario, hist: vHistorial, panel: vPanel, valor: vValor }[S.tab] || vHoy)(); }
+function router() { ({ registro: vRegistro, contar: vContar, diario: vDiario, hist: vHistorial, ef: vEficiencia, panel: vPanel, valor: vValor }[S.tab] || vRegistro)(); }
 const M = () => $('main');
 
 /* ── Datos con caché ── */
 async function diasDe(branch, mes, dias) { const k = branch + '|' + (mes || ('d' + (dias || 60))); if (!S.cache[k]) S.cache[k] = (await api('inv_dias', { branch_id: branch, mes: mes || null, dias: dias || 60 })).dias; return S.cache[k]; }
 async function diaDe(branch, fecha) { const k = 'dia|' + branch + '|' + fecha; if (!S.cache[k]) S.cache[k] = await api('inv_dia', { branch_id: branch, fecha }); return S.cache[k]; }
 
-/* ── HOY (gerente) ── */
-async function vHoy() {
+/* ── Indicadores del gerente (racha de días en verde y eficiencias del día anterior), como los pidió Sergio el 16-sep ── */
+async function cargarKpis() {
+  const el = $('kpis'); if (!el || !S.branch) return;
+  if (!S.kpis || S.kpis.branch !== S.branch) { try { S.kpis = Object.assign({ branch: S.branch }, await api('inv_hoy', { branch_id: S.branch })); } catch (e) { return; } }
+  const e = S.kpis; if (e.error) { el.innerHTML = ''; return; }
+  const r = e.racha_verde || {}, ea = e.ef_ayer || {};
+  el.innerHTML = '<span class="chip racha" title="Días seguidos con eficiencia de guisos de 95 % o más (récord: ' + (r.record || 0) + ')">🔥 Racha en verde: ' + (r.actual || 0) + ' día' + (r.actual === 1 ? '' : 's') + (r.record ? ' <span style="opacity:.75;font-weight:400">· récord ' + r.record + '</span>' : '') + '</span>' +
+    '<span class="hint">' + (e.ultimo_diario ? 'Ayer (' + fmtDia(e.ultimo_diario) + '):' : 'Día anterior:') + '</span>' + efChip(ea.guiso, 'Guisos') + efChip(ea.bebida, 'Bebidas') + efChip(ea.postre, 'Postres');
+}
+
+/* ── REGISTRO DEL DÍA (gerente): la misma tabla de la app; la captura sigue en la app ── */
+function registroHTML(d) {
+  const { e } = calcEff(d.lineas); const tot = { si: 0, ent: 0, bano: 0, refri: 0, cong: 0, sf: 0, cr: 0, dz: 0 };
+  let rows = '';
+  CATS.forEach(k => { const ls = (d.lineas || []).filter(l => l.categoria === k); if (!ls.length) return;
+    rows += '<tr class="cat-hdr"><td colspan="12">' + CAT_LABEL[k] + '</td></tr>';
+    ls.forEach(l => { tot.si += num(l.saldo_inicial); tot.ent += num(l.entradas); tot.bano += num(l.bano); tot.refri += num(l.refri); tot.cong += num(l.congelador); tot.sf += num(l.saldo_final); tot.cr += num(l.consumo_real); tot.dz += num(l.dritzline);
+      rows += '<tr><td>' + esc(l.producto) + '</td><td>' + esc(l.unidad) + '</td><td class="n f-adm">' + fmt(l.saldo_inicial) + '</td><td class="n f-adm">' + fmt(l.entradas) + '</td><td class="n f-ger">' + fmt(l.bano) + '</td><td class="n f-ger">' + fmt(l.refri) + '</td><td class="n f-ger">' + fmt(l.congelador) + '</td><td class="n f-calc">' + fmt(l.saldo_final) + '</td><td class="n f-calc">' + fmt(l.consumo_real) + '</td><td class="n f-adm">' + (l.dritzline != null ? fmt(l.dritzline) : '—') + '</td><td class="n f-calc">' + (l.dif_gorditas != null ? fmt(l.dif_gorditas) : '—') + '</td><td class="n f-calc">' + (l.diferencia_g != null ? fmt(l.diferencia_g) : '—') + '</td></tr>'; }); });
+  return '<div class="leyenda"><span><i style="background:#fffde7"></i>Gerente</span><span><i style="background:#e3f2fd"></i>Admin</span><span><i style="background:#fce4ec"></i>Calculado</span>' + (d.estado === 'autogenerado' ? '<span class="badge b-bad">Generado sin captura</span>' : '<span class="badge b-ok">Capturado ' + esc(d.capturado_por || '') + '</span>') + '</div>' +
+    '<div class="tbl compacta"><table style="min-width:960px"><thead><tr><th>Producto</th><th>Unidad</th><th class="n c-si">Saldo Inicial</th><th class="n c-ent">Entrada</th><th class="n c-ub">Baño María</th><th class="n c-ub">Refrigerador</th><th class="n c-ub">Congelador</th><th class="n c-sf">Saldo Final</th><th class="n c-sf">Consumo Real</th><th class="n c-dz">Dritzline</th><th class="n c-df">Df. Teórica</th><th class="n c-df">Diferencia (g)</th></tr></thead><tbody>' + rows +
+    '</tbody><tfoot><tr><td colspan="2">TOTAL</td><td class="n">' + fmt(tot.si) + '</td><td class="n">' + fmt(tot.ent) + '</td><td class="n">' + fmt(tot.bano) + '</td><td class="n">' + fmt(tot.refri) + '</td><td class="n">' + fmt(tot.cong) + '</td><td class="n">' + fmt(tot.sf) + '</td><td class="n">' + fmt(tot.cr) + '</td><td class="n">' + fmt(tot.dz) + '</td><td></td><td></td></tr></tfoot></table></div>' +
+    '<div class="card"><h3>Eficiencia del día</h3><div class="sem" style="max-width:420px">' + CATS.map(k => '<div class="' + semClase(e[k]) + '"><b>' + (e[k] == null ? '—' : e[k] + '%') + '</b><span>' + CAT_LABEL[k] + '</span></div>').join('') + '</div></div>';
+}
+async function vRegistro() {
   M().className = 'main'; M().innerHTML = '<div class="loading">Cargando…</div>';
-  const e = await api('inv_hoy', { branch_id: S.branch });
-  if (e.error) { M().innerHTML = '<div class="vacio">' + esc(e.detalle || e.error) + '</div>'; return; }
-  const ug = e.ultimo_general, ea = e.ef_ayer || {}, e7 = e.ef_7 || {};
-  let diario;
-  if (e.sin_actividad) diario = '<span class="badge b-gris">Sin actividad</span><div class="hint" style="margin-top:6px">' + (e.ultimo_diario ? 'Último registro: ' + fmtFecha(e.ultimo_diario) : 'Esta tienda no tiene registros en la app') + '</div>';
-  else if (e.al_dia) diario = '<span class="badge b-ok">Al día</span><div class="hint" style="margin-top:6px">Último día registrado: ' + fmtDia(e.ultimo_diario) + '. El de ' + fmtDia(e.ayer) + ' se captura en la app hasta la 1:30 pm de hoy y aparece aquí mañana.</div>';
-  else diario = '<span class="badge b-warn">Atrasado</span><div class="hint" style="margin-top:6px">Falta el conteo del ' + fmtDia(e.dia_esperado) + (e.ultimo_diario ? ' (último registrado: ' + fmtDia(e.ultimo_diario) + (e.ultimo_diario_estado === 'autogenerado' ? ', generado en ceros' : '') + ')' : '') + '. Los días sin captura el sistema los genera en ceros: pásalos a administración para corregirlos.</div>';
-  const cierre = e.dias_para_cierre === 0 ? '<div class="nota warn" style="margin:0"><b>Hoy es el cierre de mes.</b> Cuenta todo antes de cerrar la tienda: es el conteo que se usa para el costo del mes.</div>'
-    : '<div class="hint">Cuenta todo el <b>' + fmtLargo(e.fin_mes) + '</b> (faltan ' + e.dias_para_cierre + ' días). Ese conteo es el que se usa para el costo del mes.</div>' + (e.general_fin_mes_anterior ? '<div class="hint" style="margin-top:4px">✔ El cierre del ' + fmtDia(e.fin_mes_anterior) + ' sí se contó.</div>' : '');
-  M().innerHTML = '<div class="sec"><h2>' + esc(corto(e.sucursal)) + '</h2><p>' + fmtLargo(e.hoy) + '</p></div>' +
-    '<div class="grid">' +
-    '<div class="card" style="margin:0"><h3>Conteo diario</h3>' + diario + '<div style="margin-top:10px"><a class="btn btn-sec btn-sm" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">Abrir la app</a></div>' + '</div>' +
-    '<div class="card" style="margin:0"><h3>Eficiencia del último día' + (e.ultimo_diario ? ' · ' + fmtDia(e.ultimo_diario) : '') + '</h3><div class="sem">' + CATS.map(k => '<div class="' + semClase(ea[k]) + '"><b>' + (ea[k] == null ? '—' : Math.round(ea[k]) + '%') + '</b><span>' + CAT_LABEL[k] + '</span></div>').join('') + '</div><div class="hint" style="margin-top:8px">Últimos 7 días: ' + CATS.map(k => CAT_LABEL[k] + ' ' + (e7[k] == null ? '—' : Math.round(e7[k]) + '%')).join(' · ') + '</div></div>' +
-    '<div class="card" style="margin:0"><h3>Inventario general</h3>' + (ug ? '<div class="row"><div><div style="font-size:22px;font-weight:700" class="num">' + money(ug.total_valor) + '</div><div class="hint">' + (e.general_hoy ? 'contado hoy' : 'último conteo: ' + fmtDia(ug.fecha)) + ' · ' + ug.con_cantidad + ' productos con cantidad' + (ug.sin_precio ? ' · <span class="badge b-warn">' + ug.sin_precio + ' sin precio</span>' : '') + '</div></div><button class="btn ' + (e.general_hoy ? 'btn-sec' : 'btn-primary') + '" onclick="S.gen.fecha=\'' + e.hoy + '\';irTab(\'contar\')">' + (e.general_hoy ? 'Ver o corregir' : 'Contar hoy') + '</button></div>' : '<div class="row"><div class="hint">Todavía no hay conteos generales de esta tienda.</div><button class="btn btn-primary" onclick="S.gen.fecha=\'' + e.hoy + '\';irTab(\'contar\')">Contar hoy</button></div>') + '</div>' +
-    '<div class="card" style="margin:0"><h3>Cierre de mes</h3>' + cierre + '</div>' +
-    '<div class="card" style="margin:0"><h3>Pedido a Cadena de Comida</h3><div class="hint">La calculadora de Compras toma tu conteo general más reciente' + (ug ? ' (' + fmtDia(ug.fecha) + ')' : '') + ' como inventario del día. Cuenta antes de pedir.</div><div style="margin-top:10px"><a class="btn btn-sec btn-sm" href="/compras/">Ir a Compras</a></div></div>' +
-    '</div>';
+  const dias = await diasDe(S.branch, null, 10); const ult = dias[0];
+  let h = '<div class="sec"><h2>📋 Registro del Día</h2><div class="controls" style="margin:0"><input class="inp" type="date" id="regFecha" value="' + esc(S.diario.fecha || (ult ? ult.fecha : '')) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vRegistro()"><a class="btn btn-primary btn-sm" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✏️ Capturar hoy en la app</a></div></div>';
+  if (!ult) { M().innerHTML = h + '<div class="vacio">Esta tienda no tiene registros del diario.</div>'; return; }
+  const fecha = S.diario.fecha || ult.fecha;
+  const d = await diaDe(S.branch, fecha);
+  if (d.error) { M().innerHTML = h + '<div class="vacio">No hay registro del ' + fmtDia(fecha) + '. El último es del ' + fmtDia(ult.fecha) + '.</div>'; return; }
+  M().innerHTML = h + '<div class="controls"><button class="btn btn-sec btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vRegistro()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><span class="pill">' + fmtLargo(d.fecha) + '</span><button class="btn btn-sec btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vRegistro()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button><span class="hint">Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.</span></div>' + registroHTML(d);
+}
+
+/* ── EFICIENCIAS (gerente): promedio por mes y detalle diario, como en la app ── */
+async function vEficiencia() {
+  let h = '<div class="sec"><h2>📈 Eficiencias</h2><div class="controls" style="margin:0"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vEficiencia()"><button class="btn btn-sec" onclick="S.filtroMes=\'\';vEficiencia()">Todos los meses</button></div></div>';
+  M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const dias = await diasDe(S.branch, null, 400);
+  const porMes = {}; dias.forEach(x => { const m = x.fecha.slice(0, 7); if (S.filtroMes && m !== S.filtroMes) return; (porMes[m] = porMes[m] || []).push(x); });
+  const meses = Object.keys(porMes).sort().reverse();
+  if (!meses.length) { M().innerHTML = h + '<div class="vacio">No hay datos de eficiencia en este periodo.</div>'; return; }
+  const prom = (arr, k) => { const vs = arr.map(x => effDeDia(x)[k]).filter(v => v != null); return vs.length ? Math.round(vs.reduce((a, b) => a + b, 0) / vs.length) : null; };
+  const nomMes = (m) => ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][Number(m.slice(5, 7)) - 1] + ' ' + m.slice(0, 4);
+  h += '<div class="tbl"><table style="min-width:520px"><thead><tr><th>Mes</th><th>Guisos</th><th>Postres</th><th>Bebidas</th><th class="n">Días</th><th class="n">Verdes en guisos</th></tr></thead><tbody>' + meses.map(m => { const r = porMes[m]; return '<tr><td><b>' + nomMes(m) + '</b></td>' + CATS.map(k => '<td>' + efChip(prom(r, k), '') + '</td>').join('') + '<td class="n">' + r.length + '</td><td class="n">' + r.filter(x => (effDeDia(x).guiso || 0) >= 95).length + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  h += meses.map(m => '<div class="card"><h3>' + nomMes(m) + ' · detalle diario</h3><div class="tbl compacta" style="margin:0"><table style="min-width:420px"><thead><tr><th>Fecha</th><th>Guisos</th><th>Postres</th><th>Bebidas</th></tr></thead><tbody>' + porMes[m].map(x => { const e = effDeDia(x); return '<tr><td>' + fmtDia(x.fecha) + (x.estado === 'autogenerado' ? ' <span class="badge b-bad">generado</span>' : '') + '</td>' + CATS.map(k => '<td>' + efChip(e[k], '') + '</td>').join('') + '</tr>'; }).join('') + '</tbody></table></div></div>').join('');
+  M().innerHTML = h;
 }
 
 /* ── CONTAR (inventario general) ── */
