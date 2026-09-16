@@ -556,11 +556,15 @@ function lineaCalc(l, inv, mod, ped) {
   r.costo = r.final * Number(l.fraccion) * Number(l.precio || 0);
   return r;
 }
+function cabeceraCalcTxt(c) {
+  if (c.modo === 'manual') return 'fechas y consumo capturados por administración el ' + fecha(c.vigente_desde) + ' · valen hasta que llegue el pedido del ' + fMx(c.llega);
+  return 'fechas automáticas: ventas de los últimos ' + c.dias_consumo + ' días cargados' + (c.consumo_al_dia === false && c.ultimo_consumo ? ' <b style="color:var(--ambar)">(ventas cargadas hasta el ' + fMx(c.ultimo_consumo) + ')</b>' : '') + ' · inventario de hoy · el pedido llega en ' + c.dias_proyeccion + ' días y debe cubrir ' + c.dias_cubrir;
+}
 function pintarCalculadora() {
   const d = CALC.data, c = d.config, pm = d.parametros.pct_max || {};
   const v = (id) => CALC.vals[id] || { inv: '', mod: '', ped: '' };
   let h = nav() + '<div class="card hoja" style="overflow-x:auto">' +
-    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><button class="btn mini sec" onclick="leerCalc();vCaptura()">← ' + esc(d.proveedor) + '</button><span style="font-size:15px;font-weight:800">🧮 Calculadora de pedido · ' + esc(d.sucursal.replace(' Chihuahua', '')) + '</span><span class="presu">fechas y consumo capturados por administración el ' + fecha(c.vigente_desde) + '</span></div>' +
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><button class="btn mini sec" onclick="leerCalc();vCaptura()">← ' + esc(d.proveedor) + '</button><span style="font-size:15px;font-weight:800">🧮 Calculadora de pedido · ' + esc(d.sucursal.replace(' Chihuahua', '')) + '</span><span class="presu">' + cabeceraCalcTxt(c) + '</span></div>' +
     '<table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
       '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
       '<tr><td class="k">Del</td><td class="ro">' + fMx(c.del) + '</td></tr><tr><td class="k">Al</td><td class="ro">' + fMx(c.al) + '</td></tr>' +
@@ -657,7 +661,7 @@ async function vCalcAdmin(del, al) {
   let h = nav() + '<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">🧮 Calculadora de ' + esc(CADM.provNombre) + ' · datos por sucursal</b>' +
     '<select onchange="CADM.branch=Number(this.value);vCalcAdmin()" style="font-size:15px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px">' +
     sucs().map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === CADM.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select></div>' +
-    '<div class="presu" style="margin-top:6px">' + (cfg ? 'Vigente desde ' + fecha(cfg.vigente_desde) + ' · capturado por ' + esc(cfg.capturado_por) : '<b style="color:var(--ambar)">Esta sucursal aún no tiene calculadora configurada.</b>') + ' El gerente ve estos datos tal cual y solo captura su inventario.</div></div>';
+    '<div class="presu" style="margin-top:6px">' + adminCabeceraTxt(cfg) + '</div></div>';
   h += '<div class="card hoja"><table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
     '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
     '<tr><td class="k">Del</td><td class="in"><input type="date" id="a_del" value="' + f.del + '" onchange="vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)"></td></tr>' +
@@ -676,9 +680,23 @@ async function vCalcAdmin(del, al) {
   d.lineas.forEach(l => { h += '<tr><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n">' + num(l.consumo) + '</td><td class="n">' + num(l.promedio_sql, 4) + '</td>' +
     '<td class="in"><input type="number" step="0.0001" min="0" id="a_c' + l.proveedor_insumo_id + '" value="' + (l.promedio_cfg != null ? l.promedio_cfg : l.promedio_sql) + '"></td></tr>'; });
   h += '</table></div>' +
-    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar para ' + esc((sucs().find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal') + '</button>' +
+    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar cabecera manual para ' + esc((sucs().find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal') + '</button>' +
     '<label style="font-size:13px"><input type="checkbox" id="a_todas"> aplicar también fechas y días a <b>todas</b> las sucursales (presupuesto y consumo se quedan por sucursal)</label><span class="presu" id="a_msg"></span></div></div>';
   app().innerHTML = h;
+}
+function adminCabeceraTxt(cfg) {
+  if (!cfg) return '<b style="color:var(--ambar)">Este proveedor no tiene parámetros de calculadora.</b>';
+  if (cfg.modo === 'manual') return '<b>Cabecera manual</b> capturada por ' + esc(cfg.capturado_por || '') + ' el ' + fecha(cfg.vigente_desde) + ' · vale hasta que llegue el pedido del ' + fMx(cfg.llega) + '; después el portal vuelve solo a las fechas automáticas. El gerente ve estos datos tal cual y solo captura su inventario. <button class="btn mini sec" onclick="quitarCalcConfig(this,false)">Volver a fechas automáticas</button> <button class="btn mini sec" onclick="quitarCalcConfig(this,true)">…en todas las tiendas</button>';
+  return '<b>Fechas automáticas</b> (lo que el gerente ve hoy): consumo del ' + fMx(cfg.del) + ' al ' + fMx(cfg.al) + ' (' + cfg.dias_consumo + ' días' + (cfg.consumo_al_dia === false && cfg.ultimo_consumo ? '; ventas cargadas hasta el ' + fMx(cfg.ultimo_consumo) : '') + '), inventario de hoy, el pedido llega en ' + cfg.dias_proyeccion + ' días y debe cubrir ' + cfg.dias_cubrir + '. Captura abajo solo si este ciclo necesita otra cosa: lo capturado manda hasta el día que llegue ese pedido.';
+}
+async function quitarCalcConfig(btn, todas) {
+  if (!confirm(todas ? '¿Quitar la cabecera manual de todas las tiendas y volver a las fechas automáticas?' : '¿Volver a las fechas automáticas en esta sucursal?')) return;
+  btn.disabled = true;
+  const r = await api('admin_calc_config_quitar', { branch_id: CADM.branch, proveedor_id: CADM.prov, todas: !!todas });
+  btn.disabled = false;
+  if (r.error) { alert('No se pudo: ' + (r.detalle || r.error)); return; }
+  CALC.data = null; await vCalcAdmin();
+  if ($('a_msg')) $('a_msg').textContent = '✔ ' + r.quitadas + ' cabecera' + (r.quitadas === 1 ? '' : 's') + ' manual' + (r.quitadas === 1 ? '' : 'es') + ' quitada' + (r.quitadas === 1 ? '' : 's') + '; el portal usa las fechas automáticas.';
 }
 function admProy() { const el = $('a_proy'); if (el) el.textContent = Math.max(0, difDias($('a_inv').value, $('a_llega').value)); }
 async function guardarCalcConfig(btn) {
@@ -690,14 +708,14 @@ async function guardarCalcConfig(btn) {
     factor_proteccion: Number($('a_factor').value) || 0, dias_cubrir: Number($('a_cubrir').value) || 1, presupuesto_total: $('a_pres').value === '' ? null : Number($('a_pres').value), consumos, todas: $('a_todas').checked });
   btn.disabled = false;
   if (r.error) { alert('No se guardó: ' + (r.detalle || r.error)); return; }
-  $('a_msg').textContent = '✔ Guardado en ' + r.sucursales + ' sucursal' + (r.sucursales === 1 ? '' : 'es') + '.';
-  CALC.data = null;
+  CALC.data = null; await vCalcAdmin();
+  if ($('a_msg')) $('a_msg').textContent = '✔ Cabecera manual guardada en ' + r.sucursales + ' sucursal' + (r.sucursales === 1 ? '' : 'es') + '; vale hasta que llegue ese pedido.';
 }
 function calcParamsHtml(cp) {
   let h = '';
   ((cp && cp.proveedores) || []).forEach(pr => {
     const q = pr.parametros || {}, pm = q.pct_max || {};
-    h += '<div class="card"><b>🧮 Calculadora de ' + esc(pr.nombre_corto) + ' — valores iniciales</b><div class="presu">Con estos valores se abre la calculadora del gerente (él puede cambiar fechas y días en su pantalla, como en la hoja). Cada cambio guarda el anterior con su vigencia.</div>' +
+    h += '<div class="card"><b>🧮 Calculadora de ' + esc(pr.nombre_corto) + ' — valores iniciales</b><div class="presu">Con estos valores el portal arma la cabecera automática de cada tienda: Al = ayer (o el último día con ventas cargadas), Del = los días de consumo hacia atrás, el pedido llega en los días indicados y debe cubrir los días a cubrir. Cada cambio guarda el anterior con su vigencia.</div>' +
       '<div class="form"><label>Días de consumo (historial)<input type="number" id="cp_dc" value="' + esc(q.dias_consumo) + '"></label>' +
       '<label>Días hasta que llega el pedido<input type="number" id="cp_dp" value="' + esc(q.dias_proyeccion) + '"></label>' +
       '<label>Días que debe cubrir el pedido<input type="number" id="cp_cu" value="' + esc(q.dias_cubrir) + '"></label>' +
