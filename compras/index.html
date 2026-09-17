@@ -121,15 +121,20 @@
     .card { border:none; }
   }
 
-/* matriz consumo guisos × tiendas (admin calculadora, mig. 071) */
+/* matriz consumo guisos × tiendas (admin calculadora, mig. 071): encabezado igual al resto de la hoja, celdas blancas,
+   amarillo solo en las capturadas, sin flechas en los números */
 .mtx { border-collapse: collapse; font-size: 12.5px; }
-.mtx th, .mtx td { border: 1px solid var(--borde); padding: 3px 4px; white-space: nowrap; }
-.mtx th { background: #f3f3f3; font-weight: 700; text-align: center; font-size: 11.5px; }
-.mtx td.fija, .mtx th.fija { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; }
-.mtx th.fija { background: #f3f3f3; }
-.mtx td.in { padding: 0; }
-.mtx td.in input { width: 74px; text-align: right; border: none; padding: 5px 4px; font: inherit; background: transparent; }
-.mtx td.cap input { background: #fff3c4; font-weight: 700; }
+.mtx th, .mtx td { border: 1px solid #9a9a9a; padding: 3px 4px; white-space: nowrap; }
+.hoja .mtx th { background: #6d6d6d; color: #fff; font-weight: 700; text-align: center; font-size: 11.5px; }
+.hoja .mtx td.fija, .hoja .mtx th.fija { position: sticky; left: 0; z-index: 1; text-align: left; }
+.hoja .mtx td.fija { background: #fff; }
+.hoja .mtx th.fija { background: #6d6d6d; }
+.hoja .mtx td.in { padding: 0; background: #fff; }
+.hoja .mtx td.in input { width: 74px; text-align: right; border: none; border-radius: 0; padding: 5px 4px; font-size: 13px; font-weight: 400; background: transparent; }
+.hoja .mtx td.cap { background: #fff2cc; }
+.hoja .mtx td.cap input { background: #fff2cc; font-weight: 700; }
+.mtx input::-webkit-outer-spin-button, .mtx input::-webkit-inner-spin-button, input.sf::-webkit-outer-spin-button, input.sf::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mtx input[type=number], input.sf[type=number] { -moz-appearance: textfield; appearance: textfield; }
 </style>
 </head>
 <body>
@@ -694,7 +699,7 @@ async function vCalcAdmin(del, al) {
   tiendas.forEach(t => {
     h += '<tr><td>' + esc(sinChih(t.nombre)) + '</td><td class="der">' + (t.presupuesto != null ? money(t.presupuesto) : '<span style="color:var(--txt2)">sin tope</span>') + '</td>' +
       '<td style="color:var(--txt2)">' + (t.presupuesto_desde ? fMx(t.presupuesto_desde) : '') + '</td>' +
-      '<td class="der"><input type="number" min="0" step="100" inputmode="decimal" id="a_p' + t.branch_id + '" data-orig="' + (t.presupuesto != null ? Number(t.presupuesto) : '') + '" value="' + pendVal(t) + '" oninput="presuCambio(' + t.branch_id + ',this)" style="width:130px;text-align:right;padding:6px;border:1px solid var(--borde);border-radius:6px"></td></tr>';
+      '<td class="der"><input type="number" min="0" step="100" inputmode="decimal" id="a_p' + t.branch_id + '" data-orig="' + (t.presupuesto != null ? Number(t.presupuesto) : '') + '" value="' + pendVal(t) + '" class="sf" oninput="presuCambio(' + t.branch_id + ',this)" style="width:130px;text-align:right;padding:6px;border:1px solid var(--borde);border-radius:6px"></td></tr>';
   });
   h += '</table></div><div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarPresupuestos(this)">Guardar presupuestos</button><span class="presu" id="p_msg"></span></div></div>';
   /* 3) Consumo promedio diario · guisos × las 11 tiendas, un solo guardado */
