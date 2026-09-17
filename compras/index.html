@@ -646,8 +646,9 @@ async function pasarAlPedido(btn) {
   vCaptura();
 }
 
-/* ── Administración de la calculadora (fechas, presupuesto total, consumo promedio) ── */
-const CADM = { branch: null, prov: null, data: null };
+/* ── Administración de la calculadora: fechas para todas las tiendas, presupuestos en lote, consumos por tienda ── */
+const CADM = { branch: null, prov: null, data: null, pend: {} };
+const sinChih = (n) => String(n || '').replace(' Chihuahua', '');
 async function vCalcAdmin(del, al) {
   if (vista() !== 'admin') { location.hash = 'captura'; return; }
   document.body.classList.remove('ancha');
@@ -657,12 +658,12 @@ async function vCalcAdmin(del, al) {
   const d = await api('admin_calc_config', { branch_id: CADM.branch, proveedor_id: CADM.prov, del: del || null, al: al || null });
   if (d.error) { aviso('Calculadora: ' + (d.detalle || d.error)); return; }
   CADM.data = d;
-  const f = d.defaults, cfg = d.config;
-  let h = nav() + '<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">🧮 Calculadora de ' + esc(CADM.provNombre) + ' · datos por sucursal</b>' +
-    '<select onchange="CADM.branch=Number(this.value);vCalcAdmin()" style="font-size:15px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px">' +
-    sucs().map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === CADM.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select></div>' +
-    '<div class="presu" style="margin-top:6px">' + adminCabeceraTxt(cfg) + '</div></div>';
-  h += '<div class="card hoja"><table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
+  const f = d.defaults, cfg = d.config, res = d.resumen || {}, tiendas = d.tiendas || [], nT = tiendas.length;
+  const tienda = (sucs().find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal';
+  let h = nav() + '<div class="card"><b style="font-size:16px">🧮 Calculadora de ' + esc(CADM.provNombre) + '</b>' +
+    '<div class="presu" style="margin-top:6px">' + adminCabeceraTxt(cfg, res) + '</div></div>';
+  /* 1) Fechas y días: una sola captura para todas las tiendas */
+  h += '<div class="card hoja"><div class="bloque"><div class="titulo">Fechas y días · se guardan para las ' + nT + ' sucursales</div></div>' +
     '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
     '<tr><td class="k">Del</td><td class="in"><input type="date" id="a_del" value="' + f.del + '" onchange="vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)"></td></tr>' +
     '<tr><td class="k">Al</td><td class="in"><input type="date" id="a_al" value="' + f.al + '" onchange="vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)"></td></tr>' +
@@ -672,22 +673,40 @@ async function vCalcAdmin(del, al) {
     '<tr><td class="k"># Días de proyección</td><td class="ro" id="a_proy">' + Math.max(0, difDias(f.fecha_inventario, f.llega)) + '</td></tr>' +
     '<tr><td class="k">Factor de protección (días)</td><td class="in"><input type="number" step="0.5" min="0" id="a_factor" value="' + f.factor_proteccion + '"></td></tr>' +
     '<tr><td class="k">Días a cubrir con el pedido</td><td class="in"><input type="number" min="1" id="a_cubrir" value="' + f.dias_cubrir + '"></td></tr></table>' +
-    '</td><td style="border:none;vertical-align:top">' +
-    '<table class="param"><tr><td class="k">Presupuesto Total</td><td class="in"><input type="number" min="0" step="100" id="a_pres" value="' + (f.presupuesto_total || '') + '"></td></tr></table>' +
-    '<div class="presu" style="margin-top:8px">El consumo promedio diario se prellena con las ventas reales del rango (R27). Puedes corregirlo a mano; el valor capturado es el que usa el gerente.</div>' +
-    '</td></tr></table>' +
-    '<div class="bloque"><div class="titulo">Consumo promedio diario · Guisos</div><table style="width:100%"><tr><th>PRODUCTO</th><th>Un</th><th>Consumo del rango</th><th>Promedio diario (ventas)</th><th class="g">Promedio diario capturado</th></tr>';
+    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar para todas las sucursales</button>' +
+    (res.con_manual ? '<button class="btn sec" onclick="quitarCalcConfig(this,true)">Volver a fechas automáticas en todas</button>' : '') +
+    '<span class="presu" id="a_msg"></span></div></div>';
+  /* 2) Presupuesto por sucursal, todas a la vista, un solo guardado */
+  const pendVal = (t) => (CADM.pend[t.branch_id] !== undefined ? CADM.pend[t.branch_id] : (t.presupuesto != null ? Number(t.presupuesto) : ''));
+  h += '<div class="card"><b>Presupuesto por sucursal · por pedido, sin IVA</b>' +
+    '<div class="presu">Escribe los montos que cambien y guarda una sola vez. Vacío o 0 = sin tope. Cada cambio guarda el anterior con su vigencia; la pestaña Presupuestos muestra lo mismo.</div>' +
+    '<div style="overflow-x:auto;margin-top:8px"><table class="oc"><tr><th>Sucursal</th><th class="der">Vigente</th><th>Desde</th><th class="der">Nuevo presupuesto</th></tr>';
+  tiendas.forEach(t => {
+    h += '<tr><td>' + esc(sinChih(t.nombre)) + '</td><td class="der">' + (t.presupuesto != null ? money(t.presupuesto) : '<span style="color:var(--txt2)">sin tope</span>') + '</td>' +
+      '<td style="color:var(--txt2)">' + (t.presupuesto_desde ? fMx(t.presupuesto_desde) : '') + '</td>' +
+      '<td class="der"><input type="number" min="0" step="100" inputmode="decimal" id="a_p' + t.branch_id + '" data-orig="' + (t.presupuesto != null ? Number(t.presupuesto) : '') + '" value="' + pendVal(t) + '" oninput="presuCambio(' + t.branch_id + ',this)" style="width:130px;text-align:right;padding:6px;border:1px solid var(--borde);border-radius:6px"></td></tr>';
+  });
+  h += '</table></div><div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarPresupuestos(this)">Guardar presupuestos</button><span class="presu" id="p_msg"></span></div></div>';
+  /* 3) Consumo promedio diario de una tienda (solo consulta y ajuste puntual) */
+  h += '<div class="card hoja"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>Consumo promedio diario · Guisos de</b>' +
+    '<select onchange="CADM.branch=Number(this.value);vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)" style="font-size:15px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px">' +
+    sucs().map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === CADM.branch ? ' selected' : '') + '>' + esc(sinChih(s.nombre)) + '</option>').join('') + '</select></div>' +
+    '<div class="presu" style="margin-top:6px">Se prellena con las ventas reales del rango (R27) de esa tienda; el gerente usa el valor capturado. Corrige a mano solo si hace falta: al guardar, esa tienda queda con cabecera manual (las fechas de arriba) hasta que llegue el pedido.</div>' +
+    '<div class="bloque"><table style="width:100%"><tr><th>PRODUCTO</th><th>Un</th><th>Consumo del rango</th><th>Promedio diario (ventas)</th><th class="g">Promedio diario capturado</th></tr>';
   d.lineas.forEach(l => { h += '<tr><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n">' + num(l.consumo) + '</td><td class="n">' + num(l.promedio_sql, 4) + '</td>' +
     '<td class="in"><input type="number" step="0.0001" min="0" id="a_c' + l.proveedor_insumo_id + '" value="' + (l.promedio_cfg != null ? l.promedio_cfg : l.promedio_sql) + '"></td></tr>'; });
   h += '</table></div>' +
-    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar cabecera manual para ' + esc((sucs().find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal') + '</button>' +
-    '<label style="font-size:13px"><input type="checkbox" id="a_todas"> aplicar también fechas y días a <b>todas</b> las sucursales (presupuesto y consumo se quedan por sucursal)</label><span class="presu" id="a_msg"></span></div></div>';
+    '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn sec" onclick="guardarConsumos(this)">Guardar consumos de ' + esc(sinChih(tienda)) + '</button><span class="presu" id="c_msg"></span></div></div>';
   app().innerHTML = h;
 }
-function adminCabeceraTxt(cfg) {
+function adminCabeceraTxt(cfg, res) {
   if (!cfg) return '<b style="color:var(--ambar)">Este proveedor no tiene parámetros de calculadora.</b>';
-  if (cfg.modo === 'manual') return '<b>Cabecera manual</b> capturada por ' + esc(cfg.capturado_por || '') + ' el ' + fecha(cfg.vigente_desde) + ' · vale hasta que llegue el pedido del ' + fMx(cfg.llega) + '; después el portal vuelve solo a las fechas automáticas. El gerente ve estos datos tal cual y solo captura su inventario. <button class="btn mini sec" onclick="quitarCalcConfig(this,false)">Volver a fechas automáticas</button> <button class="btn mini sec" onclick="quitarCalcConfig(this,true)">…en todas las tiendas</button>';
-  return '<b>Fechas automáticas</b> (lo que el gerente ve hoy): consumo del ' + fMx(cfg.del) + ' al ' + fMx(cfg.al) + ' (' + cfg.dias_consumo + ' días' + (cfg.consumo_al_dia === false && cfg.ultimo_consumo ? '; ventas cargadas hasta el ' + fMx(cfg.ultimo_consumo) : '') + '), inventario de hoy, el pedido llega en ' + cfg.dias_proyeccion + ' días y debe cubrir ' + cfg.dias_cubrir + '. Captura abajo solo si este ciclo necesita otra cosa: lo capturado manda hasta el día que llegue ese pedido.';
+  res = res || {}; const n = res.tiendas || 0, m = res.con_manual || 0;
+  if (cfg.modo === 'manual') return '<b>Cabecera manual</b> capturada por ' + esc(cfg.capturado_por || '') + ' el ' + fecha(cfg.vigente_desde) + ' · vale hasta que llegue el pedido del ' + fMx(cfg.llega) + '; después el portal vuelve solo a las fechas automáticas. El gerente ve estos datos tal cual y solo captura su inventario.' +
+    (m && m < n ? ' Vigente en <b>' + m + ' de ' + n + '</b> tiendas; las demás usan fechas automáticas.' : (n ? ' Vigente en las ' + n + ' tiendas.' : '')) +
+    (res.cabeceras_distintas > 1 ? ' <b style="color:var(--ambar)">Hay ' + res.cabeceras_distintas + ' cabeceras distintas entre tiendas: guarda de nuevo para unificarlas.</b>' : '');
+  return '<b>Fechas automáticas</b> (lo que el gerente ve hoy): consumo del ' + fMx(cfg.del) + ' al ' + fMx(cfg.al) + ' (' + cfg.dias_consumo + ' días' + (cfg.consumo_al_dia === false && cfg.ultimo_consumo ? '; ventas cargadas hasta el ' + fMx(cfg.ultimo_consumo) : '') + '), inventario de hoy, el pedido llega en ' + cfg.dias_proyeccion + ' días y debe cubrir ' + cfg.dias_cubrir + '. Captura abajo solo si este ciclo necesita otra cosa: lo capturado manda hasta el día que llegue ese pedido.' +
+    (m ? ' <b style="color:var(--ambar)">' + m + ' tienda' + (m === 1 ? '' : 's') + ' con cabecera manual propia</b> (ajuste de consumos).' : '');
 }
 async function quitarCalcConfig(btn, todas) {
   if (!confirm(todas ? '¿Quitar la cabecera manual de todas las tiendas y volver a las fechas automáticas?' : '¿Volver a las fechas automáticas en esta sucursal?')) return;
@@ -699,17 +718,51 @@ async function quitarCalcConfig(btn, todas) {
   if ($('a_msg')) $('a_msg').textContent = '✔ ' + r.quitadas + ' cabecera' + (r.quitadas === 1 ? '' : 's') + ' manual' + (r.quitadas === 1 ? '' : 'es') + ' quitada' + (r.quitadas === 1 ? '' : 's') + '; el portal usa las fechas automáticas.';
 }
 function admProy() { const el = $('a_proy'); if (el) el.textContent = Math.max(0, difDias($('a_inv').value, $('a_llega').value)); }
+function cabeceraForm() {
+  return { del: $('a_del').value, al: $('a_al').value, fecha_inventario: $('a_inv').value, llega: $('a_llega').value, factor_proteccion: Number($('a_factor').value) || 0, dias_cubrir: Number($('a_cubrir').value) || 1 };
+}
 async function guardarCalcConfig(btn) {
-  const d = CADM.data; const consumos = {};
-  d.lineas.forEach(l => { const v = $('a_c' + l.proveedor_insumo_id).value; if (v !== '') consumos[l.proveedor_insumo_id] = Number(v); });
-  if ($('a_del').value > $('a_al').value) { alert('"Del" debe ser antes de "Al".'); return; }
+  const c = cabeceraForm(), n = ((CADM.data || {}).tiendas || []).length || sucs().length;
+  if (c.del > c.al) { alert('"Del" debe ser antes de "Al".'); return; }
+  if (!c.llega) { alert('Falta el día que llega el pedido.'); return; }
+  if (!confirm('¿Guardar estas fechas para las ' + n + ' sucursales?\n\nConsumo del ' + fMx(c.del) + ' al ' + fMx(c.al) + ' · inventario del ' + fMx(c.fecha_inventario) + ' · llega el ' + fMx(c.llega) + ' · cubre ' + c.dias_cubrir + ' días' + (c.factor_proteccion ? ' · protección ' + c.factor_proteccion : '') + '.\nLos consumos capturados de cada tienda se conservan.')) return;
   btn.disabled = true;
-  const r = await api('admin_guardar_calc_config', { branch_id: CADM.branch, proveedor_id: CADM.prov, del: $('a_del').value, al: $('a_al').value, fecha_inventario: $('a_inv').value, llega: $('a_llega').value,
-    factor_proteccion: Number($('a_factor').value) || 0, dias_cubrir: Number($('a_cubrir').value) || 1, presupuesto_total: $('a_pres').value === '' ? null : Number($('a_pres').value), consumos, todas: $('a_todas').checked });
+  const r = await api('admin_guardar_calc_config', Object.assign({ branch_id: CADM.branch, proveedor_id: CADM.prov, todas: true }, c));
   btn.disabled = false;
   if (r.error) { alert('No se guardó: ' + (r.detalle || r.error)); return; }
   CALC.data = null; await vCalcAdmin();
-  if ($('a_msg')) $('a_msg').textContent = '✔ Cabecera manual guardada en ' + r.sucursales + ' sucursal' + (r.sucursales === 1 ? '' : 'es') + '; vale hasta que llegue ese pedido.';
+  if ($('a_msg')) $('a_msg').textContent = '✔ Cabecera guardada en ' + r.sucursales + ' sucursal' + (r.sucursales === 1 ? '' : 'es') + '; vale hasta que llegue el pedido del ' + fMx(c.llega) + '.';
+}
+async function guardarConsumos(btn) {
+  const d = CADM.data, cfg = d.config || {}; const consumos = {};
+  // solo se capturan los que difieren del promedio de ventas o ya estaban capturados; volver al valor de ventas los libera
+  d.lineas.forEach(l => { const v = $('a_c' + l.proveedor_insumo_id).value; if (v !== '' && (Math.abs(Number(v) - Number(l.promedio_sql)) > 1e-9 || (l.promedio_cfg != null && Math.abs(Number(v) - Number(l.promedio_cfg)) > 1e-9))) consumos[l.proveedor_insumo_id] = Number(v); });
+  const tienda = sinChih((sucs().find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal');
+  if (!confirm('¿Guardar los consumos capturados de ' + tienda + '?\n\nEsa tienda queda con cabecera manual (consumo del ' + fMx(cfg.del) + ' al ' + fMx(cfg.al) + ', llega el ' + fMx(cfg.llega) + ') hasta que llegue el pedido.')) return;
+  btn.disabled = true;
+  const r = await api('admin_guardar_calc_config', { branch_id: CADM.branch, proveedor_id: CADM.prov, del: cfg.del, al: cfg.al, fecha_inventario: cfg.fecha_inventario, llega: cfg.llega,
+    factor_proteccion: Number(cfg.factor_proteccion) || 0, dias_cubrir: Number(cfg.dias_cubrir) || 1, consumos, todas: false });
+  btn.disabled = false;
+  if (r.error) { alert('No se guardó: ' + (r.detalle || r.error)); return; }
+  CALC.data = null; await vCalcAdmin();
+  if ($('c_msg')) $('c_msg').textContent = '✔ Consumos de ' + tienda + ' guardados; el gerente ya los ve.';
+}
+function presuCambio(b, inp) { CADM.pend[b] = inp.value; inp.style.borderColor = inp.value === inp.dataset.orig ? 'var(--borde)' : 'var(--ambar)'; }
+async function guardarPresupuestos(btn) {
+  const tiendas = (CADM.data || {}).tiendas || []; const items = [], lineas = [];
+  tiendas.forEach(t => { const inp = $('a_p' + t.branch_id); if (!inp) return; const v = inp.value.trim(), o = inp.dataset.orig;
+    if (v === o || (v === '0' && o === '') || (v === '' && o === '0')) return;
+    if (v !== '' && (isNaN(Number(v)) || Number(v) < 0)) { alert('Revisa el presupuesto de ' + sinChih(t.nombre) + ': debe ser un número sin signo.'); return; }
+    items.push({ branch_id: t.branch_id, monto: v === '' ? null : Number(v) });
+    lineas.push(sinChih(t.nombre) + ': ' + (o === '' ? 'sin tope' : money(Number(o))) + ' → ' + (v === '' || Number(v) === 0 ? 'sin tope' : money(Number(v)))); });
+  if (!items.length) { if ($('p_msg')) $('p_msg').textContent = 'No hay cambios que guardar.'; return; }
+  if (!confirm('¿Guardar ' + items.length + ' presupuesto' + (items.length === 1 ? '' : 's') + ' desde hoy?\n\n' + lineas.join('\n'))) return;
+  btn.disabled = true;
+  const r = await api('admin_guardar_presupuestos', { proveedor_id: CADM.prov, items });
+  btn.disabled = false;
+  if (r.error) { alert('No se guardaron: ' + (r.detalle || r.error)); return; }
+  CADM.pend = {}; CALC.data = null; S.cat = null; await vCalcAdmin();
+  if ($('p_msg')) $('p_msg').textContent = '✔ ' + r.guardados + ' presupuesto' + (r.guardados === 1 ? '' : 's') + ' guardado' + (r.guardados === 1 ? '' : 's') + (r.sin_cambio ? ' (' + r.sin_cambio + ' sin cambio)' : '') + '; vale desde hoy.';
 }
 function calcParamsHtml(cp) {
   let h = '';
