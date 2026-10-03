@@ -313,7 +313,8 @@ function selectorEmpresa() {
 function cambiarEmpresa(v) {
   S.empresa = Number(v); try { localStorage.setItem('lem_empresa', String(S.empresa)); } catch (e) {}
   S.branch = (sucs()[0] || {}).branch_id || null; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.gerenteElegido = false;
-  if (typeof CADM !== 'undefined') CADM.branch = null;
+  if (typeof CADM !== 'undefined') { CADM.branch = null; CADM.prov = null; CADM.provNombre = null; CADM.data = null; CADM.cons = null; CADM.pend = {}; }
+  if (typeof CSUG !== 'undefined') { CSUG.fecha = null; CSUG.data = null; CSUG.abiertas = {}; }
   $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + (S.perfil.roles.includes('admin') ? '<br>' + selectorVista() : '');
   router();
 }
@@ -557,19 +558,22 @@ function leerCalc() {
     CALC.vals[id] = { inv: inv ? inv.value : '', mod: mod ? mod.value : '', ped: ped ? ped.value : '' };
   });
 }
+const redondeoSql = (x) => Math.sign(x) * Math.round(Math.abs(x));   // round() de Postgres: las mitades se alejan de cero
 function lineaCalc(l, inv, mod, ped) {
   const c = CALC.data.config, proy = Number(c.dias_proyeccion), cubrir = Number(c.dias_cubrir), factor = Number(c.factor_proteccion || 0);
   const r = { mod: Number(mod) || 0, ped: ped === '' || ped == null ? null : Number(ped) };
   if (l.promedio != null) {
-    r.prom = Number(l.promedio); r.consProy = r.prom * proy; r.consPed = r.prom * (cubrir + factor);
+    // el guardado en SQL usa el promedio capturado por el admin o consumo ÷ días SIN redondear a 4 decimales: aquí igual
+    r.prom = (l.promedio_manual || l.consumo == null || !Number(c.dias_consumo)) ? Number(l.promedio) : Number(l.consumo) / Number(c.dias_consumo);
+    r.consProy = r.prom * proy; r.consPed = r.prom * (cubrir + factor);
     if (inv !== '' && inv != null) {
       const invU = l.inventario_en === 'gramos' ? Number(inv) / 1000 : Number(inv);
       r.invProy = invU - r.consProy; r.invFinal = r.invProy - r.consPed;
       r.frac = r.invFinal < 0 ? -r.invFinal / Number(l.fraccion) : 0; r.sug = Math.ceil(r.frac - 1e-9);
-      r.final = Math.max(0, r.sug + r.mod);
-    } else { r.sug = null; r.final = Math.max(0, r.mod); }
-  } else { r.final = Math.max(0, (r.ped || 0) + r.mod); }
-  r.costo = r.final * Number(l.fraccion) * Number(l.precio || 0);
+      r.final = Math.max(0, r.sug + redondeoSql(r.mod));
+    } else { r.sug = null; r.final = Math.max(0, redondeoSql(r.mod)); }
+  } else { r.final = Math.max(0, redondeoSql((r.ped || 0) + r.mod)); }
+  r.costo = Math.round(r.final * Number(l.fraccion) * Number(l.precio || 0) * 100) / 100;
   return r;
 }
 function cabeceraCalcTxt(c) {
@@ -710,14 +714,15 @@ async function vCalcAdmin(del, al) {
   else {
     const abrev = (n) => sinChih(n).replace(/^Soriana /, '').replace(/^Plaza /, '');
     h += '<div class="card hoja"><div class="bloque"><div class="titulo">Consumo promedio diario · Guisos · las ' + cm.tiendas.length + ' sucursales</div></div>' +
-      '<div class="presu">Promedio diario por tienda con las ventas reales del rango (R27, del ' + fMx(cm.del) + ' al ' + fMx(cm.al) + ', ' + cm.dias_consumo + ' días); el gerente usa el valor capturado. Corrige solo las celdas que hagan falta: al guardar, esa tienda queda con cabecera manual hasta que llegue el pedido. Amarillo = capturado distinto al de ventas; volver al valor de ventas lo libera. ✎ = tienda con cabecera manual. Pasa el cursor por una celda para ver el consumo del rango.</div>' +
+      '<div class="presu">Promedio diario por tienda con las ventas reales del rango (R27, del ' + fMx(cm.del) + ' al ' + fMx(cm.al) + ', ' + cm.dias_consumo + ' días); el gerente usa el valor capturado. Corrige solo las celdas que hagan falta: al guardar, esa tienda queda con cabecera manual hasta que llegue el pedido. Amarillo = capturado a mano (queda fijo aunque cambien las ventas); para liberarlo, vacía la celda o escribe el valor de ventas. ✎ = tienda con cabecera manual. Pasa el cursor por una celda para ver el consumo del rango.</div>' +
       '<div style="overflow-x:auto;margin-top:8px"><table class="mtx"><tr><th class="fija">PRODUCTO</th><th>Un</th>' +
       cm.tiendas.map(t => '<th title="' + esc(t.nombre) + '">' + esc(abrev(t.nombre)) + (t.modo === 'manual' ? ' ✎' : '') + '</th>').join('') + '</tr>';
     cm.insumos.forEach(i => {
       h += '<tr><td class="fija"><b>' + esc(i.insumo) + '</b></td><td class="c">' + esc(i.unidad || '') + '</td>' + cm.tiendas.map(t => {
-        const v = (t.valores || {})[i.proveedor_insumo_id] || {}; const sql = v.promedio_sql != null ? Number(v.promedio_sql) : null, cfg = v.promedio_cfg != null ? Number(v.promedio_cfg) : null;
-        const cap = cfg != null && sql != null && Math.abs(cfg - sql) > 1e-9;
-        return '<td class="in' + (cap ? ' cap' : '') + '"><input type="number" step="0.0001" min="0" id="m_' + t.branch_id + '_' + i.proveedor_insumo_id + '" data-sql="' + (sql != null ? sql : '') + '" data-cfg="' + (cfg != null ? cfg : '') + '" value="' + (cfg != null ? cfg : (sql != null ? sql : '')) + '" title="' + esc(abrev(t.nombre)) + ' · consumo del rango ' + num(v.consumo) + ' · ventas ' + num(sql, 4) + '" oninput="consCambio(this)"></td>'; }).join('') + '</tr>'; });
+        const v = (t.valores || {})[i.proveedor_insumo_id];
+        if (!v) return '<td class="c" style="color:var(--txt2)" title="' + esc(abrev(t.nombre)) + ' no tiene este insumo en su catálogo">—</td>';
+        const sql = v.promedio_sql != null ? Number(v.promedio_sql) : null, cfg = v.promedio_cfg != null ? Number(v.promedio_cfg) : null;
+        return '<td class="in' + (cfg != null ? ' cap' : '') + '"><input type="number" step="0.0001" min="0" id="m_' + t.branch_id + '_' + i.proveedor_insumo_id + '" data-sql="' + (sql != null ? sql : '') + '" data-cfg="' + (cfg != null ? cfg : '') + '" value="' + (cfg != null ? cfg : (sql != null ? sql : '')) + '" title="' + esc(abrev(t.nombre)) + ' · consumo del rango ' + num(v.consumo) + ' · ventas ' + num(sql, 4) + (cfg != null ? ' · capturado ' + num(cfg, 4) : '') + '" oninput="consCambio(this)"></td>'; }).join('') + '</tr>'; });
     h += '</table></div><div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarConsumosTodas(this)">Guardar consumos de todas las sucursales</button><span class="presu" id="c_msg"></span></div></div>';
   }
   app().innerHTML = h;
@@ -737,6 +742,10 @@ async function vCalcSugerido(fecha) {
   const d = await api('admin_calc_sugerido', { proveedor_id: CADM.prov, fecha: CSUG.fecha });
   if (d.error) { aviso('Pedido sugerido: ' + (d.detalle || d.error)); return; }
   CSUG.data = d; CSUG.fecha = d.fecha || null;
+  pintarSugerido();
+}
+function pintarSugerido() {
+  const d = CSUG.data; if (!d) return;
   const res = d.resumen || {}, tiendas = d.tiendas || [], faltan = d.faltan || [];
   let h = nav() + subnavCalc('sugerido') + '<div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">📦 Pedido sugerido por sucursal · ' + esc(d.proveedor || CADM.provNombre) + '</b>' +
     '<label style="font-size:14px">Inventario general del <select onchange="vCalcSugerido(this.value)" style="font-size:15px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px">' +
@@ -764,7 +773,7 @@ async function vCalcSugerido(fecha) {
   }
   app().innerHTML = h;
 }
-function toggleSug(b) { CSUG.abiertas[b] = !CSUG.abiertas[b]; vCalcSugerido(); }
+function toggleSug(b) { CSUG.abiertas[b] = !CSUG.abiertas[b]; pintarSugerido(); }   // sin volver a consultar las 11 tiendas
 function detalleSugHTML(t) {
   const c = t.config || {};
   let h = '<div class="presu" style="margin-bottom:6px">Consumo del ' + fMx(c.del) + ' al ' + fMx(c.al) + ' (' + c.dias_consumo + ' días) · el pedido llega el ' + fMx(c.llega) + ' (' + c.dias_proyeccion + ' días) y cubre ' + c.dias_cubrir + (Number(c.factor_proteccion) ? ' + ' + c.factor_proteccion + ' de protección' : '') + ' · inventario general del ' + fMx(t.inventario.fecha) + '.</div>' +
@@ -795,10 +804,11 @@ function adminCabeceraTxt(cfg, res) {
 }
 async function quitarCalcConfig(btn, todas) {
   if (!confirm(todas ? '¿Quitar la cabecera manual de todas las tiendas y volver a las fechas automáticas?' : '¿Volver a las fechas automáticas en esta sucursal?')) return;
-  btn.disabled = true;
-  const r = await api('admin_calc_config_quitar', { branch_id: CADM.branch, proveedor_id: CADM.prov, todas: !!todas });
-  btn.disabled = false;
-  if (r.error) { alert('No se pudo: ' + (r.detalle || r.error)); return; }
+  let r; btn.disabled = true;
+  try { r = await api('admin_calc_config_quitar', { branch_id: CADM.branch, proveedor_id: CADM.prov, todas: !!todas }); }
+  catch (e) { return; }                       // api() ya mostró el motivo
+  finally { btn.disabled = false; }
+  if (!r || r.error) { if (r && r.error) alert('No se pudo: ' + (r.detalle || r.error)); return; }
   CALC.data = null; await vCalcAdmin();
   if ($('a_msg')) $('a_msg').textContent = '✔ ' + r.quitadas + ' cabecera' + (r.quitadas === 1 ? '' : 's') + ' manual' + (r.quitadas === 1 ? '' : 'es') + ' quitada' + (r.quitadas === 1 ? '' : 's') + '; el portal usa las fechas automáticas.';
 }
@@ -811,54 +821,74 @@ async function guardarCalcConfig(btn) {
   if (c.del > c.al) { alert('"Del" debe ser antes de "Al".'); return; }
   if (!c.llega) { alert('Falta el día que llega el pedido.'); return; }
   if (!confirm('¿Guardar estas fechas para las ' + n + ' sucursales?\n\nConsumo del ' + fMx(c.del) + ' al ' + fMx(c.al) + ' · inventario del ' + fMx(c.fecha_inventario) + ' · llega el ' + fMx(c.llega) + ' · cubre ' + c.dias_cubrir + ' días' + (c.factor_proteccion ? ' · protección ' + c.factor_proteccion : '') + '.\nLos consumos capturados de cada tienda se conservan.')) return;
-  btn.disabled = true;
-  const r = await api('admin_guardar_calc_config', Object.assign({ branch_id: CADM.branch, proveedor_id: CADM.prov, todas: true }, c));
-  btn.disabled = false;
-  if (r.error) { alert('No se guardó: ' + (r.detalle || r.error)); return; }
+  let r; btn.disabled = true;
+  try { r = await api('admin_guardar_calc_config', Object.assign({ branch_id: CADM.branch, proveedor_id: CADM.prov, todas: true }, c)); }
+  catch (e) { return; }
+  finally { btn.disabled = false; }
+  if (!r || r.error) { if (r && r.error) alert('No se guardó: ' + (r.detalle || r.error)); return; }
   CALC.data = null; await vCalcAdmin();
   if ($('a_msg')) $('a_msg').textContent = '✔ Cabecera guardada en ' + r.sucursales + ' sucursal' + (r.sucursales === 1 ? '' : 'es') + '; vale hasta que llegue el pedido del ' + fMx(c.llega) + '.';
 }
-function consCambio(inp) { const v = inp.value.trim(), sql = inp.dataset.sql; inp.parentElement.classList.toggle('cap', v !== '' && sql !== '' && Math.abs(Number(v) - Number(sql)) > 1e-9); }
-async function guardarConsumosTodas(btn) {
-  const cm = CADM.cons; if (!cm) return;
+function consCambio(inp) { const v = inp.value.trim(), sql = inp.dataset.sql; inp.dataset.tocado = '1'; inp.parentElement.classList.toggle('cap', v !== '' && (sql === '' || Math.abs(Number(v) - Number(sql)) > 1e-9)); }
+/* Arma, por tienda, los consumos que quedan capturados. Reglas: celda vacía = liberar; distinto a ventas = capturar;
+   igual a ventas = liberar si la celda se tocó, conservar si ya estaba capturado y no se tocó; lo capturado que no se ve
+   en la matriz (insumo fuera del catálogo de esa tienda) se conserva. Devuelve null si hay un valor inválido. */
+function consumosDeLaMatriz(cm) {
   const items = [], detalle = [];
+  const igual = (a, b) => { const ka = Object.keys(a).sort(), kb = Object.keys(b).sort(); return ka.length === kb.length && ka.every((k, j) => k === kb[j] && Math.abs(a[k] - b[k]) <= 1e-9); };
   for (const t of cm.tiendas) {
-    const nuevo = {}, previo = {};
+    const previo = {}, nuevo = {};
+    Object.keys(t.consumos_cfg || {}).forEach(k => { previo[k] = Number(t.consumos_cfg[k]); if (!$('m_' + t.branch_id + '_' + k)) nuevo[k] = previo[k]; });
     for (const i of cm.insumos) {
       const inp = $('m_' + t.branch_id + '_' + i.proveedor_insumo_id); if (!inp) continue;
-      const v = inp.value.trim(), sql = inp.dataset.sql, cfg = inp.dataset.cfg;
-      if (cfg !== '' && sql !== '' && Math.abs(Number(cfg) - Number(sql)) > 1e-9) previo[i.proveedor_insumo_id] = Number(cfg);
+      const v = inp.value.trim(), sql = inp.dataset.sql, cfg = inp.dataset.cfg, tocado = inp.dataset.tocado === '1';
       if (v === '') continue;
-      if (isNaN(Number(v)) || Number(v) < 0) { alert('Revisa ' + i.insumo + ' en ' + sinChih(t.nombre) + ': el promedio debe ser un número sin signo.'); return; }
-      if (sql === '' || Math.abs(Number(v) - Number(sql)) > 1e-9) nuevo[i.proveedor_insumo_id] = Number(v);
+      if (isNaN(Number(v)) || Number(v) < 0) { alert('Revisa ' + i.insumo + ' en ' + sinChih(t.nombre) + ': el promedio debe ser un número sin signo.'); return null; }
+      const igualVentas = sql !== '' && Math.abs(Number(v) - Number(sql)) <= 1e-9;
+      if (!igualVentas) nuevo[i.proveedor_insumo_id] = Number(v);
+      else if (cfg !== '' && !tocado) nuevo[i.proveedor_insumo_id] = Number(cfg);
     }
-    if (JSON.stringify(nuevo) === JSON.stringify(previo)) continue;
+    if (igual(nuevo, previo)) continue;
     items.push({ branch_id: t.branch_id, consumos: nuevo });
     const n = Object.keys(nuevo).length; detalle.push(sinChih(t.nombre) + ': ' + (n ? n + ' guiso' + (n === 1 ? '' : 's') + ' capturado' + (n === 1 ? '' : 's') : 'vuelve a ventas'));
   }
-  if (!items.length) { if ($('c_msg')) $('c_msg').textContent = 'No hay cambios que guardar.'; return; }
-  if (!confirm('¿Guardar los consumos capturados de ' + items.length + ' sucursal' + (items.length === 1 ? '' : 'es') + '?\n\n' + detalle.join('\n') + '\n\nEsas tiendas quedan con cabecera manual (sus fechas de hoy) hasta que llegue el pedido.')) return;
-  btn.disabled = true;
-  const r = await api('admin_guardar_consumos', { proveedor_id: CADM.prov, items });
-  btn.disabled = false;
-  if (r.error) { alert('No se guardaron: ' + (r.detalle || r.error)); return; }
+  return { items, detalle };
+}
+async function guardarConsumosTodas(btn) {
+  const cm = CADM.cons; if (!cm) return;
+  const x = consumosDeLaMatriz(cm); if (!x) return;
+  if (!x.items.length) { if ($('c_msg')) $('c_msg').textContent = 'No hay cambios que guardar.'; return; }
+  if (!confirm('¿Guardar los consumos capturados de ' + x.items.length + ' sucursal' + (x.items.length === 1 ? '' : 'es') + '?\n\n' + x.detalle.join('\n') + '\n\nEsas tiendas quedan con cabecera manual (sus fechas de hoy) hasta que llegue el pedido.')) return;
+  let r; btn.disabled = true;
+  try { r = await api('admin_guardar_consumos', { proveedor_id: CADM.prov, items: x.items }); }
+  catch (e) { return; }
+  finally { btn.disabled = false; }
+  if (!r || r.error) { if (r && r.error) alert('No se guardaron: ' + (r.detalle || r.error)); return; }
   CALC.data = null; await vCalcAdmin();
   if ($('c_msg')) $('c_msg').textContent = '✔ Consumos guardados en ' + r.guardadas + ' sucursal' + (r.guardadas === 1 ? '' : 'es') + (r.sin_cambio ? ' (' + r.sin_cambio + ' sin cambio)' : '') + '; los gerentes ya los ven.';
 }
 function presuCambio(b, inp) { CADM.pend[b] = inp.value; inp.style.borderColor = inp.value === inp.dataset.orig ? 'var(--borde)' : 'var(--ambar)'; }
-async function guardarPresupuestos(btn) {
-  const tiendas = (CADM.data || {}).tiendas || []; const items = [], lineas = [];
-  tiendas.forEach(t => { const inp = $('a_p' + t.branch_id); if (!inp) return; const v = inp.value.trim(), o = inp.dataset.orig;
-    if (v === o || (v === '0' && o === '') || (v === '' && o === '0')) return;
-    if (v !== '' && (isNaN(Number(v)) || Number(v) < 0)) { alert('Revisa el presupuesto de ' + sinChih(t.nombre) + ': debe ser un número sin signo.'); return; }
+function presupuestosCambiados(tiendas) {
+  const items = [], lineas = [];
+  for (const t of tiendas) {
+    const inp = $('a_p' + t.branch_id); if (!inp) continue;
+    const v = inp.value.trim(), o = inp.dataset.orig;
+    if (v === o || (v === '0' && o === '') || (v === '' && o === '0')) continue;
+    if (v !== '' && (isNaN(Number(v)) || Number(v) < 0)) { alert('Revisa el presupuesto de ' + sinChih(t.nombre) + ': debe ser un número sin signo. No se guardó ninguno.'); inp.focus(); return null; }
     items.push({ branch_id: t.branch_id, monto: v === '' ? null : Number(v) });
-    lineas.push(sinChih(t.nombre) + ': ' + (o === '' ? 'sin tope' : money(Number(o))) + ' → ' + (v === '' || Number(v) === 0 ? 'sin tope' : money(Number(v)))); });
-  if (!items.length) { if ($('p_msg')) $('p_msg').textContent = 'No hay cambios que guardar.'; return; }
-  if (!confirm('¿Guardar ' + items.length + ' presupuesto' + (items.length === 1 ? '' : 's') + ' desde hoy?\n\n' + lineas.join('\n'))) return;
-  btn.disabled = true;
-  const r = await api('admin_guardar_presupuestos', { proveedor_id: CADM.prov, items });
-  btn.disabled = false;
-  if (r.error) { alert('No se guardaron: ' + (r.detalle || r.error)); return; }
+    lineas.push(sinChih(t.nombre) + ': ' + (o === '' ? 'sin tope' : money(Number(o))) + ' → ' + (v === '' || Number(v) === 0 ? 'sin tope' : money(Number(v))));
+  }
+  return { items, lineas };
+}
+async function guardarPresupuestos(btn) {
+  const x = presupuestosCambiados((CADM.data || {}).tiendas || []); if (!x) return;
+  if (!x.items.length) { if ($('p_msg')) $('p_msg').textContent = 'No hay cambios que guardar.'; return; }
+  if (!confirm('¿Guardar ' + x.items.length + ' presupuesto' + (x.items.length === 1 ? '' : 's') + ' desde hoy?\n\n' + x.lineas.join('\n'))) return;
+  let r; btn.disabled = true;
+  try { r = await api('admin_guardar_presupuestos', { proveedor_id: CADM.prov, items: x.items }); }
+  catch (e) { return; }
+  finally { btn.disabled = false; }
+  if (!r || r.error) { if (r && r.error) alert('No se guardaron: ' + (r.detalle || r.error)); return; }
   CADM.pend = {}; CALC.data = null; S.cat = null; await vCalcAdmin();
   if ($('p_msg')) $('p_msg').textContent = '✔ ' + r.guardados + ' presupuesto' + (r.guardados === 1 ? '' : 's') + ' guardado' + (r.guardados === 1 ? '' : 's') + (r.sin_cambio ? ' (' + r.sin_cambio + ' sin cambio)' : '') + '; vale desde hoy.';
 }
