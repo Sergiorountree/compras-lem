@@ -246,12 +246,19 @@ async function apiN8n(accion, datos) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: S.token, accion, datos: datos || {} })
     });
-  } catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
+  } catch (err) { aviso(LECTURAS.has(accion) ? 'Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.' : 'No se pudo confirmar "' + accion + '" (sin conexión: ' + err.message + '). Revisa el estado antes de volver a intentarlo.'); throw err; }
   if (r.status === 401) { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
-  const j = await r.json();
-  if (j.error) { alert('⚠️ ' + (j.detalle || j.error)); throw new Error(j.error); }
+  // Una respuesta que no es JSON (p.ej. 502/504 de la puerta de n8n) o que no es 2xx tampoco confirma nada: aviso y error sin marca de negocio.
+  const sinConfirmar = (det) => { aviso(LECTURAS.has(accion) ? 'La API no contestó bien (' + det + '). Reintenta en un momento.' : 'No se pudo confirmar "' + accion + '" (' + det + '). Revisa el estado antes de volver a intentarlo.'); return new Error(det); };
+  let j;
+  try { j = await r.json(); } catch (err) { throw sinConfirmar('HTTP ' + r.status); }
+  if (j && j.error) { alert('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
+  if (!r.ok) throw sinConfirmar('HTTP ' + r.status);
   return j;
 }
+/* El servidor contestó que no (dato inválido, sin permiso…): se puede corregir y reintentar. Si NO hubo respuesta (red), no se
+   sabe si se guardó: el botón se queda bloqueado y el aviso pide revisar antes de reintentar, para no duplicar nada. */
+const rechazoDelServidor = (e) => !!(e && e.negocio);
 
 /* ── Login ─────────────────────────────────────────────── */
 function vLogin(msj) {
@@ -455,10 +462,14 @@ function precioDe(id) {
   return it && it.precio ? Number(it.precio) * Number(it.fraccion || 1) : 0;
 }
 async function tocarPrimera() {
-  if (S.reqId || S._iniciando) return;
-  S._iniciando = true; S.t0 = Date.now();
-  try { const r = await api('iniciar', { branch_id: S.branch }); S.reqId = r.req_id; S.folio = r.folio; }
-  finally { S._iniciando = false; }
+  if (S.reqId) return;
+  if (S._iniciando) return S._iniciando;   // ya va un 'iniciar' en camino: se espera ese mismo (enviar() no debe salir con req_id vacío)
+  S.t0 = Date.now();
+  S._iniciando = (async () => {
+    try { const r = await api('iniciar', { branch_id: S.branch }); S.reqId = r.req_id; S.folio = r.folio; }
+    finally { S._iniciando = null; }
+  })();
+  return S._iniciando;
 }
 function mas(id, d) { setQ(id, (S.carrito[id] || 0) + d); }
 function setQ(id, v) {
@@ -518,8 +529,10 @@ async function enviar() {
   if (!S.reqId) await tocarPrimera();
   const lineas = [];
   for (const id in S.carrito) lineas.push({ proveedor_insumo_id: Number(id), cantidad: S.carrito[id] });
-  $('btnEnviar').disabled = true;
-  const r = await api('enviar', { req_id: S.reqId, lineas });
+  const btnE = $('btnEnviar'); btnE.disabled = true;
+  let r;
+  try { r = await api('enviar', { req_id: S.reqId, lineas }); }
+  catch (e) { if (rechazoDelServidor(e)) btnE.disabled = false; return; }
   if (S.corridaId) { try { await api('calculadora_ligar', { corrida_id: S.corridaId, req_id: S.reqId }); } catch (e) {} S.corridaId = null; }
   const seg = S.t0 ? Math.round((Date.now() - S.t0) / 1000) : null;
   app().innerHTML = nav() + '<div class="card ok-big">✅<div class="f">' + esc(S.folio) + '</div>' +
@@ -658,8 +671,9 @@ async function pasarAlPedido(btn) {
   const sinInv = d.lineas.filter(l => l.promedio != null && ($('inv' + l.proveedor_insumo_id).value === '')).length;
   if (sinInv && !confirm('Hay ' + sinInv + ' guiso' + (sinInv === 1 ? '' : 's') + ' sin inventario final: para esos no se calcula sugerido. ¿Continuar?')) return;
   btn.disabled = true;
-  const r = await api('calculadora_guardar', { branch_id: S.branch, proveedor_id: S.prov, lineas });
-  if (r.error) { alert('No se pudo guardar: ' + (r.detalle || r.error)); btn.disabled = false; return; }
+  let r;
+  try { r = await api('calculadora_guardar', { branch_id: S.branch, proveedor_id: S.prov, lineas }); }
+  catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
   r.lineas.forEach(l => { if (l.final > 0) S.carrito[l.proveedor_insumo_id] = l.final; else delete S.carrito[l.proveedor_insumo_id]; });
   S.corridaId = r.corrida_id; await tocarPrimera(); leerCalc();
   S.calcNota = 'Calculadora aplicada: ' + r.insumos + ' insumo' + (r.insumos === 1 ? '' : 's') + ' en el pedido por ' + money(r.total) + ' sin IVA. Revisa y envía.';
@@ -908,10 +922,11 @@ function calcParamsHtml(cp) {
 }
 async function guardarCalcParams(pid, btn) {
   btn.disabled = true;
-  const r = await api('admin_guardar_calc_params', { proveedor_id: pid, dias_consumo: Number($('cp_dc').value), dias_proyeccion: Number($('cp_dp').value), dias_cubrir: Number($('cp_cu').value), factor_proteccion: Number($('cp_fp').value) || 0,
-    pct_max: { 'Guisos': Number($('cp_g').value), 'Secos': Number($('cp_s').value), 'Desechables Marca': Number($('cp_d').value) } });
-  btn.disabled = false;
-  if (r.error) alert('No se guardó: ' + (r.detalle || r.error)); else { btn.textContent = '✔ Guardado'; setTimeout(() => btn.textContent = 'Guardar parámetros', 1500); }
+  try {
+    await api('admin_guardar_calc_params', { proveedor_id: pid, dias_consumo: Number($('cp_dc').value), dias_proyeccion: Number($('cp_dp').value), dias_cubrir: Number($('cp_cu').value), factor_proteccion: Number($('cp_fp').value) || 0,
+      pct_max: { 'Guisos': Number($('cp_g').value), 'Secos': Number($('cp_s').value), 'Desechables Marca': Number($('cp_d').value) } });
+  } catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
+  btn.disabled = false; btn.textContent = '✔ Guardado'; setTimeout(() => btn.textContent = 'Guardar parámetros', 1500);
 }
 
 /* ── Mis pedidos ───────────────────────────────────────── */
@@ -998,7 +1013,8 @@ async function rechazarTodo(reqId, btn) {
   document.querySelectorAll('.linea-res[data-linea]').forEach(el => { if ($('r' + el.dataset.linea + 'a')) resoluciones.push({ req_linea_id: Number(el.dataset.linea), accion: 'rechazar', motivo: motivo.trim() }); });
   if (!resoluciones.length) { alert('No hay líneas pendientes.'); return; }
   btn.disabled = true;
-  await api('resolver', { req_id: reqId, resoluciones });
+  try { await api('resolver', { req_id: reqId, resoluciones }); }
+  catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
   app().innerHTML = nav() + '<div class="card ok-big">✗<p><b>Pedido rechazado completo.</b></p><p style="color:var(--txt2)">Motivo: ' + esc(motivo.trim()) + '</p><p style="margin-top:14px"><button class="btn sec" onclick="vBandeja()">Volver a la bandeja</button></p></div>';
 }
 async function autorizar(reqId, btn) {
@@ -1014,7 +1030,9 @@ async function autorizar(reqId, btn) {
   const falta = resoluciones.find(r => r.accion === 'rechazar' && !r.motivo.trim());
   if (falta) { alert('Todo rechazo necesita motivo.'); return; }
   btn.disabled = true;
-  const r = await api('resolver', { req_id: reqId, resoluciones });
+  let r;
+  try { r = await api('resolver', { req_id: reqId, resoluciones }); }
+  catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
   let h = '<div class="card ok-big">✅<p>Requisición resuelta.</p>';
   if (r.ocs.length) {
     h += '<p style="margin-top:8px">Órdenes de compra generadas:</p>';
@@ -1315,8 +1333,10 @@ async function guardarRecepcion(id, btn) {
   const faltan = lineas.filter(l => { const i = document.querySelector('.rec input[data-l="' + l.oc_linea_id + '"]'); return Number(i.dataset.p) > l.recibida; }).length;
   if (faltan && !confirm('Quedan ' + faltan + ' producto' + (faltan === 1 ? '' : 's') + ' con faltante. ¿Guardar así? (podrás recibir el resto después)')) return;
   btn.disabled = true;
-  const r = await api('recibir_oc', { oc_id: id, lineas, nota: $('rec_nota').value });
-  if (r.error) { alert('No se pudo guardar: ' + (r.detalle || r.error)); btn.disabled = false; return; }
+  S.porRecibir = null;   // pase lo que pase, al volver a esta pantalla se piden al servidor los pendientes reales (no los de antes de guardar)
+  let r;
+  try { r = await api('recibir_oc', { oc_id: id, lineas, nota: $('rec_nota').value }); }
+  catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
   S.porRecibir = null;
   app().innerHTML = nav() + '<div class="card ok-big">' + (r.completa ? '✅<p><b>Pedido recibido completo.</b></p>' : '📦<p><b>Recepción parcial guardada.</b></p><p>Lo que falte lo recibes después desde 📥 Recibir.</p>') +
     '<p style="margin-top:8px;color:var(--txt2)">Se generó la cuenta por pagar <b>' + esc(r.cxp.folio) + '</b> por ' + money(r.cxp.total) + ' (con IVA) para contabilidad.</p>' +
