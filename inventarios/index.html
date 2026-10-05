@@ -213,6 +213,7 @@ const app = () => $('app');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const corto = (n) => String(n || '').replace(' Chihuahua', '');
 const num = (v) => parseFloat(v) || 0;
+const numN = (v) => { if (v === null || v === undefined || v === '') return null; const n = parseFloat(v); return isNaN(n) ? null : n; };   // vacío = null (sin contar), un 0 es 0 (H3, 5-oct)
 function fmt(n) { if (n === null || n === undefined || n === '') return '—'; const v = parseFloat(n); if (isNaN(v)) return '—'; return (Math.round(v * 10) / 10).toLocaleString('es-MX', { maximumFractionDigits: 1 }); }
 function fmt3(n) { if (n === null || n === undefined || n === '') return ''; const v = parseFloat(n); if (isNaN(v)) return ''; return (v % 1 === 0 ? v : parseFloat(v.toFixed(3))).toLocaleString('es-MX'); }
 const pesos = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('es-MX');
@@ -509,13 +510,29 @@ function toggleMes(id, m) {
 
 /* ── INVENTARIO GENERAL (contar): por concepto, ubicaciones siempre visibles ── */
 const UB_LABEL = { bano: 'Baño María', refri: 'Refrigerador', congelador: 'Congelador', almacen: 'Almacén' };
-function valsDesde(d) { const v = {}; (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => { v[l.inventario_producto_id] = { bano: num(l.bano), refri: num(l.refri), congelador: num(l.congelador), almacen: num(l.almacen), sin_desglose: num(l.sin_desglose) }; })); return v; }
+/* H3 (5-oct): lo vacío es null de punta a punta, no 0. Un 0 tecleado sí es contado; un producto está contado si algún campo no es null.
+   Lo que se deja sin contar no se guarda (sin renglón) y no tiene pedido sugerido. */
+const CAMPOS_GEN = ['bano', 'refri', 'congelador', 'almacen', 'sin_desglose'];
+function lineaContada(l) { return l.contado != null ? !!l.contado : l.saldo_final != null; }   // usa 'contado' de la API cuando viene
+function contadoDe(x) { return !!x && CAMPOS_GEN.some(k => x[k] != null); }
+function valsDesde(d) { const v = {}; (d.grupos || []).forEach(g => { const u = g.ubicaciones || [];
+  (g.lineas || []).forEach(l => { const c = lineaContada(l), x = {};
+    // dentro de un producto contado la API guarda 0 en lo que se dejó vacío (columna NOT NULL): esos 0 se muestran vacíos para que borrar
+    // lo que se ve lo deje sin contar; si todo es 0, queda un solo 0 en la primera ubicación (contado en 0). El saldo no cambia.
+    CAMPOS_GEN.forEach(k => { const n = c ? numN(l[k]) : null; x[k] = n === 0 ? null : n; });
+    if (c && !contadoDe(x)) x[u[0] || 'sin_desglose'] = 0;
+    v[l.inventario_producto_id] = x; }); }); return v; }
 function saldoDe(x) { return num(x.bano) + num(x.refri) + num(x.congelador) + num(x.almacen) + num(x.sin_desglose); }
 function valorDe(l, saldo) { return l.sin_precio ? null : Math.round(saldo * num(l.precio) / (l.unidad === 'g' ? 1000 : 1) * 100) / 100; }
-function claveBorrador() { return 'lem_inv_borrador_' + S.gen.branch + '_' + S.gen.fecha; }
-function guardarBorrador() { clearTimeout(S.gen.bt); S.gen.bt = setTimeout(() => { try { localStorage.setItem(claveBorrador(), JSON.stringify({ ts: Date.now(), vals: S.gen.vals })); const c = $('chipBorrador'); if (c) { c.textContent = 'Borrador guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); c.hidden = false; } const bd = $('btnDescartar'); if (bd) bd.hidden = false; } catch (e) {} }, 500); }
-function leerBorrador() { try { const j = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); return j && j.vals ? j : null; } catch (e) { return null; } }
-function borrarBorrador() { try { localStorage.removeItem(claveBorrador()); } catch (e) {} }
+// v2 (H3): el borrador guarda null en lo vacío. Uno de la pantalla anterior traía 0 en todo: se recuperan solo sus números distintos de 0
+function claveBorrador() { return 'lem_inv_borrador_v2_' + S.gen.branch + '_' + S.gen.fecha; }
+function claveBorradorViejo() { return 'lem_inv_borrador_' + S.gen.branch + '_' + S.gen.fecha; }
+function guardarBorrador() { clearTimeout(S.gen.bt); S.gen.bt = setTimeout(() => { try { localStorage.setItem(claveBorrador(), JSON.stringify({ v: 2, ts: Date.now(), vals: S.gen.vals })); const c = $('chipBorrador'); if (c) { c.textContent = 'Borrador guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); c.hidden = false; } const bd = $('btnDescartar'); if (bd) bd.hidden = false; } catch (e) {} }, 500); }
+function leerBorrador() { try { const j = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); if (j && j.v === 2 && j.vals) return j; } catch (e) {}
+  try { const o = JSON.parse(localStorage.getItem(claveBorradorViejo()) || 'null'); if (!o || !o.vals) return null; const vals = {};
+    Object.keys(o.vals).forEach(id => { const b = o.vals[id] || {}, x = {}; CAMPOS_GEN.forEach(k => { const n = numN(b[k]); if (n) x[k] = n; }); if (Object.keys(x).length) vals[id] = x; });
+    return Object.keys(vals).length ? { v: 2, ts: o.ts, vals, viejo: true } : null; } catch (e) { return null; } }
+function borrarBorrador() { try { localStorage.removeItem(claveBorrador()); localStorage.removeItem(claveBorradorViejo()); } catch (e) {} }
 async function vContar() {
   const hoy = todayStr(); if (!S.gen.fecha) S.gen.fecha = hoy;
   S.gen.branch = esGerente() ? S.branch : (S.gen.branch || null);
@@ -531,12 +548,14 @@ async function vContar() {
   M().className = 'main' + (d.puede_editar ? ' con-barra' : ''); M().innerHTML = h + contarHTML(d); pintarGrupos();
   const ex = $('genExcel'); if (ex && d.existe) ex.innerHTML = '<button class="btn btn-sm" onclick="exportarGeneral()">⬇︎ Excel del conteo</button>';
 }
+// contados / sin contar del conteo GUARDADO: los de la API cuando vienen; si no, se cuentan de las líneas
+function conteoGuardado(d) { if (d.contados != null && d.sin_contar != null) return { con: num(d.contados), sin: num(d.sin_contar) }; let con = 0, n = 0; (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => { n++; if (lineaContada(l)) con++; })); return { con, sin: n - con }; }
 function contarHTML(d) {
-  const ed = !!d.puede_editar; let h = '';
-  if (d.existe) h += '<div class="nota ok"><b>' + (d.estado === 'editado' ? 'Corregido' : 'Capturado') + '</b> por ' + esc(d.capturado_por) + ' el ' + fmtTs(d.capturado_el) + (d.editado_por ? ' · última corrección de ' + esc(d.editado_por) + ' el ' + fmtTs(d.editado_el) : '') + (ed ? '. Puedes corregir cantidades y volver a guardar.' : '.') + '</div>';
-  else h += '<div class="nota">Sin conteo general del ' + fmtDia(d.fecha) + (ed ? '. Captura las cantidades y guarda.' : '.') + '</div>';
+  const ed = !!d.puede_editar; let h = ''; const cg = conteoGuardado(d);
+  if (d.existe) h += '<div class="nota ok"><b>' + (d.estado === 'editado' ? 'Corregido' : 'Capturado') + '</b> por ' + esc(d.capturado_por) + ' el ' + fmtTs(d.capturado_el) + (d.editado_por ? ' · última corrección de ' + esc(d.editado_por) + ' el ' + fmtTs(d.editado_el) : '') + ' · <b>' + cg.con + ' de ' + (cg.con + cg.sin) + '</b> productos contados' + (cg.sin ? ' (' + cg.sin + ' sin contar)' : '') + (ed ? '. Puedes corregir cantidades y volver a guardar; lo que dejes vacío queda sin contar.' : '.') + '</div>';
+  else h += '<div class="nota">Sin conteo general del ' + fmtDia(d.fecha) + (ed ? '. Captura las cantidades y guarda. Lo que dejes vacío queda sin contar (no cuenta como 0); si hay 0, teclea 0.' : '.') + '</div>';
   if (!ed) h += '<div class="nota warn"><b>Solo lectura.</b> ' + (esGerente() ? 'El gerente captura o corrige hoy y ayer; otras fechas las corrige administración.' : 'Tu usuario solo consulta.') + '</div>';
-  if (S.gen.borrador) h += '<div class="nota warn" id="notaBorrador"><b>Tienes un borrador sin guardar</b> de las ' + new Date(S.gen.borrador.ts).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + '. <a onclick="restaurarBorrador()" style="cursor:pointer">Restaurar</a> · <a onclick="descartarBorrador()" style="cursor:pointer">Descartar</a></div>';
+  if (S.gen.borrador) h += '<div class="nota warn" id="notaBorrador"><b>Tienes un borrador sin guardar</b> de las ' + new Date(S.gen.borrador.ts).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + '. ' + (S.gen.borrador.viejo ? 'Viene de la pantalla anterior: solo se recuperan los números distintos de 0; los ceros quedan vacíos, revísalos. ' : '') + '<a onclick="restaurarBorrador()" style="cursor:pointer">Restaurar</a> · <a onclick="descartarBorrador()" style="cursor:pointer">Descartar</a></div>';
   h += '<div class="acciones" style="margin-bottom:12px"><input class="inp" style="flex:1;min-width:180px" id="genBusca" placeholder="Buscar producto…" oninput="S.gen.busca=this.value.toLowerCase();pintarGrupos()">' + (ed ? '<span class="pill" id="chipBorrador" hidden></span>' : '') + '</div><div id="genGrupos"></div>';
   if (ed) h += '<div class="barra"><div class="t" id="barTot">$0<small id="barCnt"></small></div><div class="acciones"><button class="btn" id="btnDescartar" onclick="descartarBorrador();vContar()" hidden>Descartar borrador</button><button class="btn btn-ok btn-lg" onclick="confirmarGuardar()">Guardar conteo</button></div></div>';
   return h;
@@ -547,41 +566,52 @@ function pintarGrupos() {
   cont.innerHTML = (d.grupos || []).map(g => { const u = g.ubicaciones || []; const items = (g.lineas || []).filter(l => !f || l.producto.toLowerCase().includes(f)); if (f && !items.length) return '';
     const on = f ? true : S.gen.abierto === g.grupo;
     return '<div class="grp"><button type="button" onclick="toggleGrupo(\'' + esc(g.grupo) + '\')"><span><b>' + esc(g.grupo) + '</b><span class="st" id="gc_' + slug(g.grupo) + '"></span></span><span class="sub"><span id="gs_' + slug(g.grupo) + '"></span> ' + (on ? '▴' : '▾') + '</span></button>' +
-      (on ? '<div class="items">' + items.map(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const un = unidadTxt(l.unidad);
+      (on ? '<div class="items">' + items.map(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const un = unidadTxt(l.unidad); const cx = contadoDe(x);
         return '<div class="item"><div class="item-top"><div class="nm">' + esc(l.producto) + '<span class="unidad">' + esc(un) + '</span>' + (l.sin_precio ? ' <span class="badge mini b-warn">sin precio</span>' : '') + '</div><div class="tot"><b id="t_' + id + '"></b><small id="v_' + id + '"></small></div></div>' +
-          '<div class="ubic">' + u.map(k => '<label>' + UB_LABEL[k] + (ed ? '<input class="cap" type="number" inputmode="decimal" min="0" step="any" placeholder="0" id="u_' + k + '_' + id + '" value="' + (x[k] || '') + '" oninput="ubicCambio(' + id + ',\'' + k + '\',this.value)">' : '<span class="cap-txt">' + fmt3(x[k]) + '</span>') + '</label>').join('') + (num(x.sin_desglose) ? '<label>Sin ubicación<span class="cap-txt">' + fmt3(x.sin_desglose) + '</span></label>' : '') + '</div></div>'; }).join('') + '</div>' : '') + '</div>'; }).join('') || '<div class="vacio">Ningún producto coincide.</div>';
+          '<div class="ubic">' + u.map(k => '<label>' + UB_LABEL[k] + (ed ? '<input class="cap" type="number" inputmode="decimal" min="0" step="any" placeholder="—" id="u_' + k + '_' + id + '" value="' + (x[k] == null ? '' : x[k]) + '" oninput="ubicCambio(' + id + ',\'' + k + '\',this.value)">' : (x[k] == null ? '<span class="cap-txt" style="color:var(--text-soft);font-weight:500">' + (cx ? '—' : 'sin contar') + '</span>' : '<span class="cap-txt">' + fmt3(x[k]) + '</span>')) + '</label>').join('') + (num(x.sin_desglose) ? '<label>Sin ubicación<span class="cap-txt">' + fmt3(x.sin_desglose) + '</span></label>' : '') + '</div></div>'; }).join('') + '</div>' : '') + '</div>'; }).join('') || '<div class="vacio">Ningún producto coincide.</div>';
   recalcContar();
 }
 function toggleGrupo(g) { S.gen.abierto = S.gen.abierto === g ? null : g; pintarGrupos(); }
-function ubicCambio(id, k, v) { const x = S.gen.vals[id]; x[k] = Math.max(0, num(v)); recalcContar(); guardarBorrador(); }
+function ubicCambio(id, k, v) { const x = S.gen.vals[id]; if (!x) return; const n = numN(v); x[k] = n == null ? null : Math.max(0, n); recalcContar(); guardarBorrador(); }   // vacío = sin contar; 0 = contado en 0
 function recalcContar() {
-  const d = S.gen.data; if (!d) return; let total = 0, con = 0, n = 0;
+  const d = S.gen.data; if (!d) return; let total = 0, con = 0, n = 0, quitados = 0;
   (d.grupos || []).forEach(g => { let sub = 0, c = 0;
-    (g.lineas || []).forEach(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const s = saldoDe(x), v = valorDe(l, s); n++; if (s > 0) { c++; con++; } sub += num(v);
-      const tt = $('t_' + id), vv = $('v_' + id); if (tt) tt.textContent = fmt3(s) + ' ' + unidadTxt(l.unidad); if (vv) vv.textContent = (l.sin_precio ? 'sin precio en el catálogo' : money(v) + ' · ' + pesosU(num(l.precio)) + '/' + (l.unidad === 'g' ? 'kg' : unidadTxt(l.unidad))); });
+    (g.lineas || []).forEach(l => { const id = l.inventario_producto_id, x = S.gen.vals[id] || {}; const k = contadoDe(x), s = saldoDe(x), v = k ? valorDe(l, s) : null; n++; if (k) { c++; con++; } else if (lineaContada(l)) quitados++; sub += num(v);
+      const pu = pesosU(num(l.precio)) + '/' + (l.unidad === 'g' ? 'kg' : unidadTxt(l.unidad));
+      const tt = $('t_' + id), vv = $('v_' + id); if (tt) { tt.textContent = k ? fmt3(s) + ' ' + unidadTxt(l.unidad) : 'sin contar'; tt.style.color = k ? '' : 'var(--text-soft)'; } if (vv) vv.textContent = (l.sin_precio ? 'sin precio en el catálogo' : (k ? money(v) + ' · ' : '') + pu); });
     total += sub; const gs = $('gs_' + slug(g.grupo)), gc = $('gc_' + slug(g.grupo)); if (gs) gs.textContent = money(sub); if (gc) gc.textContent = c + ' de ' + (g.lineas || []).length; });
-  const bt = $('barTot'); if (bt) { bt.firstChild.textContent = money(total); $('barCnt').textContent = 'Total contado · ' + con + ' de ' + n + ' productos · ' + fmtDia(d.fecha); }
-  S.gen.totales = { total, con, n };
+  const bt = $('barTot'); if (bt) { bt.firstChild.textContent = money(total); $('barCnt').textContent = 'Total contado · ' + con + ' de ' + n + ' productos' + (n - con ? ' (' + (n - con) + ' sin contar)' : '') + ' · ' + fmtDia(d.fecha); }
+  S.gen.totales = { total, con, n, sin: n - con, quitados };
 }
-function restaurarBorrador() { if (!S.gen.borrador) return; Object.keys(S.gen.borrador.vals).forEach(id => { if (S.gen.vals[id]) S.gen.vals[id] = Object.assign({}, S.gen.vals[id], S.gen.borrador.vals[id]); }); S.gen.borrador = null; const nb = $('notaBorrador'); if (nb) nb.remove(); pintarGrupos(); toast('Borrador restaurado. Revisa y guarda.'); }
+function restaurarBorrador() { if (!S.gen.borrador) return; Object.keys(S.gen.borrador.vals).forEach(id => { const b = S.gen.borrador.vals[id]; if (!S.gen.vals[id] || !b) return; const x = Object.assign({}, S.gen.vals[id]); CAMPOS_GEN.forEach(k => { if (k in b) x[k] = numN(b[k]); }); S.gen.vals[id] = x; }); S.gen.borrador = null; const nb = $('notaBorrador'); if (nb) nb.remove(); pintarGrupos(); toast('Borrador restaurado. Revisa y guarda.'); }
 function descartarBorrador() { borrarBorrador(); S.gen.borrador = null; const nb = $('notaBorrador'); if (nb) nb.remove(); const bd = $('btnDescartar'); if (bd) bd.hidden = true; }
-function confirmarGuardar() { const t = S.gen.totales || {}; const d = S.gen.data;
-  modal('<h3>¿Seguro que quieres guardar el conteo?</h3><p><b>' + esc(corto(sucNombre(d.branch_id))) + '</b> · ' + fmtLargo(d.fecha) + '</p><p><b class="num" style="font-size:22px;color:var(--text)">' + money(t.total) + '</b> en stock · ' + t.con + ' productos con cantidad' + (t.n - t.con ? ' · <b>' + (t.n - t.con) + ' quedan en cero</b>' : '') + '</p>' + (d.existe ? '<p>Se reemplaza el conteo guardado de esta fecha; el cambio queda registrado con tu usuario.</p>' : '<p>Revisa que las cantidades estén completas; después de guardar puedes corregir hoy y mañana.</p>') + '<div class="acts"><button class="btn" onclick="cerrarModal()">No, seguir contando</button><button class="btn btn-ok" onclick="guardarGeneral(this)">Sí, guardar conteo</button></div>'); }
+function confirmarGuardar() { recalcContar(); const t = S.gen.totales || {}; const d = S.gen.data; const con = t.con || 0, sin = (t.n || 0) - con;
+  const msg = con ? '<p><b class="num" style="font-size:22px;color:var(--text)">' + money(t.total) + '</b> en stock · ' + con + ' producto' + (con === 1 ? '' : 's') + ' contado' + (con === 1 ? '' : 's') + (sin ? ' · <b>' + sin + ' sin contar: no se guardan y no tendrán pedido sugerido</b>' : '') + '</p>' + (t.quitados ? '<p><b>' + t.quitados + ' que estaban contados quedan sin contar</b> (se quitan del conteo guardado).</p>' : '')
+    : '<p class="nota warn"><b>No hay ningún producto contado.</b> Captura al menos un producto (un 0 tecleado sí cuenta): un inventario general vacío no se puede guardar.</p>';
+  modal('<h3>' + (con ? '¿Seguro que quieres guardar el conteo?' : 'Todavía no hay nada que guardar') + '</h3><p><b>' + esc(corto(sucNombre(d.branch_id))) + '</b> · ' + fmtLargo(d.fecha) + '</p>' + msg + (!con ? '' : d.existe ? '<p>Se reemplaza el conteo guardado de esta fecha; el cambio queda registrado con tu usuario.</p>' : '<p>Revisa que las cantidades estén completas; después de guardar puedes corregir hoy y mañana.</p>') + '<div class="acts"><button class="btn" onclick="cerrarModal()">No, seguir contando</button><button class="btn btn-ok" ' + (con ? 'onclick="guardarGeneral(this)"' : 'disabled title="Captura al menos un producto"') + '>Sí, guardar conteo</button></div>'); }
+// payload: TODOS los productos cargados, con su valor y null en lo vacío. Un producto con todo null = sin contar (en una corrección, la API borra su renglón).
+function lineasGeneral(vals) { return Object.keys(vals || {}).map(id => { const x = vals[id] || {}, o = { inventario_producto_id: Number(id) }; CAMPOS_GEN.forEach(k => { o[k] = numN(x[k]); }); return o; }); }
 async function guardarGeneral(btn) {
-  const d = S.gen.data; btn.disabled = true;
-  const lineas = Object.keys(S.gen.vals).map(id => { const x = S.gen.vals[id]; return { inventario_producto_id: Number(id), bano: x.bano, refri: x.refri, congelador: x.congelador, almacen: x.almacen, sin_desglose: x.sin_desglose }; });
-  let r; try { r = await api('inv_general_guardar', { branch_id: d.branch_id, fecha: d.fecha, lineas }); } catch (e) { btn.disabled = false; return; }
+  const d = S.gen.data; const lineas = lineasGeneral(S.gen.vals);
+  if (!lineas.some(contadoDe)) { toast('Captura al menos un producto: un inventario general vacío no se puede guardar.'); return; }
+  if (btn) btn.disabled = true;
+  let r; try { r = await api('inv_general_guardar', { branch_id: d.branch_id, fecha: d.fecha, lineas, version_captura: 2 }); } catch (e) { if (btn) btn.disabled = false; return; }
   cerrarModal(); if (r.error) { toast('No se guardó: ' + (r.detalle || r.error)); return; }
   borrarBorrador(); S.cache = {}; S.kpis = null; S.gen.data = r; S.gen.vals = valsDesde(r); S.gen.borrador = null;
   const hdr = M().querySelector('.vista-hdr'); M().innerHTML = hdr.outerHTML + contarHTML(r); pintarGrupos(); const sel = $('genSuc'); if (sel) sel.value = r.branch_id; const ex = $('genExcel'); if (ex) ex.innerHTML = '<button class="btn btn-sm" onclick="exportarGeneral()">⬇︎ Excel del conteo</button>';
-  toast('✔ Inventario guardado: ' + money(r.total_valor));
+  const cg = conteoGuardado(r);
+  toast('✔ Inventario guardado: ' + money(r.total_valor) + ' · ' + cg.con + ' contados' + (cg.sin ? ', ' + cg.sin + ' sin contar' : ''));
 }
 function exportarGeneral() {
   const d = S.gen.data; if (!d || !window.XLSX) { toast('No hay datos o la librería de Excel no cargó.'); return; }
   const hdr = ['Concepto', 'Producto', 'U.M.', 'Baño María', 'Refrigerador', 'Congelador', 'Almacén', 'Sin ubicación', 'Saldo Final', 'Precio', '$ en inventario'];
-  const filas = []; (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => filas.push([g.grupo, l.producto, l.unidad, num(l.bano), num(l.refri), num(l.congelador), num(l.almacen), num(l.sin_desglose), num(l.saldo_final), l.precio == null ? '' : num(l.precio), l.valor == null ? '' : num(l.valor)])));
+  // lo no contado sale con celdas vacías y 'sin contar' en Saldo Final (nunca 0: un 0 en el Excel es un 0 contado)
+  const filas = []; (d.grupos || []).forEach(g => (g.lineas || []).forEach(l => filas.push(lineaContada(l)
+    ? [g.grupo, l.producto, l.unidad, num(l.bano), num(l.refri), num(l.congelador), num(l.almacen), num(l.sin_desglose), num(l.saldo_final), l.precio == null ? '' : num(l.precio), l.valor == null ? '' : num(l.valor)]
+    : [g.grupo, l.producto, l.unidad, '', '', '', '', '', 'sin contar', l.precio == null ? '' : num(l.precio), ''])));
   filas.push(['', 'TOTAL', '', '', '', '', '', '', '', '', num(d.total_valor)]);
-  const ws = XLSX.utils.aoa_to_sheet([['Tienda', corto(d.sucursal), 'Fecha', fmtFecha(d.fecha), 'Capturado por', d.capturado_por || ''], []].concat([hdr]).concat(filas)); ws['!cols'] = hdr.map((x, i) => ({ wch: i === 1 ? 34 : 13 }));
+  const cg = conteoGuardado(d);
+  const ws = XLSX.utils.aoa_to_sheet([['Tienda', corto(d.sucursal), 'Fecha', fmtFecha(d.fecha), 'Capturado por', d.capturado_por || '', 'Contados', cg.con + ' de ' + (cg.con + cg.sin), 'Sin contar', cg.sin], []].concat([hdr]).concat(filas)); ws['!cols'] = hdr.map((x, i) => ({ wch: i === 1 ? 34 : 13 }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Inventario general'); XLSX.writeFile(wb, 'inventario_general_' + corto(d.sucursal).replace(/\s+/g, '_') + '_' + d.fecha + '.xlsx');
 }
 
@@ -623,7 +653,7 @@ async function vPanel() {
     const diario = e.sin_actividad ? '<span class="badge mini b-gris">Sin actividad</span>' + (e.ultimo_diario ? '<div class="hint">' + fmtFecha(e.ultimo_diario) + '</div>' : '') : (e.al_dia ? '<span class="badge mini b-ok">Al día</span><div class="hint">' + fmtDia(e.ultimo_diario) + '</div>' : '<span class="badge mini b-bad">Falta ' + fmtDia(e.dia_esperado) + '</span><div class="hint">último: ' + (e.ultimo_diario ? fmtDia(e.ultimo_diario) + (e.ultimo_diario_estado === 'autogenerado' ? ' (generado)' : '') : '—') + '</div>');
     const al = []; if (num(e.generados_mes)) al.push('<span class="badge mini b-warn">' + e.generados_mes + ' generado' + (e.generados_mes === 1 ? '' : 's') + ' este mes</span>'); if (ug && num(ug.sin_precio)) al.push('<span class="badge mini b-warn">' + ug.sin_precio + ' sin precio</span>'); if ((e7.postre != null && e7.postre < 90) || (e7.bebida != null && e7.bebida < 90)) al.push('<span class="badge mini b-bad">eficiencia baja</span>');
     const msg = 'Hola, ' + nombre + ': no se registró el inventario del ' + fmtFecha(e.dia_esperado) + ' en la app (o quedó generado en ceros). Por favor pasa los datos reales a administración para corregirlo.';
-    return '<tr><td><b>' + esc(nombre) + '</b></td><td>' + diario + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + ORDEN_CHIPS.map(k => efChip(e7[k], CAT_LABEL[k].slice(0, 1))).join('') + '</span></td><td>' + (ug ? '<b class="num">' + money(ug.total_valor) + '</b><div class="hint">' + fmtDia(ug.fecha) + (e.general_hoy ? ' (hoy)' : '') + '</div>' : '<span class="hint">sin conteo</span>') + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + (al.join('') || '<span class="hint">—</span>') + '</span></td><td style="white-space:nowrap">' + (!e.al_dia && !e.sin_actividad ? '<a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink(msg) + '">💬 WhatsApp</a> ' : '') + '<button class="btn btn-sm" onclick="S.diario.branch=' + s.branch_id + ';S.diario.fecha=\'\';irTab(\'diario\')">Ver</button></td></tr>'; }).join('') + '</tbody></table></div>';
+    return '<tr><td><b>' + esc(nombre) + '</b></td><td>' + diario + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + ORDEN_CHIPS.map(k => efChip(e7[k], CAT_LABEL[k].slice(0, 1))).join('') + '</span></td><td>' + (ug ? '<b class="num">' + money(ug.total_valor) + '</b><div class="hint">' + fmtDia(ug.fecha) + (e.general_hoy ? ' (hoy)' : '') + '</div>' + (num(ug.sin_contar) ? '<span class="badge mini b-warn">' + ug.sin_contar + ' sin contar</span>' : '') : '<span class="hint">sin conteo</span>') + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + (al.join('') || '<span class="hint">—</span>') + '</span></td><td style="white-space:nowrap">' + (!e.al_dia && !e.sin_actividad ? '<a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink(msg) + '">💬 WhatsApp</a> ' : '') + '<button class="btn btn-sm" onclick="S.diario.branch=' + s.branch_id + ';S.diario.fecha=\'\';irTab(\'diario\')">Ver</button></td></tr>'; }).join('') + '</tbody></table></div>';
   const ag = p.autogenerados || [];
   h += '<div class="card"><div class="row"><h3 style="margin:0">Días generados sin captura' + (S.filtroMes ? ' · ' + S.filtroMes : ' · todos') + '</h3><div class="acciones"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vPanel()"><button class="btn btn-sm" onclick="exportar(null)">⬇︎ Excel global</button></div></div>' +
     (ag.length ? '<div class="lista" style="margin-top:10px">' + ag.slice(0, 40).map(a => '<div class="row" style="border-bottom:1px solid var(--divider);padding:6px 0"><span>🏪 <b>' + esc(a.sucursal || '') + '</b> · ' + fmtFecha(a.fecha) + '</span><a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink('Hola, no se registró el inventario de ' + (a.sucursal || '') + ' del ' + fmtFecha(a.fecha) + '. El sistema lo generó en ceros. Por favor pasar los datos reales a administración para corregirlo.') + '">💬 WhatsApp</a></div>').join('') + (ag.length > 40 ? '<div class="hint">…y ' + (ag.length - 40) + ' más</div>' : '') + '</div>' : '<div class="hint" style="margin-top:8px">Ninguno en este periodo.</div>') + '</div>';
@@ -633,21 +663,21 @@ async function vPanel() {
 /* ── VALOR DEL INVENTARIO ── */
 async function vValor() {
   const hoy = todayStr(); if (!S.val.fecha) S.val.fecha = hoy;
-  let h = '<div class="vista-hdr"><div><h2>💰 Valor del inventario</h2><p>Lo que hay en stock a precio de la OC según el inventario general de cada tienda. Si una tienda no contó ese día, se toma su último conteo anterior (⚠️).</p></div><div class="acciones"><input class="inp" type="date" id="valFecha" value="' + esc(S.val.fecha) + '" max="' + hoy + '" onchange="S.val.fecha=this.value;vValor()"><button class="btn btn-sm" onclick="S.val.fecha=todayStr();vValor()">Hoy</button><button class="btn btn-sm" id="btnFinMes">Fin de mes anterior</button><button class="btn btn-primary btn-sm" onclick="exportarValor()">⬇︎ Excel</button></div></div>';
+  let h = '<div class="vista-hdr"><div><h2>💰 Valor del inventario</h2><p>Lo que hay en stock a precio de la OC según el inventario general de cada tienda. Si una tienda no contó ese día, se toma su último conteo anterior (⚠️). Los productos que quedaron sin contar no suman y se avisan.</p></div><div class="acciones"><input class="inp" type="date" id="valFecha" value="' + esc(S.val.fecha) + '" max="' + hoy + '" onchange="S.val.fecha=this.value;vValor()"><button class="btn btn-sm" onclick="S.val.fecha=todayStr();vValor()">Hoy</button><button class="btn btn-sm" id="btnFinMes">Fin de mes anterior</button><button class="btn btn-primary btn-sm" onclick="exportarValor()">⬇︎ Excel</button></div></div>';
   M().className = 'main'; M().innerHTML = h + '<div class="loading">Cargando…</div>';
   const r = await api('inv_general_valor', { fecha: S.val.fecha }); S.val.data = r;
   if (r.error) { M().innerHTML = h + '<div class="vacio">' + esc(r.detalle || r.error) + '</div>'; return; }
   const G = r.grupos || []; const tot = {}; let total = 0, kg = 0, con = 0;
   const rows = (r.sucursales || []).map(s => { const c = !!s.fecha_conteo; if (c) con++; G.forEach(g => { tot[g] = (tot[g] || 0) + num((s.por_grupo || {})[g]); }); total += num(s.total_valor); kg += num(s.kg_guisos);
-    return '<tr class="clic" onclick="S.gen.branch=' + s.branch_id + ';S.gen.fecha=\'' + (s.fecha_conteo || S.val.fecha) + '\';S.gen.abierto=null;irTab(\'contar\')"><td><b>' + esc(corto(s.sucursal)) + '</b></td><td>' + (c ? (s.exacto ? fmtDia(s.fecha_conteo) : '<span class="badge mini b-warn">⚠️ ' + fmtDia(s.fecha_conteo) + '</span>') : '<span class="hint">sin conteo</span>') + (num(s.sin_precio) ? ' <span class="badge mini b-warn">' + s.sin_precio + ' sin precio</span>' : '') + '</td>' + G.map(g => '<td class="n">' + (c ? money((s.por_grupo || {})[g] || 0) : '') + '</td>').join('') + '<td class="n"><b>' + (c ? money(s.total_valor) : '') + '</b></td><td class="n">' + (c ? fmt3(s.kg_guisos) : '') + '</td></tr>'; }).join('');
+    return '<tr class="clic" onclick="S.gen.branch=' + s.branch_id + ';S.gen.fecha=\'' + (s.fecha_conteo || S.val.fecha) + '\';S.gen.abierto=null;irTab(\'contar\')"><td><b>' + esc(corto(s.sucursal)) + '</b></td><td>' + (c ? (s.exacto ? fmtDia(s.fecha_conteo) : '<span class="badge mini b-warn">⚠️ ' + fmtDia(s.fecha_conteo) + '</span>') : '<span class="hint">sin conteo</span>') + (c && num(s.sin_contar) ? ' <span class="badge mini b-warn">' + s.sin_contar + ' sin contar</span>' : '') + (num(s.sin_precio) ? ' <span class="badge mini b-warn">' + s.sin_precio + ' sin precio</span>' : '') + '</td>' + G.map(g => '<td class="n">' + (c ? money((s.por_grupo || {})[g] || 0) : '') + '</td>').join('') + '<td class="n"><b>' + (c ? money(s.total_valor) : '') + '</b></td><td class="n">' + (c ? fmt3(s.kg_guisos) : '') + '</td></tr>'; }).join('');
   M().innerHTML = h + '<div class="grid"><div class="stat lem"><div class="k">Total en stock</div><div class="v num">' + money(total) + '</div><div class="s">' + con + ' de ' + (r.sucursales || []).length + ' tiendas con conteo</div></div><div class="stat"><div class="k">Kg de guisos</div><div class="v num">' + fmt3(Math.round(kg * 1000) / 1000) + '</div><div class="s">al ' + fmtDia(r.fecha) + '</div></div></div>' +
     '<div class="tbl"><table class="simple"><thead><tr><th>Tienda</th><th>Conteo</th>' + G.map(g => '<th class="n">' + esc(g) + '</th>').join('') + '<th class="n">Total</th><th class="n">Kg guisos</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><td colspan="2">TOTAL</td>' + G.map(g => '<td class="n">' + money(tot[g] || 0) + '</td>').join('') + '<td class="n">' + money(total) + '</td><td class="n">' + fmt3(Math.round(kg * 1000) / 1000) + '</td></tr></tfoot></table></div><p class="hint">Toca una tienda para ver o corregir su conteo.</p>';
   const b = $('btnFinMes'); if (b) b.onclick = () => { S.val.fecha = r.fin_mes_anterior; vValor(); };
 }
 function exportarValor() {
   const r = S.val.data; if (!r || !window.XLSX) { toast('No hay datos o la librería de Excel no cargó.'); return; }
-  const G = r.grupos || []; const hdr = ['Tienda', 'Fecha del conteo', 'Exacto'].concat(G).concat(['Total', 'Kg guisos', 'Capturado por']);
-  const filas = (r.sucursales || []).map(s => [corto(s.sucursal), s.fecha_conteo ? fmtFecha(s.fecha_conteo) : 'Sin conteo', s.fecha_conteo ? (s.exacto ? 'Sí' : 'No, último anterior') : ''].concat(G.map(g => num((s.por_grupo || {})[g]))).concat([num(s.total_valor), num(s.kg_guisos), s.capturado_por || '']));
+  const G = r.grupos || []; const hdr = ['Tienda', 'Fecha del conteo', 'Exacto'].concat(G).concat(['Total', 'Kg guisos', 'Capturado por', 'Productos sin contar']);
+  const filas = (r.sucursales || []).map(s => [corto(s.sucursal), s.fecha_conteo ? fmtFecha(s.fecha_conteo) : 'Sin conteo', s.fecha_conteo ? (s.exacto ? 'Sí' : 'No, último anterior') : ''].concat(G.map(g => num((s.por_grupo || {})[g]))).concat([num(s.total_valor), num(s.kg_guisos), s.capturado_por || '', s.fecha_conteo && s.sin_contar != null ? num(s.sin_contar) : '']));
   const ws = XLSX.utils.aoa_to_sheet([['Valor del inventario al', fmtFecha(r.fecha)], []].concat([hdr]).concat(filas)); ws['!cols'] = hdr.map(() => ({ wch: 16 }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Valor inventario'); XLSX.writeFile(wb, 'valor_inventario_' + r.fecha + '.xlsx');
 }
