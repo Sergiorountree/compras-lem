@@ -47,6 +47,8 @@
   .hoja .param input { width:120px; border:1px solid #c9a227; border-radius:4px; padding:4px 6px; font-size:13px; background:#fffbe6; }
   .hoja .param td.k { background:#f3f3f3; font-weight:600; }
   .hoja .bloque { margin-top:14px; }
+  .hoja table.inv-el th { background:#e7ecf2; color:#1f2937; font-size:12px; text-align:left; }
+  .hoja table.inv-el td { white-space:normal; vertical-align:middle; }
   .calcbar { position:sticky; bottom:0; background:#fff; border-top:2px solid var(--rojo); padding:10px 12px; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; z-index:10; margin:10px -12px -12px; }
   .btn.calcbig { font-size:18px; padding:16px 20px; width:100%; margin:8px 0 12px; box-shadow:0 3px 0 #7a1a1f; }
   .cat-h { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:16px 4px 6px; }
@@ -200,7 +202,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&
    además es la ÚNICA ruta para correo_oc (n8n manda el correo). Forzar n8n para diagnóstico:
    localStorage.setItem('lem_api', 'n8n'). ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
+const LECTURAS = new Set(['admin_calc_inventarios','perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -320,8 +322,8 @@ function selectorEmpresa() {
 function cambiarEmpresa(v) {
   S.empresa = Number(v); try { localStorage.setItem('lem_empresa', String(S.empresa)); } catch (e) {}
   S.branch = (sucs()[0] || {}).branch_id || null; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.gerenteElegido = false;
-  if (typeof CADM !== 'undefined') { CADM.branch = null; CADM.prov = null; CADM.provNombre = null; CADM.data = null; CADM.cons = null; CADM.pend = {}; }
-  if (typeof CSUG !== 'undefined') { CSUG.fecha = null; CSUG.data = null; CSUG.abiertas = {}; }
+  if (typeof CADM !== 'undefined') { CADM.branch = null; CADM.prov = null; CADM.provNombre = null; CADM.data = null; CADM.cons = null; CADM.pend = {}; CADM.inv = null; CADM.invPend = {}; }
+  if (typeof CSUG !== 'undefined') { CSUG.data = null; CSUG.abiertas = {}; }
   $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + (S.perfil.roles.includes('admin') ? '<br>' + selectorVista() : '');
   router();
 }
@@ -543,56 +545,66 @@ async function enviar() {
 
 /* ── Calculadora de pedido (CDC) — réplica de la hoja ──── */
 /* Cabecera y consumo promedio: los captura el ADMINISTRADOR por sucursal (🧮 Calculadora en la vista admin).
-   El gerente solo captura Inventario Final, Modificador y Pedido de Gerente. */
-const CALC = { data: null, vals: {}, fg: null };   // fg: fecha del inventario general con que se abrió (desde el pedido sugerido) o null
+   Mig. 085 (Sergio, 6-oct-2026): el Inventario Final sale del INVENTARIO GENERAL que administración eligió para la tienda
+   (Ajustes → Fechas y días); el gerente ya no lo captura, solo Modificador y Pedido de Gerente. Sin elección (o sin
+   inventario general) la calculadora no calcula. Lo no contado en ese general cuenta como 0. */
+const CALC = { data: null, vals: {} };
 const num = (x, d) => Number(x || 0).toLocaleString('es-MX', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d });
 const fMx = (iso) => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
 const difDias = (a, b) => Math.round((new Date(String(b).slice(0, 10) + 'T12:00:00') - new Date(String(a).slice(0, 10) + 'T12:00:00')) / 86400000);
-/* fechaGeneral: solo la pasa abrirCalcTienda (pedido sugerido) → la calculadora usa EXACTAMENTE el inventario general de ese día.
-   Entrar de forma normal (botón 🧮, sin argumento) la limpia: prellena con el conteo reciente de la sucursal (H2, 5-oct-2026). */
-async function vCalculadora(fechaGeneral) {
+const diasTxt = (n) => n + (Number(n) === 1 ? ' día' : ' días');
+const guisosSinTxt = (n) => n + (Number(n) === 1 ? ' guiso sin contar cuenta' : ' guisos sin contar cuentan') + ' como 0';
+async function vCalculadora() {
   if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   if (!S.cat) S.cat = await api('catalogo', { branch_id: S.branch });
   const prov = (S.cat.proveedores || []).find(p => p.proveedor_id === S.prov && p.calculadora);
   if (!prov) { vCaptura(); return; }
-  const fg = fechaGeneral || null;
   app().innerHTML = nav() + '<div class="msg">Cargando la calculadora de tu sucursal…</div>';
-  let d;
-  try { d = await api('calculadora', Object.assign({ branch_id: S.branch, proveedor_id: S.prov }, fg ? { fecha_general: fg } : {})); }
-  catch (e) {
-    if (!(e && e.message === 'sin_inventario_general')) throw e;   // los demás errores, como hasta hoy (api() ya avisó)
-    const suc = (sucs().find(s => s.branch_id === S.branch) || {}).nombre || 'Esta sucursal';
-    app().innerHTML = nav() + '<div class="card"><button class="btn mini sec" onclick="vCaptura()">← ' + esc(prov.nombre_corto) + '</button></div><div class="msg">📋 ' + esc(sinChih(suc)) + ' no tiene un inventario general del ' + fMx(fg) + ' con productos contados, así que la calculadora no se puede abrir con ese inventario.<br><br><button class="btn sec" onclick="vCalculadora()">Abrir con el inventario más reciente de la sucursal</button></div>';
-    return;
-  }
+  const d = await api('calculadora', { branch_id: S.branch, proveedor_id: S.prov });
   if (d.error === 'sin_config') {
     app().innerHTML = nav() + '<div class="card"><button class="btn mini sec" onclick="vCaptura()">← ' + esc(prov.nombre_corto) + '</button></div><div class="msg">📋 El administrador todavía no captura las fechas y el consumo de esta sucursal.<br>Cuando lo haga, aquí aparecerá la calculadora.</div>';
     return;
   }
   if (d.error) { aviso('Calculadora: ' + (d.detalle || d.error)); vCaptura(); return; }
-  // con otra fuente de inventario (general del sugerido ↔ conteo reciente) lo capturado antes no se reutiliza: no se mezclan fechas
-  const mismo = CALC.data && CALC.data.branch_id === d.branch_id && CALC.data.proveedor_id === d.proveedor_id && (CALC.fg || null) === fg;
-  if (!mismo) CALC.vals = {};
-  CALC.fg = fg; CALC.data = d; pintarCalculadora();
+  if (d.bloqueo) { pintarBloqueoCalc(d, prov); return; }
+  // otra tienda o proveedor: se empieza de cero. Mismo pedido con otro inventario general elegido: se conserva lo capturado
+  // en Pedido de Gerente (no depende del inventario) y solo se reinician los modificadores de los guisos
+  const invId = (d.config.inventario || {}).inventario_dia_id;
+  const mismaTienda = CALC.data && CALC.data.branch_id === d.branch_id && CALC.data.proveedor_id === d.proveedor_id;
+  if (!mismaTienda) CALC.vals = {};
+  else if (((CALC.data.config || {}).inventario || {}).inventario_dia_id !== invId) d.lineas.forEach(l => { const x = CALC.vals[l.proveedor_insumo_id]; if (l.promedio != null && x) x.mod = ''; });
+  CALC.data = d; pintarCalculadora();
+}
+/* Sin inventario general elegido: la calculadora no calcula (mig. 085). sin_general = la tienda nunca ha guardado uno. */
+function pintarBloqueoCalc(d, prov) {
+  const b = d.bloqueo || {}, suc = sinChih(d.sucursal || '');
+  const txt = b.motivo === 'sin_general'
+    ? '📋 ' + esc(suc) + ' todavía no tiene un <b>inventario general</b>.<br>Primero captúralo en <b>Inventarios → 📦 Inventario general</b>. Con ese inventario administración arma el cálculo del pedido; aquí ya no se captura el inventario.'
+    : '📋 Administración todavía no elige qué <b>inventario general</b> usar para calcular el pedido de ' + esc(suc) + (b.ultimo_general ? ' (el último que se guardó es del ' + fMx(b.ultimo_general) + ')' : '') + '.<br>Avísale a administración para que lo elija; mientras, la calculadora no calcula.';
+  CALC.data = null;
+  app().innerHTML = nav() + '<div class="card"><button class="btn mini sec" onclick="vCaptura()">← ' + esc(prov.nombre_corto) + '</button></div><div class="msg">' + txt + '<br><br>' +
+    (b.motivo === 'sin_general' ? '<button class="btn sec" onclick="location.href=\'/inventarios/\'">Ir a Inventarios</button>' : '') +
+    (esAdmin() && b.motivo !== 'sin_general' ? '<button class="btn sec" onclick="irAjustesCalc()">Elegirlo en ⚙️ Ajustes de la calculadora</button>' : '') + '</div>';
+}
+function irAjustesCalc() {
+  S.vista = 'admin'; S.gerenteElegido = false; try { localStorage.setItem('lem_vista', 'admin'); } catch (e) {}
+  $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + '<br>' + selectorVista();
+  if (location.hash === '#calcadmin') router(); else location.hash = 'calcadmin';
 }
 function leerCalc() {
   if (!CALC.data) return;
   CALC.data.lineas.forEach(l => {
-    const id = l.proveedor_insumo_id, inv = $('inv' + id), mod = $('mod' + id), ped = $('ped' + id);
-    CALC.vals[id] = { inv: inv ? inv.value : '', mod: mod ? mod.value : '', ped: ped ? ped.value : '' };
+    const id = l.proveedor_insumo_id, mod = $('mod' + id), ped = $('ped' + id);
+    CALC.vals[id] = { mod: mod ? mod.value : '', ped: ped ? ped.value : '' };
   });
 }
 const redondeoSql = (x) => Math.sign(x) * Math.round(Math.abs(x));   // round() de Postgres: las mitades se alejan de cero
 function lineaCalc(l, inv, mod, ped) {
   const c = CALC.data.config, cubrir = Number(c.dias_cubrir), factor = Number(c.factor_proteccion || 0);
-  // H2 (5-oct-2026): días por línea. Si el inventario es el del conteo prellenado SIN cambiar, se descuentan los días de ese conteo a la
-  // llegada (ya calculados en SQL: inventario_reciente.dias_proyeccion) y al guardar se manda su fecha (fecha_conteo); si el gerente
-  // lo cambió o no hay conteo, son los de la cabecera. Misma regla que calculadora_guardar (que acepta conteos hasta la fecha de llegada).
-  const rec = l.inventario_reciente, fRec = rec && rec.fecha ? String(rec.fecha).slice(0, 10) : '';
-  const delConteo = inv !== '' && inv != null && !!fRec && rec.dias_proyeccion != null && rec.saldo_final != null && Number(inv) === Number(rec.saldo_final) &&
-    (!c.llega || fRec <= String(c.llega).slice(0, 10));
-  const proy = delConteo ? Number(rec.dias_proyeccion) : Number(c.dias_proyeccion);
-  const r = { mod: Number(mod) || 0, ped: ped === '' || ped == null ? null : Number(ped), proy, fecha_conteo: delConteo ? fRec : null };
+  // mig. 085: inv = el del inventario general elegido (sin contar = 0); los días son llega − fecha de ese general, que SQL ya
+  // pone en config.dias_proyeccion. Misma regla que calculadora_guardar y que el pedido sugerido.
+  const proy = Number(c.dias_proyeccion);
+  const r = { mod: Number(mod) || 0, ped: ped === '' || ped == null ? null : Number(ped), proy };
   if (l.promedio != null) {
     // el guardado en SQL usa el promedio capturado por el admin o consumo ÷ días SIN redondear a 4 decimales: aquí igual
     r.prom = (l.promedio_manual || l.consumo == null || !Number(c.dias_consumo)) ? Number(l.promedio) : Number(l.consumo) / Number(c.dias_consumo);
@@ -608,31 +620,26 @@ function lineaCalc(l, inv, mod, ped) {
   return r;
 }
 function cabeceraCalcTxt(c) {
-  if (c.modo === 'manual') return 'fechas y consumo capturados por administración el ' + fecha(c.vigente_desde) + ' · valen hasta que llegue el pedido del ' + fMx(c.llega);
-  return 'fechas automáticas: ventas de los últimos ' + c.dias_consumo + ' días cargados' + (c.consumo_al_dia === false && c.ultimo_consumo ? ' <b style="color:var(--ambar)">(ventas cargadas hasta el ' + fMx(c.ultimo_consumo) + ')</b>' : '') + ' · ' + ((c.fecha_general || CALC.fg) ? 'inventario general del ' + fMx(c.fecha_general || CALC.fg) : 'inventario de hoy') + ' · el pedido llega en ' + c.dias_proyeccion + ' días y debe cubrir ' + c.dias_cubrir;
+  const inv = c.inventario || {};
+  const invT = 'inventario general del ' + fMx(inv.fecha) + ' elegido por administración';
+  if (c.modo === 'manual') return 'fechas y consumo capturados por administración el ' + fecha(c.vigente_desde) + ' · valen hasta que llegue el pedido del ' + fMx(c.llega) + ' · ' + invT;
+  return 'fechas automáticas: ventas de los últimos ' + c.dias_consumo + ' días cargados' + (c.consumo_al_dia === false && c.ultimo_consumo ? ' <b style="color:var(--ambar)">(ventas cargadas hasta el ' + fMx(c.ultimo_consumo) + ')</b>' : '') + ' · ' + invT + ' · el pedido llega el ' + fMx(c.llega) + ' y debe cubrir ' + c.dias_cubrir + ' días';
 }
-/* Nota bajo el Inventario Final de cada guiso: de qué conteo viene y cuántos días de consumo se descuentan (r = lineaCalc de la línea) */
-function leyendaInv(l, inv, r) {
-  const rec = l.inventario_reciente, c = CALC.data.config, dias = (n) => n + (Number(n) === 1 ? ' día' : ' días') + ' hasta la llegada';
-  const amb = (t) => '<span style="color:var(--ambar)">' + t + '</span>';
-  if (inv !== '' && inv != null) {
-    if (rec && Number(inv) === Number(rec.saldo_final)) return 'inventario ' + esc(rec.tipo) + ' del ' + fMx(rec.fecha) + ' · ' + dias(r.proy);
-    return (rec || l.sin_contar || l.ultimo_conteo) ? 'capturado a mano · ' + dias(r.proy) : '';
-  }
-  if (l.sin_contar) return amb('sin contar en el general del ' + fMx(c.fecha_general || CALC.fg));
-  if (l.ultimo_conteo && l.ultimo_conteo.fecha) return amb('último conteo del ' + fMx(l.ultimo_conteo.fecha) + ', demasiado viejo: captura el de hoy');
-  return '';
+const invTxt = (l) => l.inventario == null ? '' : Number(l.inventario).toLocaleString('es-MX', { maximumFractionDigits: 2 }) + (l.inventario_en === 'gramos' ? ' g' : '');
+/* Nota bajo el Inventario Final de cada guiso: solo cuando no se contó en el general elegido (cuenta como 0) */
+function leyendaInv(l) {
+  return l.sin_contar ? '<span style="color:var(--ambar)">sin contar · cuenta 0</span>' : '';
 }
 function pintarCalculadora() {
-  const d = CALC.data, c = d.config, pm = d.parametros.pct_max || {};
-  const v = (id) => CALC.vals[id] || { inv: '', mod: '', ped: '' };
+  const d = CALC.data, c = d.config, pm = d.parametros.pct_max || {}, inv = c.inventario || {};
+  const v = (id) => CALC.vals[id] || { mod: '', ped: '' };
   let h = nav() + '<div class="card hoja" style="overflow-x:auto">' +
     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><button class="btn mini sec" onclick="leerCalc();vCaptura()">← ' + esc(d.proveedor) + '</button><span style="font-size:15px;font-weight:800">🧮 Calculadora de pedido · ' + esc(d.sucursal.replace(' Chihuahua', '')) + '</span><span class="presu">' + cabeceraCalcTxt(c) + '</span></div>' +
     '<table style="width:100%"><tr><td style="border:none;vertical-align:top;padding:0 18px 0 0">' +
       '<table class="param"><tr><td colspan="2" style="text-align:center;background:#f3f3f3"><b>Rango de fechas de consumo</b></td></tr>' +
       '<tr><td class="k">Del</td><td class="ro">' + fMx(c.del) + '</td></tr><tr><td class="k">Al</td><td class="ro">' + fMx(c.al) + '</td></tr>' +
       '<tr><td class="k">Días de consumo</td><td class="ro">' + c.dias_consumo + '</td></tr>' +
-      '<tr><td class="k">Inventario del día:</td><td class="ro">' + fMx(c.fecha_inventario) + '</td></tr>' +
+      '<tr><td class="k">Inventario general del día:</td><td class="ro">' + fMx(c.fecha_inventario) + '</td></tr>' +
       '<tr><td class="k">Día que llega el próximo pedido</td><td class="ro">' + fMx(c.llega) + '</td></tr>' +
       '<tr><td class="k"># Días de proyección</td><td class="ro">' + c.dias_proyeccion + '</td></tr>' +
       '<tr><td class="k">Factor de protección (días)</td><td class="ro">' + num(c.factor_proteccion, 1) + '</td></tr>' +
@@ -644,13 +651,18 @@ function pintarCalculadora() {
     '</td></tr></table>';
   const guisos = d.lineas.filter(l => l.promedio != null), otros = d.lineas.filter(l => l.promedio == null);
   const conceptosOtros = [...new Set(otros.map(l => l.concepto))];
-  const fgen = c.fecha_general || CALC.fg;
-  if (fgen) h += '<div style="border-left:4px solid var(--ambar);background:#fffbeb;padding:8px 10px;margin:0 0 8px;font-size:13px;white-space:normal">📦 Abierta desde el pedido sugerido: usa solo el <b>inventario general del ' + fMx(fgen) + '</b> de esta sucursal, con los mismos días que el sugerido. Los guisos que no se contaron ese día quedan vacíos; si capturas uno, cuenta como inventario del ' + fMx(c.fecha_inventario) + '.</div>';
-  const notaDias = guisos.some(l => l.inventario_reciente) ? '<div class="presu" style="margin:2px 0 6px">Inventario Final: si viene de un conteo anterior, los días de consumo se cuentan desde ese conteo hasta la llegada (la nota bajo cada número lo dice); si lo cambias, cuenta como inventario del ' + fMx(c.fecha_inventario) + ' (' + c.dias_proyeccion + ' días).</div>' : '';
-  h += '<div class="bloque"><div class="titulo">Guisos · pedido sugerido por consumo</div>' + notaDias + '<table class="g16" style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Un</th><th>Consumo</th><th class="g">Inventario Final</th><th>Consumo promedio diario</th><th>Consumo días de proyección</th><th>Inventario proyectado</th><th>Consumo periodo de pedido</th><th>Invent. a final de consumo</th><th>Unidad de Medida</th><th>Fracciones a pedir</th><th>Pedido Sugerido</th><th class="g">Modificador manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
+  const sinC = guisos.filter(l => l.sin_contar).length;
+  const alerta = inv.viejo || sinC || inv.mas_reciente;
+  h += '<div style="border-left:4px solid ' + (alerta ? 'var(--ambar)' : '#2f5597') + ';background:' + (alerta ? '#fffbeb' : '#eef4fb') + ';padding:8px 10px;margin:0 0 8px;font-size:13px;white-space:normal">' +
+    '📦 El <b>Inventario Final</b> es el <b>inventario general del ' + fMx(inv.fecha) + '</b> de esta sucursal' + (Number(inv.dias_conteo) > 0 ? ' (hace ' + diasTxt(inv.dias_conteo) + ')' : ' (de hoy)') + ', elegido por administración. ' + (Number(c.dias_proyeccion) === 1 ? 'Se descuenta ' : 'Se descuentan ') + diasTxt(c.dias_proyeccion) + ' de consumo, desde ese inventario hasta que llega el pedido.' +
+    (inv.viejo ? ' <b>⚠️ Tiene más de ' + diasTxt(c.max_dias_conteo) + ': cada día de antigüedad hace más grande el pedido.</b>' : '') +
+    (sinC ? ' <b style="color:var(--ambar)">' + (sinC === 1 ? '1 guiso no se contó en ese inventario: cuenta como 0.' : sinC + ' guisos no se contaron en ese inventario: cuentan como 0.') + '</b>' : '') +
+    (inv.mas_reciente ? ' <b style="color:var(--ambar)">Ya hay un inventario general más nuevo (del ' + fMx(inv.mas_reciente.fecha) + '); si quieres que se use ese, pídeselo a administración.</b>' : '') +
+    ' Si un número está mal, hay que corregir ese inventario general en Inventarios (o pedírselo a administración) y volver a abrir la calculadora.</div>';
+  h += '<div class="bloque"><div class="titulo">Guisos · pedido sugerido por consumo</div><table class="g16" style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Un</th><th>Consumo</th><th>Inventario Final</th><th>Consumo promedio diario</th><th>Consumo días de proyección</th><th>Inventario proyectado</th><th>Consumo periodo de pedido</th><th>Invent. a final de consumo</th><th>Unidad de Medida</th><th>Fracciones a pedir</th><th>Pedido Sugerido</th><th class="g">Modificador manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
   guisos.forEach(l => { const id = l.proveedor_insumo_id, x = v(id);
     h += '<tr><td class="n">' + (l.precio != null ? money(l.precio) : '') + '</td><td><b>' + esc(l.insumo) + '</b></td><td class="c">' + esc(l.unidad || '') + '</td><td class="n">' + num(l.consumo) + '</td>' +
-      '<td class="in"><input type="number" inputmode="numeric" min="0" id="inv' + id + '" value="' + esc(x.inv !== '' ? x.inv : (l.inventario_reciente ? l.inventario_reciente.saldo_final : '')) + '" placeholder="' + l.inventario_en + '" oninput="recalc()"><div id="leg' + id + '" style="font-size:10px;color:var(--txt2);text-align:right;white-space:normal;max-width:130px;margin-left:auto;line-height:1.2"></div></td>' +
+      '<td class="n" id="inv' + id + '"><b>' + invTxt(l) + '</b><div style="font-size:10px;text-align:right;white-space:normal;max-width:130px;margin-left:auto;line-height:1.2">' + leyendaInv(l) + '</div></td>' +
       '<td class="n">' + num(l.promedio) + (l.promedio_manual ? ' <span title="capturado por administración" style="color:var(--txt2)">✎</span>' : '') + '</td><td class="n" id="cpr' + id + '"></td><td class="n" id="ipr' + id + '"></td><td class="n" id="cpe' + id + '"></td><td class="n" id="ifc' + id + '"></td>' +
       '<td class="n">' + num(l.fraccion) + '</td><td class="n" id="frc' + id + '"></td><td class="sug" id="sug' + id + '"></td>' +
       '<td class="in"><input type="number" inputmode="numeric" id="mod' + id + '" value="' + esc(x.mod) + '" oninput="recalc()"></td>' +
@@ -675,11 +687,10 @@ function recalc() {
   const d = CALC.data; if (!d || !$('cTotal')) return;
   const porConc = {}; let total = 0, cajas = 0;
   d.lineas.forEach(l => {
-    const id = l.proveedor_insumo_id, inv = $('inv' + id) ? $('inv' + id).value : '', mod = $('mod' + id) ? $('mod' + id).value : '', ped = $('ped' + id) ? $('ped' + id).value : '';
-    const r = lineaCalc(l, inv, mod, ped);
+    const id = l.proveedor_insumo_id, mod = $('mod' + id) ? $('mod' + id).value : '', ped = $('ped' + id) ? $('ped' + id).value : '';
+    const r = lineaCalc(l, l.promedio != null && l.inventario != null ? l.inventario : '', mod, ped);
     const set = (k, val, cls) => { const el = $(k + id); if (el) { el.textContent = val; if (cls !== undefined) el.className = cls; } };
     if (l.promedio != null) {
-      const lg = $('leg' + id); if (lg) lg.innerHTML = leyendaInv(l, inv, r);
       set('cpr', num(r.consProy));
       if (r.sug != null) {
         set('ipr', l.inventario_en === 'gramos' ? num(r.invProy * 1000, 0) : num(r.invProy, 0), 'n' + (r.invProy < 0 ? ' neg' : ''));
@@ -699,17 +710,22 @@ function recalc() {
   $('cTotal').textContent = money(total); $('cCajas').textContent = '· ' + cajas + ' unidades de compra';
 }
 async function pasarAlPedido(btn) {
-  const d = CALC.data;
+  const d = CALC.data, invId = (d.config.inventario || {}).inventario_dia_id;
+  // mig. 085: se manda el inventario que se mostró y de qué general; SQL lo vuelve a sacar del general elegido y, si ya no
+  // coincide (cambió la elección o alguien corrigió el general), rechaza para que se recargue la calculadora
   const lineas = d.lineas.map(l => { const id = l.proveedor_insumo_id; const g = (k) => $(k + id) ? $(k + id).value : '';
-    // fecha_conteo: solo si el inventario es el del conteo prellenado sin cambiar (la misma regla con que lineaCalc eligió los días)
-    return { proveedor_insumo_id: id, inventario: g('inv') === '' ? null : Number(g('inv')), modificador: Number(g('mod')) || 0, pedido_gerente: g('ped') === '' ? null : Number(g('ped')),
-             fecha_conteo: lineaCalc(l, g('inv'), g('mod'), g('ped')).fecha_conteo }; });
-  const sinInv = d.lineas.filter(l => l.promedio != null && ($('inv' + l.proveedor_insumo_id).value === '')).length;
-  if (sinInv && !confirm('Hay ' + sinInv + ' guiso' + (sinInv === 1 ? '' : 's') + ' sin inventario final: para esos no se calcula sugerido. ¿Continuar?')) return;
+    return { proveedor_insumo_id: id, inventario: l.promedio != null ? l.inventario : null, inventario_dia_id: invId,
+             modificador: Number(g('mod')) || 0, pedido_gerente: g('ped') === '' ? null : Number(g('ped')) }; });
+  const inv = d.config.inventario || {}, sinC = d.lineas.filter(l => l.sin_contar).length;
+  if ((sinC || inv.viejo || inv.mas_reciente) && !confirm('Este pedido se calcula con el inventario general del ' + fMx(inv.fecha) + (Number(inv.dias_conteo) > 0 ? ' (hace ' + diasTxt(inv.dias_conteo) + ')' : '') + '.' +
+      (sinC ? '\n• ' + guisosSinTxt(sinC) + ': se pide el ciclo completo.' : '') + (inv.viejo ? '\n• Tiene más de ' + diasTxt(d.config.max_dias_conteo) + ': el pedido sale más grande.' : '') +
+      (inv.mas_reciente ? '\n• Ya hay uno más nuevo (del ' + fMx(inv.mas_reciente.fecha) + ') que administración no ha elegido.' : '') + '\n\nTotal: ' + ($('cTotal') ? $('cTotal').textContent : '') + ' sin IVA. ¿Pasar al pedido?')) return;
   btn.disabled = true;
   let r;
   try { r = await api('calculadora_guardar', { branch_id: S.branch, proveedor_id: S.prov, lineas }); }
-  catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
+  catch (e) {   // el inventario o la elección cambió: se vuelve a abrir con lo actual (solo si la calculadora sigue en pantalla)
+    if (rechazoDelServidor(e)) { if (document.body.contains(btn)) { leerCalc(); vCalculadora(); } else btn.disabled = false; }
+    return; }
   r.lineas.forEach(l => { if (l.final > 0) S.carrito[l.proveedor_insumo_id] = l.final; else delete S.carrito[l.proveedor_insumo_id]; });
   S.corridaId = r.corrida_id; await tocarPrimera(); leerCalc();
   S.calcNota = 'Calculadora aplicada: ' + r.insumos + ' insumo' + (r.insumos === 1 ? '' : 's') + ' en el pedido por ' + money(r.total) + ' sin IVA. Revisa y envía.';
@@ -717,7 +733,7 @@ async function pasarAlPedido(btn) {
 }
 
 /* ── Administración de la calculadora: fechas para todas las tiendas, presupuestos en lote, consumos por tienda ── */
-const CADM = { branch: null, prov: null, data: null, pend: {} };
+const CADM = { branch: null, prov: null, data: null, pend: {}, inv: null, invPend: {} };   // inv/invPend: inventario general elegido por tienda (mig. 085)
 const sinChih = (n) => String(n || '').replace(' Chihuahua', '');
 async function vCalcAdmin(del, al) {
   if (vista() !== 'admin') { location.hash = 'captura'; return; }
@@ -728,6 +744,7 @@ async function vCalcAdmin(del, al) {
   const d = await api('admin_calc_config', { branch_id: CADM.branch, proveedor_id: CADM.prov, del: del || null, al: al || null });
   if (d.error) { aviso('Calculadora: ' + (d.detalle || d.error)); return; }
   CADM.data = d;
+  try { CADM.inv = await api('admin_calc_inventarios', { proveedor_id: CADM.prov }); } catch (e) { CADM.inv = { error: (e && e.message) || 'sin respuesta' }; }
   const f = d.defaults, cfg = d.config, res = d.resumen || {}, tiendas = d.tiendas || [], nT = tiendas.length;
   const tienda = (sucs().find(s => s.branch_id === CADM.branch) || {}).nombre || 'esta sucursal';
   let h = nav() + subnavCalc('ajustes') + '<div class="card"><b style="font-size:16px">🧮 Ajustes de la calculadora de ' + esc(CADM.provNombre) + '</b>' +
@@ -738,14 +755,13 @@ async function vCalcAdmin(del, al) {
     '<tr><td class="k">Del</td><td class="in"><input type="date" id="a_del" value="' + f.del + '" onchange="vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)"></td></tr>' +
     '<tr><td class="k">Al</td><td class="in"><input type="date" id="a_al" value="' + f.al + '" onchange="vCalcAdmin($(\'a_del\').value,$(\'a_al\').value)"></td></tr>' +
     '<tr><td class="k">Días de consumo</td><td class="ro">' + f.dias_consumo + '</td></tr>' +
-    '<tr><td class="k">Inventario del día:</td><td class="in"><input type="date" id="a_inv" value="' + f.fecha_inventario + '" onchange="admProy()"></td></tr>' +
-    '<tr><td class="k">Día que llega el próximo pedido</td><td class="in"><input type="date" id="a_llega" value="' + f.llega + '" onchange="admProy()"></td></tr>' +
-    '<tr><td class="k"># Días de proyección</td><td class="ro" id="a_proy">' + Math.max(0, difDias(f.fecha_inventario, f.llega)) + '</td></tr>' +
+    '<tr><td class="k">Día que llega el próximo pedido</td><td class="in"><input type="date" id="a_llega" value="' + f.llega + '"></td></tr>' +
     '<tr><td class="k">Factor de protección (días)</td><td class="in"><input type="number" step="0.5" min="0" id="a_factor" value="' + f.factor_proteccion + '"></td></tr>' +
     '<tr><td class="k">Días a cubrir con el pedido</td><td class="in"><input type="number" min="1" id="a_cubrir" value="' + f.dias_cubrir + '"></td></tr></table>' +
     '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarCalcConfig(this)">Guardar para todas las sucursales</button>' +
     (res.con_manual ? '<button class="btn sec" onclick="quitarCalcConfig(this,true)">Volver a fechas automáticas en todas</button>' : '') +
-    '<span class="presu" id="a_msg"></span></div></div>';
+    '<span class="presu" id="a_msg"></span></div>' +
+    '<div id="ie_bloque">' + invElegidoHTML() + '</div></div>';
   /* 2) Presupuesto por sucursal, todas a la vista, un solo guardado */
   const pendVal = (t) => (CADM.pend[t.branch_id] !== undefined ? CADM.pend[t.branch_id] : (t.presupuesto != null ? Number(t.presupuesto) : ''));
   h += '<div class="card"><b>Presupuesto por sucursal · por pedido, sin IVA</b>' +
@@ -777,53 +793,116 @@ async function vCalcAdmin(del, al) {
   }
   app().innerHTML = h;
 }
+/* ── Mig. 085 (Sergio, 6-oct-2026): inventario general con que calcula cada sucursal. Sin elegir, esa calculadora no calcula;
+   la elección se queda hasta que un administrador la cambie; los guisos no contados cuentan 0; más de max_dias_conteo días avisa. ── */
+const invGuardado = (t) => t.eleccion ? String(t.eleccion.inventario_dia_id) : '';
+function invSel(t) { const p = CADM.invPend[t.branch_id]; return p !== undefined ? p : (t.eleccion && t.eleccion.valida ? String(t.eleccion.inventario_dia_id) : ''); }
+const invPendiente = (t) => CADM.invPend[t.branch_id] !== undefined && CADM.invPend[t.branch_id] !== invGuardado(t);
+function invOpcion(g) { return fMx(g.fecha) + ' · ' + (Number(g.dias_conteo) > 0 ? 'hace ' + diasTxt(g.dias_conteo) : 'de hoy') + ' · ' + g.guisos_contados + (Number(g.guisos_contados) === 1 ? ' guiso' : ' guisos') + (g.viejo ? ' ⚠️' : ''); }
+function invElegidoHTML() {
+  const ci = CADM.inv; if (!ci) return '';
+  if (ci.error) return '<div class="presu" style="color:var(--ambar);margin-top:14px">No se pudieron leer los inventarios generales: ' + esc(ci.detalle || ci.error) + '</div>';
+  const res = ci.resumen || {}, ts = ci.tiendas || [];
+  // un pendiente que ya no está en la lista de su tienda (p. ej. ese general se vació) se descarta: no se manda ni se muestra
+  ts.forEach(t => { const p = CADM.invPend[t.branch_id]; if (p && !(t.generales || []).some(g => String(g.inventario_dia_id) === p)) delete CADM.invPend[t.branch_id]; });
+  const fechas = [...new Set(ts.flatMap(t => (t.generales || []).map(g => g.fecha)))].sort().reverse();
+  let h = '<div class="bloque" style="margin-top:18px"><div class="titulo">Inventario general con que calcula cada sucursal · ' + (res.elegidas || 0) + ' de ' + ts.length + ' elegidas' + (res.con_general_nuevo ? ' · ' + res.con_general_nuevo + ' con uno más nuevo' : '') + '</div></div>' +
+    '<div class="presu" style="white-space:normal;margin:6px 0">La calculadora de cada tienda toma su Inventario Final del inventario general que elijas aquí (el que la tienda guardó en Inventarios → 📦 Inventario general); el gerente ya no lo captura. <b>Sin elegir, la calculadora de esa tienda no calcula.</b> Los guisos que no se contaron cuentan como 0 y se descuentan los días de consumo desde la fecha del inventario hasta que llega el pedido. La elección se queda hasta que la cambies.</div>' +
+    '<div style="overflow-x:auto"><table class="oc inv-el" style="font-family:inherit;font-size:13px"><tr><th>Sucursal</th><th>Inventario general</th><th class="der">Días que descuenta</th><th class="der">Guisos contados</th><th>Elegido por</th></tr>';
+  ts.forEach(t => {
+    const gens = t.generales || [], sel = invSel(t), g = gens.find(x => String(x.inventario_dia_id) === sel), pend = invPendiente(t);
+    const celda = gens.length
+      ? '<select id="ie_' + t.branch_id + '" onchange="invCambio(' + t.branch_id + ',this.value)" style="font-size:14px;border:1px solid var(--borde);border-radius:6px;padding:5px 6px;max-width:100%' + (sel === '' ? ';color:var(--rojo)' : '') + '">' +
+          '<option value=""' + (sel === '' ? ' selected' : '') + '>— Sin elegir: no calcula —</option>' +
+          gens.map(x => '<option value="' + x.inventario_dia_id + '"' + (String(x.inventario_dia_id) === sel ? ' selected' : '') + '>' + esc(invOpcion(x)) + '</option>').join('') + '</select>'
+      : '<span style="color:var(--ambar)">sin inventario general guardado</span>';
+    const avisos = (g && g.viejo ? '<div style="color:var(--ambar);font-size:12px;margin-top:3px;white-space:normal">⚠️ Tiene ' + diasTxt(g.dias_conteo) + ' (más de ' + ci.max_dias_conteo + '): cada día de antigüedad hace más grande el pedido</div>' : '') +
+      (t.eleccion && !t.eleccion.valida && !pend ? '<div style="color:var(--rojo);font-size:12px;white-space:normal">El inventario elegido (' + fMx(t.eleccion.fecha) + ') ya no tiene productos contados: elige otro</div>' : '') +
+      (t.mas_reciente && !pend ? '<div style="color:var(--ambar);font-size:12px;margin-top:3px;white-space:normal">ℹ️ Ya hay uno más nuevo: el del ' + fMx(t.mas_reciente.fecha) + '</div>' : '');
+    h += '<tr><td><b>' + esc(sinChih(t.nombre)) + '</b></td><td>' + celda + avisos + '</td>' +
+      '<td class="der">' + (g ? (g.dias_llegada != null ? g.dias_llegada : '—') : '') + '</td>' +
+      '<td class="der">' + (g ? g.guisos_contados + ' de ' + t.guisos + (g.guisos_contados < t.guisos ? '<div style="font-size:11px;color:var(--ambar)">los demás cuentan 0</div>' : '') : '') + '</td>' +
+      '<td style="color:var(--txt2);font-size:12px">' + (pend ? '<span class="chip pendiente">sin guardar</span>' : (t.eleccion ? esc((t.eleccion.elegido_por || '').split('@')[0]) + ' · ' + fecha(t.eleccion.elegido_el) : '')) + '</td></tr>';
+  });
+  h += '</table></div>';
+  if (fechas.length) h += '<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="presu">Atajo: elegir en todas las tiendas el inventario general del</span>' +
+    '<select id="ie_todas" style="font-size:14px;border:1px solid var(--borde);border-radius:6px;padding:5px 6px">' +
+    fechas.map(f => '<option value="' + f + '">' + fMx(f) + ' (' + ts.filter(t => (t.generales || []).some(x => x.fecha === f)).length + ' de ' + ts.length + ' tiendas)</option>').join('') + '</select>' +
+    '<button class="btn mini sec" onclick="invTodas()">Aplicar a las que lo tengan</button></div>';
+  h += '<div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="guardarInvElegidos(this)">Guardar inventarios elegidos</button><span class="presu" id="ie_msg"></span></div>';
+  return h;
+}
+function pintarInvElegido(msg) { const el = $('ie_bloque'); if (el) el.innerHTML = invElegidoHTML(); if (msg && $('ie_msg')) $('ie_msg').textContent = msg; }
+function invCambio(b, v) { CADM.invPend[b] = v; pintarInvElegido(); }
+function invTodas() {
+  const f = $('ie_todas') && $('ie_todas').value, ts = (CADM.inv && CADM.inv.tiendas) || []; if (!f) return;
+  let n = 0, ya = 0; const sin = [];
+  ts.forEach(t => { const g = (t.generales || []).find(x => x.fecha === f);
+    if (!g) { sin.push(sinChih(t.nombre)); return; }
+    if (String(g.inventario_dia_id) === invGuardado(t)) { delete CADM.invPend[t.branch_id]; ya++; } else { CADM.invPend[t.branch_id] = String(g.inventario_dia_id); n++; } });
+  pintarInvElegido((n ? n + (n === 1 ? ' tienda cambia' : ' tiendas cambian') + ' al general del ' + fMx(f) + ' (falta guardar)' : 'Ninguna tienda cambia') + (ya ? '; ' + ya + (ya === 1 ? ' ya lo tenía' : ' ya lo tenían') : '') + (sin.length ? '; sin general de esa fecha, se quedan como estaban: ' + sin.join(', ') : '') + '.');
+}
+async function guardarInvElegidos(btn) {
+  const ts = (CADM.inv && CADM.inv.tiendas) || [], cambios = ts.filter(invPendiente);
+  if (!cambios.length) { if ($('ie_msg')) $('ie_msg').textContent = 'No hay cambios que guardar.'; return; }
+  const txt = cambios.map(t => { const v = CADM.invPend[t.branch_id], g = (t.generales || []).find(x => String(x.inventario_dia_id) === v);
+    return '• ' + sinChih(t.nombre) + ': ' + (g ? 'general del ' + fMx(g.fecha) + (g.viejo ? ' (⚠️ ' + diasTxt(g.dias_conteo) + ')' : '') + (g.guisos_contados < t.guisos ? ', ' + guisosSinTxt(t.guisos - g.guisos_contados) : '') : 'sin elegir (la calculadora no calcula)'); }).join('\n');
+  if (!confirm('¿Guardar el inventario general de ' + cambios.length + ' sucursal' + (cambios.length === 1 ? '' : 'es') + '?\n\n' + txt + '\n\nLa calculadora de cada tienda calcula con ese inventario hasta que lo cambies.')) return;
+  let r; btn.disabled = true;
+  try { r = await api('admin_calc_elegir_inventario', { proveedor_id: CADM.prov, items: cambios.map(t => ({ branch_id: t.branch_id, inventario_dia_id: CADM.invPend[t.branch_id] || null })) }); }
+  catch (e) { return; }                       // api() ya mostró el motivo
+  finally { btn.disabled = false; }
+  if (!r || r.error) { if (r && r.error) alert('No se guardó: ' + (r.detalle || r.error)); return; }
+  CADM.invPend = {}; CALC.data = null; CSUG.data = null;
+  try { CADM.inv = await api('admin_calc_inventarios', { proveedor_id: CADM.prov }); } catch (e) { CADM.inv = { error: (e && e.message) || 'sin respuesta' }; }
+  pintarInvElegido('✔ Guardado: ' + r.elegidas + ' elegida' + (r.elegidas === 1 ? '' : 's') + (r.quitadas ? ', ' + r.quitadas + ' sin elegir' : '') + '.');
+}
 function subnavCalc(act) {
   const b = (k, t, hsh) => '<button class="btn mini ' + (act === k ? '' : 'sec') + '" onclick="location.hash=\'' + hsh + '\'">' + t + '</button>';
   return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px">' + b('ajustes', '⚙️ Ajustes de la calculadora', 'calcadmin') + b('sugerido', '📦 Pedido sugerido por sucursal', 'calcsugerido') + '</div>';
 }
-/* ── Pedido sugerido por sucursal: inventario general de la fecha elegida + fórmula de la calculadora, para todas las tiendas ── */
-const CSUG = { fecha: null, data: null, abiertas: {} };
-async function vCalcSugerido(fecha) {
+/* ── Pedido sugerido por sucursal: el inventario general elegido de cada tienda (mig. 085) + fórmula de la calculadora ── */
+const CSUG = { data: null, abiertas: {} };
+async function vCalcSugerido() {
   if (vista() !== 'admin') { location.hash = 'captura'; return; }
   document.body.classList.add('ancha');
   app().innerHTML = nav() + subnavCalc('sugerido') + '<div class="msg">Calculando el pedido sugerido de cada sucursal…</div>';
   if (!CADM.prov) { const cp = await api('admin_calc_params'); const p0 = (cp.proveedores || [])[0]; if (!p0) { app().innerHTML = nav() + '<div class="msg">Ningún proveedor tiene calculadora.</div>'; return; } CADM.prov = p0.proveedor_id; CADM.provNombre = p0.nombre_corto; }
-  if (fecha !== undefined) CSUG.fecha = fecha || null;
-  const d = await api('admin_calc_sugerido', { proveedor_id: CADM.prov, fecha: CSUG.fecha });
+  const d = await api('admin_calc_sugerido', { proveedor_id: CADM.prov });
   if (d.error) { aviso('Pedido sugerido: ' + (d.detalle || d.error)); return; }
-  CSUG.data = d; CSUG.fecha = d.fecha || null;
+  CSUG.data = d;
   pintarSugerido();
 }
 function pintarSugerido() {
   const d = CSUG.data; if (!d) return;
   const res = d.resumen || {}, tiendas = d.tiendas || [], faltan = d.faltan || [];
-  let h = nav() + subnavCalc('sugerido') + '<div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">📦 Pedido sugerido por sucursal · ' + esc(d.proveedor || CADM.provNombre) + '</b>' +
-    '<label style="font-size:14px">Inventario general del <select onchange="vCalcSugerido(this.value)" style="font-size:15px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px">' +
-    (d.fechas || []).map(f => '<option value="' + f + '"' + (f === d.fecha ? ' selected' : '') + '>' + fMx(f) + '</option>').join('') + (d.fechas && d.fechas.length ? '' : '<option value="">(ninguno todavía)</option>') + '</select></label></div>' +
-    '<div class="presu" style="margin-top:6px">Cada tienda se calcula con la fórmula de la calculadora (fechas y consumos de Ajustes) y con el inventario general que su gerente guardó ese día en Inventarios; sin modificador manual. Para ajustar y mandar el pedido, abre la calculadora de la tienda: entras como su gerente con ese inventario ya cargado.</div></div>';
-  if (!d.fecha) h += '<div class="msg">Todavía ninguna sucursal ha guardado un inventario general en Inventarios. En cuanto exista uno, aquí sale el pedido sugerido de cada tienda.</div>';
+  let h = nav() + subnavCalc('sugerido') + '<div class="card"><b style="font-size:16px">📦 Pedido sugerido por sucursal · ' + esc(d.proveedor || CADM.provNombre) + '</b>' +
+    '<div class="presu" style="margin-top:6px">Cada tienda se calcula con la fórmula de la calculadora (fechas y consumos de Ajustes) y con el <b>inventario general que elegiste para ella</b> en ⚙️ Ajustes → Fechas y días; sin modificador manual. Los guisos que no se contaron cuentan como 0. Para ajustar y mandar el pedido, abre la calculadora de la tienda: entras como su gerente con ese mismo inventario.</div></div>';
+  const hayElegibles = faltan.some(f => f.motivo === 'sin_eleccion');
+  if (!res.con_inventario) h += '<div class="msg">' + (hayElegibles ? 'Ninguna tienda tiene todavía un inventario general elegido. Elige el de cada una en ⚙️ Ajustes de la calculadora → Fechas y días.<br><br><button class="btn sec" onclick="location.hash=\'calcadmin\'">Ir a Ajustes</button>'
+    : 'Ninguna sucursal ha guardado todavía un inventario general en Inventarios (Inventarios → 📦 Inventario general). Cuando lo guarden, lo eliges en ⚙️ Ajustes → Fechas y días y aquí sale su pedido sugerido.') + '</div>';
   if (faltan.length) {
-    // motivo (H3, 5-oct-2026): 'sin_inventario' = no guardó el general de esa fecha; 'sin_guisos_contados' = lo guardó sin contar ningún guiso con consumo
-    const sinG = faltan.filter(f => f.motivo === 'sin_guisos_contados'), sinInv = faltan.filter(f => f.motivo !== 'sin_guisos_contados');
-    const nombres = (fs) => fs.map(f => sinChih(f.nombre)).join(', ');
-    const msg = 'Hola, ' + (sinInv.length ? 'nos falta el inventario general del ' + fMx(d.fecha) + ' en Inventarios (compras.grupolem.com → Inventarios → Inventario general): ' + nombres(sinInv) + '.' : '') +
-      (sinG.length ? (sinInv.length ? ' En ' : 'en ') + 'el inventario general del ' + fMx(d.fecha) + ' de ' + nombres(sinG) + ' no se contó ningún guiso' + (sinInv.length ? '' : ' (compras.grupolem.com → Inventarios → Inventario general)') + '.' : '') + ' ¿Lo pueden capturar hoy? Gracias.';
-    h += '<div class="card" style="border-left:4px solid var(--ambar)"><b>Faltan por capturar el inventario general' + (d.fecha ? ' del ' + fMx(d.fecha) : '') + ' (' + faltan.length + ' de ' + (res.tiendas || tiendas.length) + ')</b>' +
-      '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' + faltan.map(f => f.motivo === 'sin_guisos_contados'
-        ? '<span class="chip pendiente" title="guardó el inventario general del ' + fMx(d.fecha) + ' pero sin ningún guiso contado: no hay pedido sugerido">' + esc(sinChih(f.nombre)) + ' · sin guisos contados</span>'
-        : '<span class="chip" title="' + (f.ultimo_general ? 'último general: ' + fMx(f.ultimo_general) : 'nunca ha capturado uno') + '">' + esc(sinChih(f.nombre)) + ' · sin inventario' + (f.ultimo_general ? ' · últ. ' + fMx(f.ultimo_general) : '') + '</span>').join('') + '</div>' +
-      (d.fecha ? '<div style="margin-top:10px"><a class="btn mini sec" target="_blank" rel="noopener" href="https://api.whatsapp.com/send?text=' + encodeURIComponent(msg) + '">Pedirlo por WhatsApp</a></div>' : '') + '</div>';
+    // motivo (mig. 085): 'sin_general' = la tienda nunca guardó un inventario general; 'sin_eleccion' = tiene, pero no se ha elegido
+    const sinGen = faltan.filter(f => f.motivo === 'sin_general'), sinEl = faltan.filter(f => f.motivo !== 'sin_general');
+    const msg = 'Hola, nos falta el inventario general en Inventarios (compras.grupolem.com → Inventarios → Inventario general): ' + sinGen.map(f => sinChih(f.nombre)).join(', ') + '. ¿Lo pueden capturar hoy? Gracias.';
+    h += '<div class="card" style="border-left:4px solid var(--ambar)"><b>Sin pedido sugerido (' + faltan.length + ' de ' + (res.tiendas || tiendas.length) + ')</b>' +
+      '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' + faltan.map(f => f.motivo === 'sin_general'
+        ? '<span class="chip" title="nunca ha guardado un inventario general">' + esc(sinChih(f.nombre)) + ' · sin inventario general</span>'
+        : '<span class="chip pendiente" title="tiene inventario general pero no se ha elegido">' + esc(sinChih(f.nombre)) + ' · sin elegir' + (f.ultimo_general ? ' · últ. ' + fMx(f.ultimo_general) : '') + '</span>').join('') + '</div>' +
+      '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' + (sinEl.length ? '<button class="btn mini" onclick="location.hash=\'calcadmin\'">Elegir su inventario en Ajustes</button>' : '') +
+      (sinGen.length ? '<a class="btn mini sec" target="_blank" rel="noopener" href="https://api.whatsapp.com/send?text=' + encodeURIComponent(msg) + '">Pedir el inventario general por WhatsApp</a>' : '') + '</div></div>';
   }
-  const enFaltan = new Set(faltan.map(f => f.branch_id));
-  const con = tiendas.filter(t => t.inventario && !enFaltan.has(t.branch_id));   // una tienda 'sin guisos contados' va solo en faltantes
-  if (res.parciales) h += '<div class="card" style="border-left:4px solid var(--ambar)"><b>' + res.parciales + ' tienda' + (res.parciales === 1 ? '' : 's') + ' con guisos sin contar</b> en el inventario general del ' + fMx(d.fecha) + ': su sugerido no incluye esos guisos (en el detalle salen como "sin contar"). Para pedirlos, abre la calculadora de la tienda y captura su inventario.</div>';
+  const con = tiendas.filter(t => t.inventario);
+  if (res.parciales) h += '<div class="card" style="border-left:4px solid var(--ambar)"><b>' + res.parciales + ' tienda' + (res.parciales === 1 ? '' : 's') + ' con guisos sin contar</b> en su inventario general: esos guisos cuentan como 0 (en el detalle salen como "sin contar").</div>';
+  if (res.con_general_nuevo) h += '<div class="card" style="border-left:4px solid var(--ambar)"><b>ℹ️ ' + res.con_general_nuevo + (res.con_general_nuevo === 1 ? ' tienda ya guardó' : ' tiendas ya guardaron') + ' un inventario general más nuevo que el elegido</b>: su pedido sigue con el elegido hasta que lo cambies en <button class="btn mini sec" onclick="location.hash=\'calcadmin\'">⚙️ Ajustes</button>.</div>';
+  if (res.viejas) h += '<div class="card" style="border-left:4px solid var(--ambar)"><b>⚠️ ' + res.viejas + ' tienda' + (res.viejas === 1 ? '' : 's') + ' con un inventario general de más de ' + diasTxt(d.max_dias_conteo) + '</b>: cada día de antigüedad hace más grande el pedido.</div>';
   if (con.length) {
     h += '<div class="card" style="overflow-x:auto"><table class="oc"><tr><th>Sucursal</th><th>Inventario general</th><th class="der">Sugerido guisos (sin IVA)</th><th class="der">Presupuesto</th><th class="der">% usado</th><th class="der">Cajas</th><th>Pedido</th><th></th></tr>';
     con.forEach(t => {
       const ped = t.pedido ? '<a href="#req-' + t.pedido.req_id + '" class="chip ' + esc(t.pedido.estado) + '" style="text-decoration:none">' + esc(t.pedido.folio) + ' · ' + esc(etq(t.pedido.estado)) + '</a>' + (t.pedido.con_calculadora ? '' : ' <span class="presu">sin calculadora</span>') : '<span style="color:var(--txt2)">sin requisición</span>';
       const sobre = t.pct != null && Number(t.pct) > 100, cfg = t.config || {};
-      h += '<tr><td><b>' + esc(sinChih(t.nombre)) + '</b>' + (t.config && t.config.modo === 'manual' ? ' <span class="presu" title="cabecera manual">✎</span>' : '') + '</td><td' + (cfg.dias_conteo != null ? ' title="contado hace ' + cfg.dias_conteo + ' día' + (Number(cfg.dias_conteo) === 1 ? '' : 's') + '"' : '') + '>' + conteoTxt(t) + ' <span class="presu">· ' + esc((t.inventario.capturado_por || '').split('@')[0]) + '</span>' +
-        (t.parcial ? ' <span class="chip pendiente" title="guisos con consumo que no se contaron en este inventario general: no tienen sugerido">' + t.guisos_sin_contar + ' guiso' + (Number(t.guisos_sin_contar) === 1 ? '' : 's') + ' sin contar</span>' : '') + '</td>' +
+      h += '<tr><td><b>' + esc(sinChih(t.nombre)) + '</b>' + (t.config && t.config.modo === 'manual' ? ' <span class="presu" title="cabecera manual">✎</span>' : '') + '</td><td' + (cfg.dias_conteo != null ? ' title="contado hace ' + diasTxt(cfg.dias_conteo) + '"' : '') + '>' + conteoTxt(t) + (t.inventario.viejo ? ' <b style="color:var(--ambar)">⚠️ ' + diasTxt(t.inventario.dias_conteo) + '</b>' : '') + (t.inventario.mas_reciente ? ' <span class="chip pendiente" title="esa tienda ya guardó un general más nuevo">hay uno del ' + fMx(t.inventario.mas_reciente.fecha) + '</span>' : '') + ' <span class="presu">· ' + esc((t.inventario.capturado_por || '').split('@')[0]) + '</span>' +
+        (t.parcial ? ' <span class="chip pendiente" title="guisos con consumo que no se contaron en este inventario general: cuentan como 0">' + guisosSinTxt(t.guisos_sin_contar).replace(' como 0', ' 0') + '</span>' : '') + '</td>' +
         '<td class="der"><b>' + money(t.total) + '</b></td><td class="der">' + (t.presupuesto != null ? money(t.presupuesto) : '<span style="color:var(--txt2)">sin tope</span>') + '</td><td class="der"' + (sobre ? ' style="color:var(--rojo);font-weight:700"' : '') + '>' + (t.pct != null ? num(t.pct, 1) + '%' : '—') + '</td><td class="der">' + t.cajas + '</td><td>' + ped + '</td>' +
         '<td style="white-space:nowrap"><button class="btn mini sec" onclick="toggleSug(' + t.branch_id + ')">' + (CSUG.abiertas[t.branch_id] ? 'Ocultar' : 'Ver detalle') + '</button> <button class="btn mini" onclick="abrirCalcTienda(' + t.branch_id + ')">Abrir calculadora</button></td></tr>';
       if (CSUG.abiertas[t.branch_id]) h += '<tr><td colspan="8" style="background:#fafafa;padding:8px 10px">' + detalleSugHTML(t) + '</td></tr>';
@@ -840,10 +919,10 @@ function conteoTxt(t) {
 function toggleSug(b) { CSUG.abiertas[b] = !CSUG.abiertas[b]; pintarSugerido(); }   // sin volver a consultar las 11 tiendas
 function detalleSugHTML(t) {
   const c = t.config || {};
-  let h = '<div class="presu" style="margin-bottom:6px">Consumo del ' + fMx(c.del) + ' al ' + fMx(c.al) + ' (' + c.dias_consumo + ' días) · inventario general: ' + conteoTxt(t) + ' (llega el ' + fMx(c.llega) + ') · el pedido cubre ' + c.dias_cubrir + (Number(c.factor_proteccion) ? ' + ' + c.factor_proteccion + ' de protección' : '') + '.</div>' +
+  let h = '<div class="presu" style="margin-bottom:6px">Consumo del ' + fMx(c.del) + ' al ' + fMx(c.al) + ' (' + c.dias_consumo + ' días) · inventario general elegido: ' + conteoTxt(t) + ' (llega el ' + fMx(c.llega) + ') · el pedido cubre ' + c.dias_cubrir + (Number(c.factor_proteccion) ? ' + ' + c.factor_proteccion + ' de protección' : '') + '.</div>' +
     '<div style="overflow-x:auto"><table class="oc"><tr><th>PRODUCTO</th><th>Un</th><th class="der">Promedio diario</th><th class="der">Inventario</th><th class="der">Inv. proyectado</th><th class="der">Faltante</th><th class="der">Sugerido</th><th class="der">Costo</th></tr>';
   (t.lineas || []).forEach(l => { const g = l.inventario_en === 'gramos';
-    h += '<tr><td><b>' + esc(l.insumo) + '</b></td><td>' + esc(l.unidad || '') + '</td><td class="der">' + num(l.promedio, 4) + (l.promedio_manual ? ' ✎' : '') + '</td><td class="der">' + (l.inventario != null ? num(l.inventario, 0) + (g ? ' g' : ' pz') : '<span style="color:var(--ambar)">sin contar</span>') + '</td>' +
+    h += '<tr><td><b>' + esc(l.insumo) + '</b></td><td>' + esc(l.unidad || '') + '</td><td class="der">' + num(l.promedio, 4) + (l.promedio_manual ? ' ✎' : '') + '</td><td class="der">' + (l.sin_contar ? '0 <span style="color:var(--ambar)">sin contar</span>' : num(l.inventario, 0) + (g ? ' g' : ' pz')) + '</td>' +
       '<td class="der' + (l.inv_proyectado != null && l.inv_proyectado < 0 ? ' neg' : '') + '">' + (l.inv_proyectado != null ? num(l.inv_proyectado, 2) : '') + '</td><td class="der">' + (l.faltante != null ? num(l.faltante, 2) : '') + '</td><td class="der"><b>' + (l.sugerido != null ? l.sugerido : '') + '</b></td><td class="der">' + money(l.costo || 0) + '</td></tr>'; });
   h += '<tr><td colspan="6" style="text-align:right"><b>Total guisos</b></td><td class="der"><b>' + t.cajas + '</b></td><td class="der"><b>' + money(t.total) + '</b></td></tr></table></div>';
   const ex = (t.existencias || []).filter(e => e.existencia != null && Number(e.existencia) > 0);
@@ -855,15 +934,15 @@ function abrirCalcTienda(b) {
   S.branch = Number(b); S.gerenteElegido = true; S.prov = CADM.prov; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.corridaId = null; CALC.data = null;
   $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + (S.perfil.roles.includes('admin') ? '<br>' + selectorVista() : '');
   try { history.replaceState(null, '', '#captura'); } catch (e) {}
-  vCalculadora(CSUG.fecha);   // H2: el mismo inventario general (y los mismos días) que el sugerido que se está viendo
+  vCalculadora();   // mig. 085: la calculadora usa el mismo inventario general elegido (y los mismos días) que el sugerido
 }
 function adminCabeceraTxt(cfg, res) {
   if (!cfg) return '<b style="color:var(--ambar)">Este proveedor no tiene parámetros de calculadora.</b>';
   res = res || {}; const n = res.tiendas || 0, m = res.con_manual || 0;
-  if (cfg.modo === 'manual') return '<b>Cabecera manual</b> capturada por ' + esc(cfg.capturado_por || '') + ' el ' + fecha(cfg.vigente_desde) + ' · vale hasta que llegue el pedido del ' + fMx(cfg.llega) + '; después el portal vuelve solo a las fechas automáticas. El gerente ve estos datos tal cual y solo captura su inventario.' +
+  if (cfg.modo === 'manual') return '<b>Cabecera manual</b> capturada por ' + esc(cfg.capturado_por || '') + ' el ' + fecha(cfg.vigente_desde) + ' · vale hasta que llegue el pedido del ' + fMx(cfg.llega) + '; después el portal vuelve solo a las fechas automáticas. El gerente ve estos datos tal cual; solo captura modificador y pedido de gerente (el inventario es el general que elijas abajo para cada tienda).' +
     (m && m < n ? ' Vigente en <b>' + m + ' de ' + n + '</b> tiendas; las demás usan fechas automáticas.' : (n ? ' Vigente en las ' + n + ' tiendas.' : '')) +
     (res.cabeceras_distintas > 1 ? ' <b style="color:var(--ambar)">Hay ' + res.cabeceras_distintas + ' cabeceras distintas entre tiendas: guarda de nuevo para unificarlas.</b>' : '');
-  return '<b>Fechas automáticas</b> (lo que el gerente ve hoy): consumo del ' + fMx(cfg.del) + ' al ' + fMx(cfg.al) + ' (' + cfg.dias_consumo + ' días' + (cfg.consumo_al_dia === false && cfg.ultimo_consumo ? '; ventas cargadas hasta el ' + fMx(cfg.ultimo_consumo) : '') + '), inventario de hoy, el pedido llega en ' + cfg.dias_proyeccion + ' días y debe cubrir ' + cfg.dias_cubrir + '. Captura abajo solo si este ciclo necesita otra cosa: lo capturado manda hasta el día que llegue ese pedido.' +
+  return '<b>Fechas automáticas</b> (lo que el gerente ve hoy): consumo del ' + fMx(cfg.del) + ' al ' + fMx(cfg.al) + ' (' + cfg.dias_consumo + ' días' + (cfg.consumo_al_dia === false && cfg.ultimo_consumo ? '; ventas cargadas hasta el ' + fMx(cfg.ultimo_consumo) : '') + '), el pedido llega el ' + fMx(cfg.llega) + ' y debe cubrir ' + cfg.dias_cubrir + ' días; el inventario de cada tienda es el general que elijas en Fechas y días. Captura abajo solo si este ciclo necesita otra cosa: lo capturado manda hasta el día que llegue ese pedido.' +
     (m ? ' <b style="color:var(--ambar)">' + m + ' tienda' + (m === 1 ? '' : 's') + ' con cabecera manual propia</b> (ajuste de consumos).' : '');
 }
 async function quitarCalcConfig(btn, todas) {
@@ -876,15 +955,14 @@ async function quitarCalcConfig(btn, todas) {
   CALC.data = null; await vCalcAdmin();
   if ($('a_msg')) $('a_msg').textContent = '✔ ' + r.quitadas + ' cabecera' + (r.quitadas === 1 ? '' : 's') + ' manual' + (r.quitadas === 1 ? '' : 'es') + ' quitada' + (r.quitadas === 1 ? '' : 's') + '; el portal usa las fechas automáticas.';
 }
-function admProy() { const el = $('a_proy'); if (el) el.textContent = Math.max(0, difDias($('a_inv').value, $('a_llega').value)); }
 function cabeceraForm() {
-  return { del: $('a_del').value, al: $('a_al').value, fecha_inventario: $('a_inv').value, llega: $('a_llega').value, factor_proteccion: Number($('a_factor').value) || 0, dias_cubrir: Number($('a_cubrir').value) || 1 };
+  return { del: $('a_del').value, al: $('a_al').value, llega: $('a_llega').value, factor_proteccion: Number($('a_factor').value) || 0, dias_cubrir: Number($('a_cubrir').value) || 1 };
 }
 async function guardarCalcConfig(btn) {
   const c = cabeceraForm(), n = ((CADM.data || {}).tiendas || []).length || sucs().length;
   if (c.del > c.al) { alert('"Del" debe ser antes de "Al".'); return; }
   if (!c.llega) { alert('Falta el día que llega el pedido.'); return; }
-  if (!confirm('¿Guardar estas fechas para las ' + n + ' sucursales?\n\nConsumo del ' + fMx(c.del) + ' al ' + fMx(c.al) + ' · inventario del ' + fMx(c.fecha_inventario) + ' · llega el ' + fMx(c.llega) + ' · cubre ' + c.dias_cubrir + ' días' + (c.factor_proteccion ? ' · protección ' + c.factor_proteccion : '') + '.\nLos consumos capturados de cada tienda se conservan.')) return;
+  if (!confirm('¿Guardar estas fechas para las ' + n + ' sucursales?\n\nConsumo del ' + fMx(c.del) + ' al ' + fMx(c.al) + ' · llega el ' + fMx(c.llega) + ' · cubre ' + c.dias_cubrir + ' días' + (c.factor_proteccion ? ' · protección ' + c.factor_proteccion : '') + '.\nLos consumos capturados de cada tienda se conservan.')) return;
   let r; btn.disabled = true;
   try { r = await api('admin_guardar_calc_config', Object.assign({ branch_id: CADM.branch, proveedor_id: CADM.prov, todas: true }, c)); }
   catch (e) { return; }
