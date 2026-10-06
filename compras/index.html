@@ -47,6 +47,8 @@
   .hoja .param input { width:120px; border:1px solid #c9a227; border-radius:4px; padding:4px 6px; font-size:13px; background:#fffbe6; }
   .hoja .param td.k { background:#f3f3f3; font-weight:600; }
   .hoja .bloque { margin-top:14px; }
+  table.bcalc td:first-child, table.bcalc th:first-child { position:sticky; left:0; background:#fff; z-index:1; min-width:150px; }
+  table.bcalc tr.conc td { background:#f3f3f3; font-weight:700; }
   .hoja table.inv-el th { background:#e7ecf2; color:#1f2937; font-size:12px; text-align:left; }
   .hoja table.inv-el td { white-space:normal; vertical-align:middle; }
   .calcbar { position:sticky; bottom:0; background:#fff; border-top:2px solid var(--rojo); padding:10px 12px; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; z-index:10; margin:10px -12px -12px; }
@@ -189,7 +191,7 @@ function presInfo(i) {
 }
 const PLURAL = { caja: 'cajas', paquete: 'paquetes', pieza: 'piezas', kilo: 'kilos', rollo: 'rollos', bolsa: 'bolsas' };
 const plural = (t, q) => Number(q) === 1 ? t : (PLURAL[t] || t + 's');
-function chipUnidad(i) { const u = presInfo(i); return '<span class="uchip">' + u.tipo.toUpperCase() + (u.n > 1 ? ' · ' + u.n + ' ' + u.det : '') + '</span>'; }
+function chipUnidad(i) { const u = presInfo(i); return '<span class="uchip">' + esc(u.tipo.toUpperCase()) + (u.n > 1 ? ' · ' + u.n + ' ' + esc(u.det) : '') + '</span>'; }
 const conIva = (p, t) => Number(p || 0) * (1 + Number(t || 0) / 100);
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 const fecha = (ts) => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -202,7 +204,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&
    además es la ÚNICA ruta para correo_oc (n8n manda el correo). Forzar n8n para diagnóstico:
    localStorage.setItem('lem_api', 'n8n'). ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['admin_calc_inventarios','perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
+const LECTURAS = new Set(['bandeja_calc','admin_calc_inventarios','perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -767,8 +769,10 @@ async function pasarAlPedido(btn) {
   // mig. 085: se manda el inventario que se mostró y de qué general; SQL lo vuelve a sacar del general elegido y, si ya no
   // coincide (cambió la elección o alguien corrigió el general), rechaza para que se recargue la calculadora
   const lineas = d.lineas.map(l => { const id = l.proveedor_insumo_id; const g = (k) => $(k + id) ? $(k + id).value : '';
-    return { proveedor_insumo_id: id, inventario: l.promedio != null ? l.inventario : null, inventario_dia_id: invId,
-             modificador: Number(g('mod')) || 0, pedido_gerente: g('ped') === '' ? null : Number(g('ped')) }; });
+    const x = { proveedor_insumo_id: id, inventario: l.promedio != null ? l.inventario : null, inventario_dia_id: invId,
+             modificador: Number(g('mod')) || 0, pedido_gerente: g('ped') === '' ? null : Number(g('ped')) };
+    if (l.promedio == null) x.existencia = l.existencia == null ? 0 : Number(l.existencia);   // mig. 087: SQL la compara y la guarda
+    return x; });
   const inv = d.config.inventario || {}, sinC = d.lineas.filter(l => l.sin_contar).length;
   if ((sinC || inv.viejo || inv.mas_reciente) && !confirm('Este pedido se calcula con el inventario general del ' + fMx(inv.fecha) + (Number(inv.dias_conteo) > 0 ? ' (hace ' + diasTxt(inv.dias_conteo) + ')' : '') + '.' +
       (sinC ? '\n• ' + guisosSinTxt(sinC) + ': se pide el ciclo completo.' : '') + (inv.viejo ? '\n• Tiene más de ' + diasTxt(d.config.max_dias_conteo) + ': el pedido sale más grande.' : '') +
@@ -1131,6 +1135,7 @@ async function vBandeja() {
   app().innerHTML = nav() + '<div class="msg">Cargando bandeja…</div>';
   const r = await api('bandeja');
   S.bandeja = r.bandeja || [];
+  Object.keys(BCALC).forEach(k => delete BCALC[k]);
   let h = nav();
   if (!S.bandeja.length) { app().innerHTML = h + '<div class="msg">🎉 Bandeja vacía: nada pendiente de tus proveedores.</div>'; return; }
   h += '<div class="cat-h">Pedidos por revisar (' + S.bandeja.length + ')</div>';
@@ -1147,9 +1152,109 @@ async function vBandeja() {
   });
   app().innerHTML = h;
 }
-function vBandejaDetalle(reqId) {
+/* ── Bandeja de proveedores con calculadora (hoy Cadena de Comida; mig. 087, Sergio 6-oct-2026): en vez de renglón por renglón,
+   la calculadora del pedido con los números que vio el gerente (su corrida). Si el gerente no la usó, se arma con el inventario
+   general elegido y lo que pidió. El administrador ajusta "Autorizar" por renglón y puede agregar guisos que el gerente dejó
+   en 0; queda registrado lo que pidió el gerente (cantidad_solicitada) y lo que se autorizó (cantidad_aprobada). ── */
+const BCALC = {};   // req_id → { proveedor_id → { corrida, calc, filas } }
+async function cargarBandejaCalc(q) {
+  const provs = [...new Set((q.lineas || []).filter(l => l.calculadora).map(l => l.proveedor_id))];
+  const out = {};
+  for (const p of provs) {
+    let bc = null, calc = null;
+    try { bc = await api('bandeja_calc', { req_id: q.req_id, proveedor_id: p }); } catch (e) { continue; }
+    if (!bc.corrida) { try { calc = await api('calculadora', { branch_id: q.branch_id, proveedor_id: p }); } catch (e) { calc = null; } }
+    if (!bc.corrida && (!calc || calc.bloqueo)) continue;   // sin corrida y sin inventario elegido: renglón por renglón, como antes
+    out[p] = { corrida: bc.corrida, calc, filas: filasBandejaCalc(q, p, bc.corrida, calc) };
+  }
+  BCALC[q.req_id] = out;
+}
+/* Une la calculadora (corrida o cálculo de hoy) con los renglones del pedido, por producto */
+function filasBandejaCalc(q, p, corrida, calc) {
+  const req = {}; (q.lineas || []).filter(l => l.proveedor_id === p).forEach(l => { req[l.proveedor_insumo_id] = l; });
+  const filas = [], vistos = new Set();
+  const fuente = corrida ? corrida.lineas : calc.lineas;
+  fuente.forEach(l => {
+    const pi = l.proveedor_insumo_id, r = req[pi] || null, guiso = l.promedio != null;
+    let sug = null, fin = null;
+    if (corrida) { sug = guiso ? l.sugerido : null; fin = l.final; }
+    else if (guiso) { const prev = CALC.data; CALC.data = calc; try { sug = lineaCalc(l, l.inventario == null ? '' : l.inventario, 0, '').sug; } finally { CALC.data = prev; } }
+    vistos.add(pi);
+    // precio y presentación: los del renglón del pedido; si no está pedido, los vigentes del catálogo (como la OC), no los de la corrida
+    const pr = corrida ? ((corrida.productos || {})[pi] || null) : null, base = r || pr || l;
+    filas.push({ pi, insumo: l.insumo, concepto: l.concepto, guiso, fraccion: Number(base.fraccion || l.fraccion || 1), precio: Number((base.precio != null ? base.precio : l.precio) || 0),
+                 presentacion: base.presentacion != null ? base.presentacion : l.presentacion, unidad: base.unidad != null ? base.unidad : l.unidad, activo: pr ? pr.activo !== false : true,
+                 inventario: l.inventario, inventario_en: l.inventario_en, sin_contar: !!l.sin_contar, existencia: ('existencia' in l) ? l.existencia : undefined, unidad_conteo: l.unidad_conteo,
+                 promedio: l.promedio, sugerido: sug, final_calc: fin, req: r });
+  });
+  Object.values(req).forEach(r => { if (!vistos.has(r.proveedor_insumo_id)) filas.push({ pi: r.proveedor_insumo_id, insumo: r.insumo, concepto: r.concepto, guiso: false, fraccion: Number(r.fraccion || 1), precio: Number(r.precio || 0), presentacion: r.presentacion, unidad: r.unidad, activo: true, req: r, fuera: true }); });
+  return filas;
+}
+function bandejaCalcHTML(q, p, info, prov) {
+  const c = info.corrida, cfg = c ? (c.parametros || {}) : (info.calc.config || {}), inv = c ? ((c.parametros || {}).inventario || {}) : (cfg.inventario || {});
+  const dias = c ? (cfg.dias_proyeccion != null ? cfg.dias_proyeccion : '') : cfg.dias_proyeccion;
+  const editable = info.filas.some(f => f.req && f.req.estado_linea === 'pendiente');
+  let h = !editable ? '<div class="presu" style="margin:0 0 8px;color:var(--verde)"><b>Ya autorizado en este pedido</b> (por otro administrador o antes): se muestra como quedó.</div>' : '';
+  h += '<div class="presu" style="margin:0 0 8px;white-space:normal">' + (c
+    ? '🧮 Lo que vio el gerente (' + esc(String(c.usuario || '').split('@')[0]) + ', ' + fecha(c.creada_el) + '): inventario general del ' + fMx(c.fecha_inventario || inv.fecha) + ', ' + diasTxt(dias) + ' de consumo hasta la llegada del ' + fMx(cfg.llega) + ', cubre ' + cfg.dias_cubrir + ' días.'
+    : '🧮 El gerente no usó la calculadora: se calcula con el inventario general elegido (del ' + fMx(inv.fecha) + ') y las fechas de hoy; "Pedido gerente" es lo que pidió.') +
+    (editable ? ' Cambia <b>Autorizar</b> donde haga falta (en cajas o paquetes, como el pedido): 0 quita el producto y en los que el gerente dejó en 0 puedes agregar.' : '') + '</div>';
+  h += '<div style="overflow-x:auto"><table class="oc bcalc" style="font-size:13px"><tr><th>Producto</th><th class="der">Inventario</th><th class="der">Prom. diario</th><th class="der">Sugerido</th><th class="der">Pedido gerente</th><th class="der" title="En unidades de compra (cajas, paquetes…), como el pedido">Autorizar</th><th class="der">Costo</th></tr>';
+  let conc = null;
+  info.filas.forEach(f => {
+    if (f.concepto !== conc) { conc = f.concepto; h += '<tr class="conc"><td>' + esc(conc || 'Otros') + '</td><td colspan="6"></td></tr>'; }
+    const r = f.req, sol = r ? Number(r.solicitada) : 0, pend = editable && (r ? r.estado_linea === 'pendiente' : f.activo);
+    const invH = f.guiso ? (f.inventario == null ? '' : Number(f.inventario).toLocaleString('es-MX', { maximumFractionDigits: 2 }) + (f.inventario_en === 'gramos' ? ' g' : '') + (f.sin_contar ? '<div style="font-size:10px;color:var(--ambar)">sin contar · 0</div>' : ''))
+      : (f.fuera ? '' : f.existencia === undefined ? '<span style="color:var(--txt2)" title="corrida anterior al 6-oct: no guardaba esta existencia">—</span>' : existenciaTxt({ existencia: f.existencia, fraccion: f.fraccion, unidad_conteo: f.unidad_conteo }));
+    const pres = chipUnidad({ presentacion: f.presentacion, fraccion: f.fraccion, unidad: f.unidad });
+    const autH = pend
+      ? '<input type="number" min="0" step="1" inputmode="numeric" class="calc-aut" id="ca_' + q.req_id + '_' + f.pi + '" data-req="' + q.req_id + '" data-prov="' + p + '" data-pi="' + f.pi + '" data-linea="' + (r ? r.req_linea_id : '') + '" data-sol="' + sol + '" data-precio="' + f.precio + '" data-fr="' + f.fraccion + '" value="' + sol + '" oninput="recalcBandejaCalc(' + q.req_id + ',' + p + ')" style="width:70px;text-align:right;padding:4px;border:1px solid #c9a227;border-radius:4px;background:#fffbe6">'
+      : r ? '<b>' + Number(r.aprobada || 0) + '</b> <span class="chip ' + esc(r.estado_linea) + '">' + esc(r.estado_linea) + '</span>' : (f.activo ? '' : '<span class="presu">fuera del catálogo</span>');
+    h += '<tr id="bc_' + q.req_id + '_' + f.pi + '"><td><b>' + esc(f.insumo) + '</b> ' + pres + (f.fuera ? ' <span class="chip">fuera de la calculadora</span>' : '') + (r && r.agregada_por ? ' <span class="chip">agregado por ' + esc(String(r.agregada_por).split('@')[0]) + '</span>' : '') + '</td>' +
+      '<td class="der">' + invH + '</td><td class="der">' + (f.promedio != null ? num(f.promedio, 2) : '') + '</td>' +
+      '<td class="der">' + (f.sugerido != null ? '<b>' + f.sugerido + '</b>' : '') + '</td>' +
+      '<td class="der">' + (r ? '<b>' + sol + '</b>' : '<span style="color:var(--txt2)">0</span>') + (f.final_calc != null && Number(f.final_calc) !== sol ? '<div style="font-size:10px;color:var(--txt2)">calculadora: ' + f.final_calc + '</div>' : '') + '</td>' +
+      '<td class="der">' + autH + '</td><td class="der" id="bcc_' + q.req_id + '_' + f.pi + '"></td></tr>';
+  });
+  h += '<tr><td colspan="4" class="der"><b>Total</b></td><td class="der" id="bct_sol_' + q.req_id + '_' + p + '"></td><td class="der"></td><td class="der" id="bct_' + q.req_id + '_' + p + '"></td></tr></table></div>';
+  return h;
+}
+/* Recalcula costos y totales del bloque con lo que está en "Autorizar" (y marca lo que cambió respecto al gerente) */
+function recalcBandejaCalc(reqId, p) {
+  const info = (BCALC[reqId] || {})[p]; if (!info) return;
+  let tot = 0, totSol = 0;
+  info.filas.forEach(f => {
+    const inp = $('ca_' + reqId + '_' + f.pi), r = f.req, sol = r ? Number(r.solicitada) : 0;
+    const aut = inp ? Number(inp.value || 0) : (r ? Number(r.aprobada || 0) : 0);
+    const costo = aut * f.fraccion * f.precio; tot += costo; totSol += sol * f.fraccion * f.precio;
+    const cel = $('bcc_' + reqId + '_' + f.pi); if (cel) cel.textContent = aut ? money(Math.round(costo * 100) / 100) : '';
+    const tr = $('bc_' + reqId + '_' + f.pi); if (tr) tr.style.background = inp && aut !== sol ? '#fff7d6' : '';
+  });
+  info.tot = Math.round(tot * 100) / 100;
+  const t = $('bct_' + reqId + '_' + p); if (t) t.innerHTML = '<b>' + money(info.tot) + '</b>';
+  const pie = $('btot_' + reqId); if (pie) pie.textContent = money(Math.round((Number(pie.dataset.base || 0) + Object.values(BCALC[reqId] || {}).reduce((a, x) => a + (x.tot || 0), 0)) * 100) / 100);
+  const ts = $('bct_sol_' + reqId + '_' + p); if (ts) ts.textContent = money(Math.round(totSol * 100) / 100);
+  const hd = $('bch_' + reqId + '_' + p); if (hd) { const pr = Number(hd.dataset.presupuesto || 0); hd.innerHTML = esc(hd.dataset.prov) + ' · ' + money(Math.round(tot * 100) / 100) + ' sin IVA autorizado' + (pr ? (tot > pr ? ' · <span style="color:var(--rojo)">rebasa el presupuesto de ' + money(pr) + '</span>' : ' · dentro del presupuesto de ' + money(pr)) : ' · sin presupuesto asignado') + ' · el gerente pidió ' + money(Math.round(totSol * 100) / 100); }
+}
+/* Resoluciones del bloque con calculadora: igual a lo pedido = aprobar; 0 = quitar; otra cantidad = cambiar; nuevo > 0 = agregar */
+function resolucionesCalc(reqId) {
+  const res = [], malos = [];
+  document.querySelectorAll('.calc-aut[data-req="' + reqId + '"]').forEach(inp => {
+    const v = Number(inp.value === '' ? 0 : inp.value), sol = Number(inp.dataset.sol), linea = inp.dataset.linea;
+    if (!Number.isFinite(v) || v < 0 || Math.round(v) !== v) { malos.push(inp); return; }
+    if (linea) {
+      if (v === sol) res.push({ req_linea_id: Number(linea), accion: 'aprobar' });
+      else if (v === 0) res.push({ req_linea_id: Number(linea), accion: 'rechazar', motivo: 'Quitado por administración al revisar la calculadora' });
+      else res.push({ req_linea_id: Number(linea), accion: 'modificar', cantidad: v });
+    } else if (v > 0) res.push({ accion: 'agregar', proveedor_insumo_id: Number(inp.dataset.pi), cantidad: v });
+  });
+  return { res, malos };
+}
+async function vBandejaDetalle(reqId) {
   const q = (S.bandeja || []).find(x => x.req_id === reqId);
   if (!q) { vBandeja(); return; }
+  if ((q.lineas || []).some(l => l.calculadora) && !BCALC[reqId]) { app().innerHTML = nav() + '<div class="msg">Cargando la calculadora del pedido…</div>'; await cargarBandejaCalc(q); }
+  const calcs = BCALC[reqId] || {};
   let h = nav() + '<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px"><button class="btn mini sec" onclick="vBandeja()">← Bandeja</button><b style="font-size:17px">' + esc(q.folio) + '</b></div>' +
     '<div class="card"><b>' + esc(q.sucursal) + '</b> <span class="chip ' + esc(q.estado) + '">' + esc(etq(q.estado)) + '</span>' + (q.extraordinaria ? ' <span class="chip rechazada">fuera de horario</span>' : '') +
     '<div style="font-size:13px;color:var(--txt2)">Pedido por ' + esc(q.creada_por) + ' · ' + fecha(q.creada_el) + '</div></div>';
@@ -1157,6 +1262,11 @@ function vBandejaDetalle(reqId) {
   (q.lineas || []).forEach(l => { (porProv[l.proveedor] = porProv[l.proveedor] || []).push(l); });
   let total = 0;
   for (const prov in porProv) {
+    const pid = porProv[prov][0].proveedor_id, prP0 = (q.presupuestos || {})[prov];
+    if (calcs[pid]) {   // mig. 087: proveedor con calculadora (CDC): la calculadora del pedido; los totales los pone recalcBandejaCalc
+      h += '<div class="cat-h" id="bch_' + q.req_id + '_' + pid + '" data-prov="' + esc(prov) + '" data-presupuesto="' + (prP0 || '') + '">' + esc(prov) + '</div><div class="card">' + bandejaCalcHTML(q, pid, calcs[pid], prov) + '</div>';
+      continue;
+    }
     let subP = 0;
     let bloque = '';
     porProv[prov].forEach(l => {
@@ -1180,10 +1290,11 @@ function vBandejaDetalle(reqId) {
     const prP = (q.presupuestos || {})[prov];
     h += '<div class="cat-h">' + esc(prov) + ' · ' + money(subP) + ' sin IVA' + (prP ? (subP > Number(prP) ? ' · <span style="color:var(--rojo)">rebasa el presupuesto de ' + money(prP) + '</span>' : ' · dentro del presupuesto de ' + money(prP)) : ' · sin presupuesto asignado') + '</div><div class="card">' + bloque + '</div>';
   }
-  h += '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="presu">Total del pedido: <b style="font-size:16px;color:var(--txt)">' + money(total) + '</b> sin IVA</div>' +
+  h += '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="presu">Total del pedido: <b style="font-size:16px;color:var(--txt)" id="btot_' + q.req_id + '" data-base="' + total + '">' + money(total) + '</b> sin IVA</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn sec" style="color:var(--rojo);border-color:var(--rojo)" onclick="rechazarTodo(' + q.req_id + ', this)">✗ Rechazar pedido completo</button><button class="btn" onclick="autorizar(' + q.req_id + ', this)">Autorizar</button></div></div>' +
     '<div class="no-print" style="margin:4px 0 20px"><a href="#req-' + q.req_id + '" style="font-size:13px">Ver historial completo →</a></div>';
   app().innerHTML = h;
+  Object.keys(calcs).forEach(pid => recalcBandejaCalc(q.req_id, Number(pid)));
   window.scrollTo(0, 0);
 }
 async function rechazarTodo(reqId, btn) {
@@ -1192,6 +1303,7 @@ async function rechazarTodo(reqId, btn) {
   if (!motivo.trim()) { alert('Escribe el motivo del rechazo.'); return; }
   const resoluciones = [];
   document.querySelectorAll('.linea-res[data-linea]').forEach(el => { if ($('r' + el.dataset.linea + 'a')) resoluciones.push({ req_linea_id: Number(el.dataset.linea), accion: 'rechazar', motivo: motivo.trim() }); });
+  document.querySelectorAll('.calc-aut[data-req="' + reqId + '"]').forEach(inp => { if (inp.dataset.linea) resoluciones.push({ req_linea_id: Number(inp.dataset.linea), accion: 'rechazar', motivo: motivo.trim() }); });
   if (!resoluciones.length) { alert('No hay líneas pendientes.'); return; }
   btn.disabled = true;
   try { await api('resolver', { req_id: reqId, resoluciones }); }
@@ -1210,12 +1322,22 @@ async function autorizar(reqId, btn) {
   });
   const falta = resoluciones.find(r => r.accion === 'rechazar' && !r.motivo.trim());
   if (falta) { alert('Todo rechazo necesita motivo.'); return; }
+  // mig. 087: renglones de la calculadora (Cadena de Comida)
+  const rc = resolucionesCalc(reqId);
+  if (rc.malos.length) { alert('Las cantidades a autorizar deben ser números enteros de 0 o más.'); rc.malos[0].focus(); return; }
+  if (rc.res.length) {
+    const cambios = rc.res.filter(x => x.accion !== 'aprobar'), agregados = rc.res.filter(x => x.accion === 'agregar').length, quitados = rc.res.filter(x => x.accion === 'rechazar').length;
+    const totTxt = Object.keys(BCALC[reqId] || {}).map(pid => { const t = $('bct_' + reqId + '_' + pid); return t ? t.textContent : ''; }).join(' + ');
+    const pie = $('btot_' + reqId);
+    if (!confirm('¿Autorizar el pedido de Cadena de Comida por ' + totTxt + ' sin IVA?' + (pie ? ' (total del pedido con los demás proveedores: ' + pie.textContent + ')' : '') + (cambios.length ? '\n\nCambios respecto a lo que pidió el gerente: ' + (cambios.length - agregados - quitados) + ' cantidad(es) cambiada(s), ' + quitados + ' quitado(s), ' + agregados + ' agregado(s).' : '\n\nSin cambios: se autoriza tal como lo pidió el gerente.'))) return;
+    resoluciones.push(...rc.res);
+  }
   if (resoluciones.some(r => r.accion !== 'rechazar') && !(await asegurarToken('Al autorizar se manda el aviso de la orden de compra a Pablo y para eso hay que confirmar tu cuenta (Google la pide cada hora). Sin eso la orden no pasa a tránsito y la sucursal no la ve en Recibir.'))) return;
   btn.disabled = true;
   let r;
   try { r = await api('resolver', { req_id: reqId, resoluciones }); }
   catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
-  let h = '<div class="card ok-big">✅<p>Requisición resuelta.</p>';
+  let h = '<div class="card ok-big">✅<p>Requisición resuelta.</p>' + (r.saltadas ? '<p style="color:var(--ambar)">⚠️ ' + r.saltadas + ' renglón(es) ya los había resuelto otro administrador: se dejaron como estaban. Revisa el pedido en su historial.</p>' : '');
   if (r.ocs.length) {
     h += '<p style="margin-top:8px">Órdenes de compra generadas:</p>';
     r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a> <span id="mail-' + o.oc_id + '" class="chip">📧 avisando a Pablo…</span></p>'; });
