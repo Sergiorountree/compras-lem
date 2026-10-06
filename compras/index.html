@@ -241,7 +241,7 @@ async function api(accion, datos) {
   }
   return apiN8n(accion, d);
 }
-async function apiN8n(accion, datos) {
+async function apiN8n(accion, datos, reintento) {
   let r;
   try {
     r = await fetch(API, {
@@ -249,7 +249,14 @@ async function apiN8n(accion, datos) {
       body: JSON.stringify({ token: S.token, accion, datos: datos || {} })
     });
   } catch (err) { aviso(LECTURAS.has(accion) ? 'Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.' : 'No se pudo confirmar "' + accion + '" (sin conexión: ' + err.message + '). Revisa el estado antes de volver a intentarlo.'); throw err; }
-  if (r.status === 401) { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
+  if (r.status === 401) {
+    // 6-oct-2026: n8n valida el pase de Google, que dura 1 hora; la sesión de SQL Connect dura días. Si esa sigue viva, no se
+    // cierra el portal (antes se perdía el aviso a Pablo y la OC quedaba "autorizada" sin pasar a tránsito): solo se avisa.
+    if (window.LEMDC && LEMDC.usuario()) {
+      if (LECTURAS.has(accion) && !reintento && await renovarToken('Para seguir hace falta confirmar tu cuenta de Google (la pide cada hora).')) return apiN8n(accion, datos, true);
+      if (!LECTURAS.has(accion)) { const e = new Error('401'); e.n8n401 = true; aviso('Tu confirmación de Google venció y "' + accion + '" no se hizo. Vuelve a intentarlo: la pantalla te pedirá confirmar tu cuenta.'); throw e; }
+    }
+    store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
   // Una respuesta que no es JSON (p.ej. 502/504 de la puerta de n8n) o que no es 2xx tampoco confirma nada: aviso y error sin marca de negocio.
   const sinConfirmar = (det) => { aviso(LECTURAS.has(accion) ? 'La API no contestó bien (' + det + '). Reintenta en un momento.' : 'No se pudo confirmar "' + accion + '" (' + det + '). Revisa el estado antes de volver a intentarlo.'); return new Error(det); };
   let j;
@@ -257,6 +264,44 @@ async function apiN8n(accion, datos) {
   if (j && j.error) { alert('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
   if (!r.ok) throw sinConfirmar('HTTP ' + r.status);
   return j;
+}
+/* Pase de Google para n8n (6-oct-2026): dura 1 hora y la pestaña puede llevar días abierta. Antes de algo que va por n8n (el
+   correo de la OC), si al pase le quedan menos de 5 minutos se pide confirmar la cuenta con el botón de Google, sin salir. */
+function tokExpira() { try { const b = S.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(atob(b + '==='.slice((b.length + 3) % 4))).exp * 1000; } catch (e) { return 0; } }
+function renovarToken(motivo) {
+  return new Promise((resolve) => {
+    if (!window.google || CLIENT_ID.indexOf('__') === 0) { aviso('No se cargó el botón de Google (revisa bloqueadores o recarga la página): no se puede confirmar tu cuenta.'); resolve(false); return; }
+    const antes = emailDeToken(S.token || '') || ((window.LEMDC && LEMDC.usuario()) ? String(LEMDC.usuario().email || '').toLowerCase() : '');
+    let cerrado = false;
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px';
+    div.innerHTML = '<div class="card" style="max-width:440px;text-align:center"><b style="font-size:16px">Confirma tu cuenta de Google</b><p class="presu" style="margin:8px 0">' + esc(motivo) + '</p>' +
+      '<div id="gbtnRe" style="display:flex;justify-content:center;margin:12px 0"></div><button class="btn sec mini" id="btnReNo">Cancelar</button></div>';
+    document.body.appendChild(div);
+    const fin = (okk) => { if (cerrado) return; cerrado = true; div.remove(); resolve(okk); };
+    $('btnReNo').onclick = () => fin(false);
+    google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true, hd: 'grupolem.com', login_hint: antes || undefined, callback: (resp) => {
+      if (cerrado) return;
+      const em = emailDeToken(resp.credential);
+      if (antes && em !== antes) { const p = div.querySelector('.presu'); if (p) p.innerHTML = '<b style="color:var(--rojo)">Elige la cuenta ' + esc(antes) + '</b>: es con la que estás trabajando.'; return; }   // misma persona: nada cambia de usuario
+      S.token = resp.credential; store.set(S.token); fin(true); } });
+    google.accounts.id.renderButton($('gbtnRe'), { theme: 'filled_blue', size: 'large', text: 'continue_with', locale: 'es' });
+  });
+}
+async function asegurarToken(motivo) { return (S.token && tokExpira() - Date.now() > 5 * 60 * 1000) ? true : renovarToken(motivo); }
+/* Avisar a Pablo una OC autorizada (la pasa a tránsito: hasta entonces la sucursal no la ve en Recibir) */
+async function avisarPablo(ocId) {
+  const det = await api('detalle', { tipo: 'oc', id: ocId });
+  if (det.estado !== 'autorizada') return { ok: false, detalle: 'La orden ya está ' + etq(det.estado) + ': no se vuelve a avisar.' };
+  const html = (det.formato && det.formato.tipo === 'gepp') ? htmlOCGepp(det) : null;
+  return api('correo_oc', { oc_id: ocId, destino: 'pablo', html });
+}
+async function reenviarAviso(id, btn) {
+  if (!(await asegurarToken('Para mandar el aviso de la orden a Pablo hace falta confirmar tu cuenta (Google la pide cada hora).'))) return;
+  btn.disabled = true; btn.textContent = '📧 Avisando a Pablo…';
+  try { const m = await avisarPablo(Number(id)); if (m.ok) { vOC(id); return; } alert('No se envió: ' + (m.detalle || m.error)); vOC(id); return; }
+  catch (e) { /* api() ya avisó */ }
+  btn.disabled = false; btn.textContent = '📧 Avisar a Pablo y poner en tránsito';
 }
 /* El servidor contestó que no (dato inválido, sin permiso…): se puede corregir y reintentar. Si NO hubo respuesta (red), no se
    sabe si se guardó: el botón se queda bloqueado y el aviso pide revisar antes de reintentar, para no duplicar nada. */
@@ -626,6 +671,13 @@ function cabeceraCalcTxt(c) {
   return 'fechas automáticas: ventas de los últimos ' + c.dias_consumo + ' días cargados' + (c.consumo_al_dia === false && c.ultimo_consumo ? ' <b style="color:var(--ambar)">(ventas cargadas hasta el ' + fMx(c.ultimo_consumo) + ')</b>' : '') + ' · ' + invT + ' · el pedido llega el ' + fMx(c.llega) + ' y debe cubrir ' + c.dias_cubrir + ' días';
 }
 const invTxt = (l) => l.inventario == null ? '' : Number(l.inventario).toLocaleString('es-MX', { maximumFractionDigits: 2 }) + (l.inventario_en === 'gramos' ? ' g' : '');
+/* Secos y Desechables (sin consumo en el POS): lo contado en el general elegido convertido a unidades de pedido
+   (contado ÷ fracción, porque la unidad de conteo es la unidad de precio) y, si son distintas, lo contado abajo. Sin contar = 0. */
+function existenciaTxt(l) {
+  const e = l.existencia == null ? 0 : Number(l.existencia), fr = Number(l.fraccion) || 1, u = Math.round(e / fr * 100) / 100;
+  const n = (x) => Number(x).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  return '<b>' + n(u) + '</b>' + (fr !== 1 && e ? '<div style="font-size:10px;color:var(--txt2)">' + n(e) + ' ' + esc(l.unidad_conteo || l.unidad || '') + '</div>' : '');
+}
 /* Nota bajo el Inventario Final de cada guiso: solo cuando no se contó en el general elegido (cuenta como 0) */
 function leyendaInv(l) {
   return l.sin_contar ? '<span style="color:var(--ambar)">sin contar · cuenta 0</span>' : '';
@@ -670,13 +722,14 @@ function pintarCalculadora() {
   h += '<tr><td colspan="15" style="text-align:right;background:#f3f3f3"><b>Total Guisos</b></td><td class="n" id="totGuisos"></td></tr></table></div>';
   conceptosOtros.forEach(cn => {
     const cid = cn.replace(/\W/g, '');
-    h += '<div class="bloque"><div class="titulo">' + esc(cn) + '</div><table style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Unidad de Medida</th><th class="g">Pedido de Gerente</th><th class="g">Modificador Manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
+    h += '<div class="bloque"><div class="titulo">' + esc(cn) + '</div><table style="width:100%"><tr><th>$ por Kg</th><th>PRODUCTO</th><th>Unidad de Medida</th><th title="Del inventario general elegido, en unidades de pedido; lo que no se contó vale 0">Inventario Final</th><th class="g">Pedido de Gerente</th><th class="g">Modificador Manual</th><th>Pedido Final</th><th>COSTO</th></tr>';
     otros.filter(l => l.concepto === cn).forEach(l => { const id = l.proveedor_insumo_id, x = v(id);
       h += '<tr><td class="n">' + (l.precio != null ? money(l.precio) : '') + '</td><td><b>' + esc(l.insumo) + '</b>' + (l.presentacion ? ' <span style="color:var(--txt2);font-size:11px">' + esc(l.presentacion) + '</span>' : '') + '</td><td class="n">' + num(l.fraccion) + '</td>' +
+        '<td class="n">' + existenciaTxt(l) + '</td>' +
         '<td class="in"><input type="number" inputmode="numeric" min="0" id="ped' + id + '" value="' + esc(x.ped) + '" oninput="recalc()"></td>' +
         '<td class="in"><input type="number" inputmode="numeric" id="mod' + id + '" value="' + esc(x.mod) + '" oninput="recalc()"></td>' +
         '<td class="fin" id="fin' + id + '"></td><td class="n" id="cos' + id + '"></td></tr>'; });
-    h += '<tr><td colspan="6" style="text-align:right;background:#f3f3f3"><b>Total ' + esc(cn) + '</b></td><td class="n" id="tot_' + cid + '"></td></tr></table></div>';
+    h += '<tr><td colspan="7" style="text-align:right;background:#f3f3f3"><b>Total ' + esc(cn) + '</b></td><td class="n" id="tot_' + cid + '"></td></tr></table></div>';
   });
   h += '<div class="calcbar"><div><div style="font-size:12px;color:var(--txt2)">TOTAL DEL PEDIDO (sin IVA)</div><b style="font-size:20px" id="cTotal">$0</b> <span id="cCajas" style="color:var(--txt2)"></span></div>' +
     '<button class="btn" style="font-size:17px;padding:14px 22px" id="btnPasar" onclick="pasarAlPedido(this)">Pasar al pedido →</button></div></div>';
@@ -1157,6 +1210,7 @@ async function autorizar(reqId, btn) {
   });
   const falta = resoluciones.find(r => r.accion === 'rechazar' && !r.motivo.trim());
   if (falta) { alert('Todo rechazo necesita motivo.'); return; }
+  if (resoluciones.some(r => r.accion !== 'rechazar') && !(await asegurarToken('Al autorizar se manda el aviso de la orden de compra a Pablo y para eso hay que confirmar tu cuenta (Google la pide cada hora). Sin eso la orden no pasa a tránsito y la sucursal no la ve en Recibir.'))) return;
   btn.disabled = true;
   let r;
   try { r = await api('resolver', { req_id: reqId, resoluciones }); }
@@ -1167,9 +1221,8 @@ async function autorizar(reqId, btn) {
     r.ocs.forEach(o => { h += '<p><a href="#oc-' + o.oc_id + '"><b>' + esc(o.folio) + '</b> — ' + esc(o.proveedor) + '</a> <span id="mail-' + o.oc_id + '" class="chip">📧 avisando a Pablo…</span></p>'; });
     setTimeout(() => r.ocs.forEach(async o => {
       const el = document.getElementById('mail-' + o.oc_id); if (!el) return;
-      try { const det = await api('detalle', { tipo: 'oc', id: o.oc_id }); const html = (det.formato && det.formato.tipo === 'gepp') ? htmlOCGepp(det) : null;
-        const m = await api('correo_oc', { oc_id: o.oc_id, destino: 'pablo', html }); el.textContent = m.ok ? '📧 enviada a Pablo · en tránsito' : '⚠️ ' + (m.detalle || m.error); el.className = 'chip ' + (m.ok ? 'recibida' : 'rechazada'); }
-      catch (e) { el.textContent = '⚠️ no se pudo avisar a Pablo'; el.className = 'chip rechazada'; }
+      try { const m = await avisarPablo(o.oc_id); el.textContent = m.ok ? '📧 enviada a Pablo · en tránsito' : '⚠️ ' + (m.detalle || m.error); el.className = 'chip ' + (m.ok ? 'recibida' : 'rechazada'); }
+      catch (e) { el.innerHTML = '⚠️ no se pudo avisar a Pablo: abre la orden y usa «📧 Avisar a Pablo»'; el.className = 'chip rechazada'; }
     }), 50);
   } else h += '<p>No se generaron OCs (todo rechazado o pendiente de otro asesor).</p>';
   h += '<p style="margin-top:14px"><button class="btn sec" onclick="vBandeja()">Volver a la bandeja</button></p></div>';
@@ -1336,11 +1389,13 @@ async function vOC(id) {
        '<tr><td colspan="4" class="der">IVA</td><td class="der">' + money(d.iva) + '</td><td></td></tr>' +
        '<tr><th colspan="4" class="der">Total (informativo — el gasto es el CFDI)</th><th class="der">' + money(d.total) + '</th><th></th></tr></table>';
   }
+  if (d.estado === 'autorizada') h += '<div class="no-print" style="margin-top:12px;border-left:4px solid var(--ambar);background:#fffbeb;padding:8px 10px;font-size:13px">Esta orden está autorizada pero <b>todavía no está en tránsito</b>: la sucursal no la ve en 📥 Recibir hasta que se avise a Pablo (o se marque que ya se envió por otro medio).</div>';
   h += '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
     '<button class="btn" onclick="imprimirOC(' + id + ')">🖨 Imprimir / PDF</button>';
   const CORREO_PROVEEDOR = false; // 5-sep: por ahora Pablo reenvía la OC; activar cuando los proveedores tengan correo en Catálogo
-  const puedeMandar = vista() === 'admin' || vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length);
+  const puedeMandar = d.puede_mandar != null ? !!d.puede_mandar && vista() !== 'gerente' : (vista() === 'admin' || vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length));
   if (CORREO_PROVEEDOR && puedeMandar && (d.estado === 'autorizada' || d.estado === 'enviada_proveedor')) h += '<button class="btn" id="btnCorreo" onclick="correoProveedor(' + id + ', this)">📧 ' + (d.estado === 'autorizada' ? 'Enviar al proveedor por correo' : 'Reenviar al proveedor') + '</button>';
+  if (puedeMandar && d.estado === 'autorizada') h += '<button class="btn" onclick="reenviarAviso(' + id + ', this)">📧 Avisar a Pablo y poner en tránsito</button>';
   if (puedeMandar && d.estado === 'autorizada') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'enviada_proveedor\')">📤 Ya la envié por otro medio</button>';
   if (puedeMandar && ['enviada_proveedor', 'recibida_parcial', 'recibida'].includes(d.estado)) h += '<button class="btn sec" onclick="if(confirm(\'¿Cerrar la OC? Ya no se podrá recibir nada más.\'))marcarOC(' + id + ',\'cerrada\')">Cerrar OC</button>';
   h += '</div>';
