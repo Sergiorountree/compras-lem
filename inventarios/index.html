@@ -170,6 +170,13 @@ td.n, th.n { text-align: right; }
 .aviso { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 8px 16px; }
 .lista { display: grid; gap: 8px; }
 @media (min-width: 641px) { .modal-backdrop { align-items: center; padding: 20px; } .modal-card { border-radius: 14px; } }
+/* pérdidas semanales de guisos (mig. 083) */
+.perd-card { border-top: 4px solid var(--alert-line); margin-bottom: 14px; }
+.perd-comp { display: block; font-size: 14px; margin-top: 8px; font-variant-numeric: tabular-nums; } .perd-comp.mejor { color: var(--ok); } .perd-comp.peor { color: var(--alert); }
+.perd-dias { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; } .perd-dias span { font-size: 12px; background: var(--surface); border: 1px solid #F3C5C2; border-radius: 6px; padding: 1px 6px; color: #7F2E2B; font-variant-numeric: tabular-nums; }
+.semana-nav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.perd-ancha { min-width: 720px; }   /* en teléfono se desplaza de lado dentro de .tbl */
 @media (max-width: 860px) { .destacados { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .solo-pc { display: none !important; } .solo-tel { display: inline-flex; } .topbar { padding: 10px 12px; } .tabs-wrap { top: 53px; } .tabs-row { padding: 0 8px; } .main { padding: 0 12px 48px; } .vista-hdr h2 { font-size: 19px; } .registro th.prod, .registro td.prod { width: 190px; min-width: 190px; } .tab { font-size: 14px; padding: 12px 10px; } .dia-det { padding: 10px; } .stat .v { font-size: 22px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -244,11 +251,11 @@ window.addEventListener('error', (e) => aviso('Error en la página: ' + e.messag
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
 const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], tab: null, empresa: null,
   vista: (function(){ try { return localStorage.getItem('lem_vista_inv') || 'admin'; } catch(e){ return 'admin'; } })(), gerenteElegido: false,
-  cache: {}, filtroMes: '', kpis: null, gen: { branch: null, fecha: '', data: null, abierto: null, busca: '', vals: {} }, val: { fecha: '', data: null }, diario: { branch: null, fecha: '' } };
+  cache: {}, filtroMes: '', kpis: null, gen: { branch: null, fecha: '', data: null, abierto: null, busca: '', vals: {} }, val: { fecha: '', data: null }, diario: { branch: null, fecha: '' }, perd: { branch: null, lunes: null } };
 
 /* ── API: SQL Connect (window.LEMDC) con respaldo n8n solo para lecturas (auditoría 12-sep, S04) ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['perfil','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','inv_general','inv_general_valor','inv_hoy']);
+const LECTURAS = new Set(['perfil','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','inv_general','inv_general_valor','inv_hoy','inv_perdidas','inv_perdidas_todas']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -322,16 +329,16 @@ function fijarEmpresa() {
   if (!S.sucursales.some(s => s.branch_id === S.branch)) S.branch = (S.sucursales[0] || {}).branch_id || null;
 }
 function conEmpresa(datos) { const d = Object.assign({}, datos || {}); if (S.empresa && d.empresa_id == null) d.empresa_id = S.empresa; return d; }
-function cambiarEmpresa(v) { try { localStorage.setItem('lem_empresa', String(Number(v))); } catch (e) {} S.branch = null; S.gerenteElegido = false; S.gen.branch = null; S.diario.branch = null; S.cache = {}; S.kpis = null; fijarEmpresa(); cerrarModal(); pintar(); }
+function cambiarEmpresa(v) { try { localStorage.setItem('lem_empresa', String(Number(v))); } catch (e) {} S.branch = null; S.gerenteElegido = false; S.gen.branch = null; S.diario.branch = null; S.perd.branch = null; S.perd.lunes = null; S.cache = {}; S.kpis = null; fijarEmpresa(); cerrarModal(); pintar(); }
 function sucNombre(b) { const s = S.sucursales.find(x => x.branch_id === Number(b)); return s ? s.nombre : ''; }
 function empresaNombre() { const e = ((S.perfil || {}).empresas || []).find(x => x.empresa_id === S.empresa); return e ? e.nombre : (((S.perfil || {}).empresas || [])[0] || {}).nombre || ''; }
 function selSuc(id, valor, onchange, todas) { return '<select class="inp" id="' + id + '" onchange="' + onchange + '">' + (todas ? '<option value="">Todas las tiendas</option>' : '<option value="">Elige la tienda</option>') + S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (String(valor) === String(s.branch_id) ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>'; }
 
 /* ── Cabecera, pestañas y ruteo ── */
 function tabsDe() {
-  if (esGerente()) return [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📊 Eficiencias'], ['contar', '📦 Inventario general']];
-  if (esAdmin()) return [['panel', '📊 Panel'], ['contar', '📦 Inventario general'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
-  return [['panel', '📊 Panel'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
+  if (esGerente()) return [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📊 Eficiencias'], ['perdidas', '📉 Pérdidas'], ['contar', '📦 Inventario general']];
+  if (esAdmin()) return [['panel', '📊 Panel'], ['perdidas', '📉 Pérdidas'], ['contar', '📦 Inventario general'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
+  return [['panel', '📊 Panel'], ['perdidas', '📉 Pérdidas'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
 }
 function cuentaHtml(enModal) {
   const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
@@ -359,7 +366,7 @@ function pintar() {
 }
 function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.tab = 'registro'; S.cache = {}; S.kpis = null; S.diario.fecha = ''; pintar(); }
 function irTab(t) { S.tab = t; pintar(); }
-function router() { ({ registro: vRegistro, contar: vContar, diario: vDiario, hist: vHistorial, ef: vEficiencia, panel: vPanel, valor: vValor }[S.tab] || vRegistro)(); }
+function router() { ({ registro: vRegistro, contar: vContar, diario: vDiario, hist: vHistorial, ef: vEficiencia, perdidas: vPerdidas, panel: vPanel, valor: vValor }[S.tab] || vRegistro)(); }
 const M = () => $('main');
 
 /* ── Datos con caché ── */
@@ -446,9 +453,10 @@ async function vRegistro() {
   if (d.error) { M().innerHTML = h + '<div class="vacio">No hay registro del ' + fmtDia(fecha) + '. El último es del ' + fmtDia(ult.fecha) + '.</div>'; return; }
   let e = null; try { e = await kpisDe(); } catch (x) {}
   const prev = d.anterior ? await diaDe(S.branch, d.anterior) : null;
+  let pw = null; try { pw = await perdidasDe(S.branch, null); } catch (x) { S.cache['perd|' + S.branch + '|cerrada'] = { error: 'fallo' }; }   // la tarjeta es opcional: si falla, el Registro sigue y no se reintenta en cada visita
   const t = tablaRegistroHTML(d, true);
   h += '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '</div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vRegistro()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vRegistro()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' +
-    '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + leyendaHTML() + t.html + efCardsHTML(d.lineas) +
+    '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + perdidasCardHTML(pw) + leyendaHTML() + t.html + efCardsHTML(d.lineas) +
     '<p class="hint">Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.</p>';
   M().innerHTML = h;
 }
@@ -657,6 +665,112 @@ async function vPanel() {
   const ag = p.autogenerados || [];
   h += '<div class="card"><div class="row"><h3 style="margin:0">Días generados sin captura' + (S.filtroMes ? ' · ' + S.filtroMes : ' · todos') + '</h3><div class="acciones"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vPanel()"><button class="btn btn-sm" onclick="exportar(null)">⬇︎ Excel global</button></div></div>' +
     (ag.length ? '<div class="lista" style="margin-top:10px">' + ag.slice(0, 40).map(a => '<div class="row" style="border-bottom:1px solid var(--divider);padding:6px 0"><span>🏪 <b>' + esc(a.sucursal || '') + '</b> · ' + fmtFecha(a.fecha) + '</span><a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink('Hola, no se registró el inventario de ' + (a.sucursal || '') + ' del ' + fmtFecha(a.fecha) + '. El sistema lo generó en ceros. Por favor pasar los datos reales a administración para corregirlo.') + '">💬 WhatsApp</a></div>').join('') + (ag.length > 40 ? '<div class="hint">…y ' + (ag.length - 40) + ' más</div>' : '') + '</div>' : '<div class="hint" style="margin-top:8px">Ninguno en este periodo.</div>') + '</div>';
+  M().innerHTML = h;
+}
+
+/* ── PÉRDIDAS SEMANALES (mig. 083): guisos que salieron en rojo por faltante, sumados de lunes a domingo ──
+   Regla (Sergio, 6-oct-2026): solo cuenta el día en que el guiso se marcó en rojo porque se consumió MÁS de lo vendido por
+   más de 10 gorditas (la misma "Dif. teórica" de la tabla); dinero a precio de la orden de compra de ese día. Lo calcula SQL
+   en vivo: el lunes ya aparece la semana que cerró el domingo como "preliminar" (el domingo llega con la sincronización de la
+   1:30 am del martes) y el martes queda completa. */
+async function perdidasDe(branch, lunes) { const k = 'perd|' + branch + '|' + (lunes || 'cerrada'); if (!S.cache[k]) S.cache[k] = await api('inv_perdidas', { branch_id: branch, lunes: lunes || null }); return S.cache[k]; }
+function semanaTxt(p) { return fmtDia(p.lunes) + ' al ' + fmtDia(p.domingo) + (p.en_curso ? ' (en curso)' : p.preliminar ? ' (preliminar)' : ''); }
+function semanaCompleta(p) { return !!p && !p.en_curso && !p.preliminar; }
+function kgTxt(v) { return fmt(v) + ' kg'; }
+function compPerdidas(act, ant) {
+  const a = num(act), b = num(ant); if (!a && !b) return '';
+  const d = a - b; if (Math.abs(d) < 1) return '<span class="perd-comp">Igual que la semana anterior (' + pesos(b) + ').</span>';
+  return '<span class="perd-comp ' + (d < 0 ? 'mejor' : 'peor') + '">' + (d < 0 ? '▼ ' : '▲ ') + pesos(Math.abs(d)) + (d < 0 ? ' menos' : ' más') + ' que la semana anterior (' + pesos(b) + ').</span>';
+}
+function reglaPerdidas(p) { return 'Cuenta solo los días en que el guiso salió en rojo por faltante: se consumió más de lo que vendió el POS por más de ' + (p && p.umbral || 10) + ' gorditas. Dinero a precio de la orden de compra de ese día.'; }
+function diasCapturaTxt(dd, p) {
+  if (!dd) return '';
+  const c = num(dd.con_captura), gen = num(dd.generados), pend = p ? num(p.pendientes) : 0, faltan = Math.max(0, num(dd.sin_registro) - pend);
+  const genTxt = gen ? gen + ' generado' + (gen === 1 ? '' : 's') + ' sin captura' : '';
+  if (p && p.en_curso) return 'Semana en curso: van ' + c + (c === 1 ? ' día' : ' días') + ' con captura.';
+  if (c >= 7) return '';
+  if (p && p.preliminar && pend) return 'Preliminar: ' + (pend === 1 ? 'falta 1 día' : 'faltan ' + pend + ' días') + ' por sincronizar (el domingo se captura el lunes y llega con la sincronización de la 1:30 am del martes). La semana queda completa el martes.' +
+    (faltan || gen ? ' Además, ' + [faltan ? faltan + (faltan === 1 ? ' día sin registro' : ' días sin registro') : '', genTxt].filter(Boolean).join(' y ') + ' no cuentan.' : '');
+  return 'Ojo: solo ' + c + ' de 7 días con captura' + (genTxt ? ' (' + genTxt + ')' : '') + '; los demás no cuentan.';
+}
+function perdidaFila(g, extra) {
+  return '<div class="prob"' + (extra ? ' data-extra hidden' : '') + '><div><div class="nm">' + esc(g.producto) + '</div><div class="det">' + g.dias_rojos + (g.dias_rojos === 1 ? ' día' : ' días') + ' en rojo · ' + kgTxt(g.kg) + ' · ' + fmt(g.gorditas) + ' gorditas</div>' +
+    '<div class="perd-dias">' + (g.dias || []).map(x => '<span>' + esc(fmtDia(x.fecha)) + ' · ' + fmt(x.kg) + ' kg</span>').join('') + '</div></div>' +
+    '<div class="cifra"><b>' + (g.sin_precio ? '—' : pesos(g.pesos)) + '</b>' + (g.sin_precio ? '<small>sin precio</small>' : '') + '</div></div>';
+}
+function perdidasCardHTML(p) {
+  if (!p || p.error) return '';
+  const t = p.total || {}, gs = p.guisos || [], VIS = 5, aviso = diasCapturaTxt(p.dias, p), sinCaptura = !num((p.dias || {}).con_captura);
+  let cuerpo;
+  if (!gs.length && sinCaptura) cuerpo = '<div class="prob-gris">Sin capturas en esta semana: no hay con qué calcular pérdidas.</div>';
+  else if (!gs.length) cuerpo = '<div class="prob-ok">✓ Ningún guiso salió en rojo por faltante esta semana.' + (aviso ? ' ' + esc(aviso) : '') + '</div>';
+  else cuerpo = '<div class="prob-resumen">' + t.guisos + (t.guisos === 1 ? ' guiso' : ' guisos') + ' · ' + t.dias_rojos + ' días en rojo · <b>' + kgTxt(t.kg) + ' · ' + pesos(t.pesos) + '</b></div>' +
+    gs.map((g, k) => perdidaFila(g, k >= VIS)).join('') +
+    (gs.length > VIS ? '<button class="prob-toggle" type="button" data-mas="Ver los ' + (gs.length - VIS) + ' restantes" onclick="toggleProb(this)"><span class="chev">▶</span><span class="txt">Ver los ' + (gs.length - VIS) + ' restantes</span></button>' : '') +
+    (aviso ? '<div class="hint">' + esc(aviso) + '</div>' : '');
+  return '<section class="card perd-card"><div class="prob-hdr"><h3>📉 Guisos que más se perdieron</h3><span class="dia-et">semana del ' + esc(semanaTxt(p)) + '</span></div>' +
+    '<div class="prob-lista">' + cuerpo + '</div>' + (semanaCompleta(p) ? compPerdidas(t.pesos, (p.anterior || {}).pesos) : '') +
+    '<div class="acciones" style="margin-top:10px"><button class="btn btn-sm" onclick="S.perd.branch=S.branch;S.perd.lunes=null;irTab(\'perdidas\')">Ver detalle y semanas anteriores</button></div>' +
+    '<p class="pie">' + esc(reglaPerdidas(p)) + '</p></section>';
+}
+function navSemana(p, ir) {
+  const prev = addDias(p.lunes, -7), sig = addDias(p.lunes, 7), haySig = sig <= p.hoy;
+  const sems = (p.semanas || []).slice(); if (!sems.includes(p.lunes)) sems.push(p.lunes); sems.sort().reverse();
+  return '<div class="semana-nav"><button class="btn btn-sm" onclick="' + ir + '(\'' + prev + '\')">‹ Semana anterior</button>' +
+    (sems.length ? '<select class="inp" onchange="' + ir + '(this.value)">' + sems.map(w => '<option value="' + w + '"' + (w === p.lunes ? ' selected' : '') + '>' + esc(fmtDia(w) + ' al ' + fmtDia(addDias(w, 6))) + '</option>').join('') + '</select>' : '') +
+    '<button class="btn btn-sm" ' + (haySig ? 'onclick="' + ir + '(\'' + sig + '\')"' : 'disabled') + '>Semana siguiente ›</button>' +
+    (p.lunes !== p.semana_cerrada ? '<button class="btn btn-sm" onclick="' + ir + '(null)">Última cerrada</button>' : '') + '</div>';
+}
+function irSemanaPerd(l) { S.perd.lunes = l || null; vPerdidas(); }
+async function vPerdidas() {
+  M().className = 'main';
+  if (!esGerente() && !S.perd.branch) return vPerdidasTodas();
+  const branch = esGerente() ? S.branch : S.perd.branch;
+  const hdr = (nombre) => '<div class="vista-hdr"><div><h2>📉 Pérdidas semanales</h2><p>' + (nombre ? esc(corto(nombre)) + ' · ' : '') + 'guisos en rojo por faltante, de lunes a domingo</p></div>' +
+    (esGerente() ? '' : '<div class="acciones"><button class="btn btn-sm" onclick="S.perd.branch=null;vPerdidas()">← Todas las tiendas</button></div>') + '</div>';
+  let h = hdr(sucNombre(branch));
+  M().innerHTML = h + '<div class="loading">Cargando…</div>';
+  let p; try { p = await perdidasDe(branch, S.perd.lunes); } catch (e) { M().innerHTML = h + '<div class="vacio">' + esc(e.detalle || e.message) + '</div>'; return; }
+  if (p.error) { M().innerHTML = h + '<div class="vacio">' + esc(p.detalle || p.error) + '</div>'; return; }
+  if (!sucNombre(branch) && p.sucursal) h = hdr(p.sucursal);   // asesores sin sucursales en su perfil: el nombre viene de la API
+  const t = p.total || {}, gs = p.guisos || [], dd = p.dias || {}, ant = p.anterior || {}, aviso = diasCapturaTxt(dd, p), sinCaptura = !num(dd.con_captura);
+  h += '<div class="vista-hdr" style="padding-top:0"><div><p><b>Semana del ' + esc(semanaTxt(p)) + '</b></p></div>' + navSemana(p, 'irSemanaPerd') + '</div>' +
+    '<div class="grid">' +
+    '<div class="stat ' + (num(t.pesos) ? 'bad' : sinCaptura ? '' : 'ok') + '"><div class="k">Dinero perdido</div><div class="v num">' + pesos(t.pesos) + '</div><div class="s">' + (semanaCompleta(p) ? compPerdidas(t.pesos, ant.pesos) : esc(semanaTxt(p).replace(/^.*\((.*)\)$/, 'semana $1'))) + '</div></div>' +
+    '<div class="stat"><div class="k">Kilos perdidos</div><div class="v num">' + kgTxt(t.kg) + '</div><div class="s">semana anterior: ' + kgTxt(ant.kg) + '</div></div>' +
+    '<div class="stat"><div class="k">Días en rojo</div><div class="v num">' + (t.dias_rojos || 0) + '</div><div class="s">' + (t.guisos || 0) + (t.guisos === 1 ? ' guiso' : ' guisos') + ' distintos</div></div>' +
+    '<div class="stat ' + (num(dd.con_captura) < 7 && semanaCompleta(p) ? 'warn' : '') + '"><div class="k">Días con captura</div><div class="v num">' + (dd.con_captura || 0) + ' / 7</div><div class="s">' + (num(p.pendientes) && !semanaCompleta(p) ? num(p.pendientes) + ' por sincronizar' : num(dd.generados) ? dd.generados + ' generado(s) sin captura' : 'los generados sin captura no cuentan') + '</div></div></div>';
+  if (!gs.length && sinCaptura) h += '<div class="card"><div class="prob-gris">Sin capturas en esta semana: no hay con qué calcular pérdidas.</div></div>';
+  else if (!gs.length) h += '<div class="card"><div class="prob-ok">✓ Ningún guiso salió en rojo por faltante esta semana.' + (aviso ? ' ' + esc(aviso) : '') + '</div></div>';
+  else h += '<div class="tbl"><table class="simple"><thead><tr><th>#</th><th>Guiso y días en rojo</th><th class="num">Días</th><th class="num">Kg</th><th class="num">Dinero</th></tr></thead><tbody>' +
+    gs.map((g, k) => '<tr><td>' + (k + 1) + '</td><td><b>' + esc(g.producto) + '</b><div class="hint">' + fmt(g.gorditas) + ' gorditas</div><div class="perd-dias">' +
+      (g.dias || []).map(x => '<span title="' + esc(fmt(x.gorditas) + ' gorditas · ' + (x.pesos == null ? 'sin precio' : pesos(x.pesos))) + '">' + esc(fmtDia(x.fecha)) + ' · ' + fmt(x.kg) + ' kg</span>').join('') + '</div></td>' +
+      '<td class="num">' + g.dias_rojos + '</td><td class="num">' + fmt(g.kg) + '</td><td class="num"><b>' + (g.sin_precio ? 'sin precio' : pesos(g.pesos)) + '</b></td></tr>').join('') +
+    '</tbody><tfoot><tr><td></td><td><b>Total</b></td><td class="num"><b>' + (t.dias_rojos || 0) + '</b></td><td class="num"><b>' + fmt(t.kg) + '</b></td><td class="num"><b>' + pesos(t.pesos) + '</b></td></tr></tfoot></table></div>' +
+    (aviso ? '<p class="hint">' + esc(aviso) + '</p>' : '') + (num(t.sin_precio) ? '<p class="hint">' + t.sin_precio + ' día(s) sin precio en la orden de compra: no suman dinero.</p>' : '');
+  h += '<p class="hint">' + esc(reglaPerdidas(p)) + ' Si un día se corrige, la semana se recalcula sola.</p>';
+  M().innerHTML = h;
+}
+function irSemanaTodas(l) { S.perd.lunes = l || null; vPerdidasTodas(); }
+async function vPerdidasTodas() {
+  M().className = 'main';
+  let h = '<div class="vista-hdr"><div><h2>📉 Pérdidas semanales</h2><p>Guisos en rojo por faltante en todas las tiendas, de lunes a domingo. Toca una tienda para ver su detalle.</p></div></div>';
+  M().innerHTML = h + '<div class="loading">Cargando…</div>';
+  const k = 'perdT|' + (S.perd.lunes || 'cerrada');
+  let p; try { if (!S.cache[k]) S.cache[k] = await api('inv_perdidas_todas', { lunes: S.perd.lunes || null }); p = S.cache[k]; } catch (e) { M().innerHTML = h + '<div class="vacio">' + esc(e.detalle || e.message) + '</div>'; return; }
+  if (p.error) { M().innerHTML = h + '<div class="vacio">' + esc(p.detalle || p.error) + '</div>'; return; }
+  const t = p.total || {}, ant = p.anterior || {}, T = p.sucursales || [], G = p.guisos || [];
+  h += '<div class="vista-hdr" style="padding-top:0"><div><p><b>Semana del ' + esc(semanaTxt(p)) + '</b></p></div>' + navSemana(p, 'irSemanaTodas') + '</div>' +
+    '<div class="grid">' +
+    '<div class="stat ' + (num(t.pesos) ? 'bad' : '') + '"><div class="k">Dinero perdido · todas</div><div class="v num">' + pesos(t.pesos) + '</div><div class="s">' + (semanaCompleta(p) ? compPerdidas(t.pesos, ant.pesos) : esc(p.en_curso ? 'semana en curso' : 'preliminar: el domingo llega el martes 1:30 am')) + '</div></div>' +
+    '<div class="stat"><div class="k">Kilos perdidos</div><div class="v num">' + kgTxt(t.kg) + '</div><div class="s">semana anterior: ' + kgTxt(ant.kg) + '</div></div>' +
+    '<div class="stat"><div class="k">Tiendas con pérdidas</div><div class="v num">' + (t.tiendas || 0) + ' / ' + T.length + '</div><div class="s">' + (t.dias_rojos || 0) + ' días en rojo</div></div></div>';
+  h += '<div class="tbl"><table class="simple perd-ancha"><thead><tr><th>Tienda</th><th class="num">Dinero</th><th class="num">Kg</th><th class="num">Días en rojo</th><th>Guisos que más se perdieron</th><th class="num">Días con captura</th><th></th></tr></thead><tbody>' +
+    T.map(s => { const st = s.total || {}, dd = s.dias || {}; return '<tr><td><b>' + esc(corto(s.corto || s.nombre)) + '</b></td><td class="num"><b>' + pesos(st.pesos) + '</b><div class="hint">antes ' + pesos((s.anterior || {}).pesos) + '</div></td><td class="num">' + fmt(st.kg) + '</td><td class="num">' + (st.dias_rojos || 0) + '</td><td>' +
+      ((s.top || []).length ? (s.top || []).map(g => esc(g.producto) + ' <span class="hint">' + pesos(g.pesos) + '</span>').join('<br>') : '<span class="hint">ninguno</span>') + '</td><td class="num">' + (dd.con_captura || 0) + ' / 7</td><td><button class="btn btn-sm" onclick="S.perd.branch=' + s.branch_id + ';vPerdidas()">Ver</button></td></tr>'; }).join('') + '</tbody></table></div>';
+  if (G.length) h += '<div class="card"><h3>Guisos del grupo</h3><div class="tbl" style="margin:0"><table class="simple"><thead><tr><th>Guiso</th><th class="num">Tiendas</th><th class="num">Días en rojo</th><th class="num">Kg</th><th class="num">Dinero</th></tr></thead><tbody>' +
+    G.map(g => '<tr><td><b>' + esc(g.producto) + '</b></td><td class="num">' + (g.tiendas || 0) + '</td><td class="num">' + g.dias_rojos + '</td><td class="num">' + fmt(g.kg) + '</td><td class="num"><b>' + pesos(g.pesos) + '</b></td></tr>').join('') + '</tbody></table></div></div>';
+  h += '<p class="hint">' + esc(reglaPerdidas(p)) + '</p>';
   M().innerHTML = h;
 }
 
