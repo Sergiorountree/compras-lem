@@ -115,6 +115,14 @@
   .lem-table td.motivo { min-width: 240px; max-width: 420px; white-space: normal; line-height: 1.35; font-size: 12.5px; color: var(--text-soft); }
   .lem-table td.arch { min-width: 230px; max-width: 340px; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; font-size: 12.5px; }
   .stat-card.click { cursor: pointer; } .stat-card.click:hover { border-color: var(--border-strong); } .stat-card.on { border-color: var(--lem); box-shadow: 0 0 0 1px var(--lem) inset; }
+  /* ── Espejo de Drive (mig. 094): conciliación y caja, solo lectura ── */
+  .b-mixto { background: #ECE6FA; color: #4B2F8F; } .b-hist { background: #F6F5F0; color: #9B9A92; }
+  .lem-table td.cap, .lem-table th.cap { background: #FFF6D6 !important; } .lem-table thead th.cap { color: #6B5200; }
+  .lem-table tr.grupo td { background: #F1EFE8 !important; color: #565550; font-size: 12.5px; } .lem-table tr.semhead td { background: #FAFAF7 !important; font-size: 11px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: .05em; }
+  .cuadri { border-collapse: collapse; } .cuadri td, .cuadri th { border: 1px solid var(--border); padding: 4px 8px; font-size: 12px; white-space: nowrap; background: white; }
+  .cuadri th { background: #F5F3EC; color: var(--text-faint); font-weight: 500; font-size: 10.5px; text-align: center; } .cuadri td.fn { background: #F5F3EC; color: var(--text-faint); text-align: right; font-family: var(--font-mono); font-size: 11px; }
+  .cuadri .oc { color: #A3A196; font-style: italic; } .cuadri td.n { text-align: right; font-family: var(--font-mono); }
+  .falta td.p { background: #FCE7E5; color: var(--rojo); font-weight: 600; text-align: center; } .falta td.h { background: #F6F5F0; color: #9B9A92; text-align: center; } .falta td.v { text-align: center; color: var(--verde); }
   @media print { .sidebar, .topbar .acciones, #toast { display: none !important; } .shell { display: block; } .main { overflow: visible; } }
   @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
@@ -174,8 +182,9 @@ const Conexion = Object.freeze({
 /* ═══ SQL Connect (fin) ═══ */
 
 /* ── Módulo Contabilidad · F0 (7-oct-2026). C0 Inicio, Subir XML (mig. 093: Alan sube los XML de las facturas aquí, sin Drive),
-   C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal, C3 Cortes de caja. Los números los da SQL (lem.fn_api_conta_*,
-   migraciones 091 y 093); la pantalla solo pinta. Contrato:
+   C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal, C3 Cortes de caja con su conciliación y Efectivo: ESPEJO de Drive de
+   solo lectura (mig. 094, 8-oct-2026: la hoja "ERP Cortes" y la carpeta "Control de Efectivo" se muestran como están; se editan en Drive).
+   Los números los da SQL (lem.fn_api_conta_*, migraciones 091, 093 y 094); la pantalla solo pinta. Contrato:
    compras-v1/docs/contabilidad-api.md. Solo entran administración y contabilidad: el servidor responde "sin_acceso" a los demás.
    Reglas: solo SQL Connect (sin respaldo de n8n); siempre empresa_id; ninguna respuesta se guarda en localStorage ni en el HTML
    (viven en memoria y se borran al salir); la sesión se cierra tras 15 minutos sin uso. ── */
@@ -183,9 +192,10 @@ document.documentElement.setAttribute('data-conta', 'ok');
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const INACTIVIDAD_MIN = 15;
 const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
-const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas']);
+const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas', 'conta_espejo_cortes', 'conta_espejo_efectivo']);
 const ss = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }, del(k) { try { sessionStorage.removeItem(k); } catch (e) {} } };
-const uiInicial = () => ({ excTodas: false, q: '', soloSaldo: true, orden: 'abierto', base: null, factSolo: false, mesIng: null, mesCor: null, diasFiltro: 'revisar' });
+const uiInicial = () => ({ excTodas: false, q: '', soloSaldo: true, orden: 'abierto', base: null, factSolo: false, mesIng: null, mesCor: null, diasFiltro: 'revisar',
+                           concBranch: null, concEstado: null, concTec: false, concDias: 14, concTiendas: [], efeOrden: 'semana' });
 const subInicial = () => ({ items: [], leyendo: false, enviando: false, detener: false, lote: null, empresa: null, hechos: 0, total: 0, error: null, filtro: 'todos',
                             hist: null, histCargando: false, histErr: null, histEstado: 'todos', histQ: '', histT: null, sec: 0 });
 const S = { token: ss.get('lem_tok') || null, usuario: '', inicio: null, empresa: null, cache: new Map(), vez: 0, epoca: 0, ultima: Date.now(), motivo: '', tiendas: [], deb: null, ui: uiInicial(), sub: subInicial(), toastT: null };
@@ -380,9 +390,10 @@ function pintarShell() {
     '<main class="main"><div class="scroll" id="scroll"><div id="vista"></div></div></main></div>';
 }
 function pintarNav(r) {
-  const items = [['inicio', 'home', 'Inicio'], ['subir', 'upload', 'Subir XML'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja']];
+  const items = [['inicio', 'home', 'Inicio'], ['subir', 'upload', 'Subir XML'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja'], ['efectivo', 'file', 'Efectivo (espejo)']];
   const n = $('nav'); if (!n) return;
-  n.innerHTML = items.map(([k, ic, t]) => '<a class="nav-item' + (r === k ? ' active' : '') + '" href="#' + k + '"' + (r === k ? ' aria-current="page"' : '') + '>' + icon(ic) + '<span>' + t + '</span></a>').join('') +
+  const act = r === 'conciliacion' ? 'cortes' : r;   // la conciliación es una pestaña de Cortes de caja
+  n.innerHTML = items.map(([k, ic, t]) => '<a class="nav-item' + (act === k ? ' active' : '') + '" href="#' + k + '"' + (act === k ? ' aria-current="page"' : '') + '>' + icon(ic) + '<span>' + t + '</span></a>').join('') +
     '<div class="nav-item soon-item">' + icon('file') + '<span>Estado de resultados</span><span class="soon">F1</span></div>' +
     '<div class="nav-item soon-item">' + icon('lock') + '<span>Cierre del mes</span><span class="soon">F2</span></div>';
 }
@@ -399,8 +410,9 @@ function pon(h) { const v = $('vista'); if (v) v.innerHTML = '<div class="fade-i
 function arriba() { const sc = $('scroll'); if (sc) sc.scrollTop = 0; if (window.innerWidth <= 760) window.scrollTo(0, 0); }
 function cargando(t, sub) { pon(topbar(t, sub) + '<div class="p-8"><div class="msg-card shadow-card">Cargando…</div></div>'); }
 
-/* ── Rutas: #inicio · #subir · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ── */
-const RUTAS = { inicio: vInicio, subir: vSubir, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes };
+/* ── Rutas: #inicio · #subir · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ·
+   #conciliacion[/semana/AAAA-SS | /motor/AAAA-MM[/branch_id] | /resumen | /falta | /cambios] · #efectivo[/AAAA-MM | /historico/<pestaña>] ── */
+const RUTAS = { inicio: vInicio, subir: vSubir, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes, conciliacion: vConciliacion, efectivo: vEfectivo };
 function ruta() {
   let h = (location.hash || '').replace(/^#/, ''); try { h = decodeURIComponent(h); } catch (e) {}
   const i = h.indexOf('/'); const r = i < 0 ? h : h.slice(0, i); const arg = i < 0 ? null : (h.slice(i + 1) || null);
@@ -419,7 +431,8 @@ async function router() {
 function errorEnVista(e) {
   if (e.sesion) { ss.del('lem_tok'); S.token = null; Conexion.salir(); vLogin(e.message); return; }
   console.error(e);
-  const titulo = e.codigo === 'solo_sql_connect' ? 'Solo por SQL Connect' : e.codigo === 'sin_acceso' ? 'Sin acceso' : e.codigo === 'faltan_datos' ? 'Datos incompletos' : 'No se pudo cargar';
+  const titulo = e.codigo === 'solo_sql_connect' ? 'Solo por SQL Connect' : e.codigo === 'sin_acceso' ? 'Sin acceso' : e.codigo === 'faltan_datos' ? 'Datos incompletos'
+    : e.codigo === 'sin_espejo' ? 'Sin espejo de Drive' : e.codigo === 'sin_copia' ? 'Todavía no hay copia' : e.codigo === 'estructura_cambio' ? 'La hoja cambió de forma' : 'No se pudo cargar';
   pon(topbar(titulo) + '<div class="p-8"><div class="card" style="max-width:640px"><div class="card-head"><div><h3 style="color:var(--rojo)">' + titulo + '</h3><p>' + esc(e.message || 'Error desconocido') + '</p>' +
     (e.red ? '<p>Contabilidad solo usa SQL Connect: no hay respaldo por otro camino.</p>' : '') + '</div></div><div class="card-body flex gap-2 flex-wrap"><button class="btn btn-primary" data-act="reintentar">Reintentar</button><a class="btn btn-secondary" href="#inicio">Volver al inicio</a></div></div></div>');
 }
@@ -459,7 +472,7 @@ async function vInicio(arg, vez) {
   e += '</div>';
   const kv = (k, v, sub) => '<div class="kv"><div class="k">' + k + (sub ? '<div class="text-11 text-gray-400">' + sub + '</div>' : '') + '</div><div class="v num">' + v + '</div></div>';
   let a = '<div class="card-body">';
-  a += kv('Cortes de este mes conciliados', entero(ad.cortes_mes_conciliados) + ' de ' + entero(ad.cortes_mes) + (esNum(ad.pct_conciliados_mes) ? ' · ' + porc(ad.pct_conciliados_mes) : ''), 'la conciliación en el portal llega con F3');
+  a += kv('Cortes de este mes conciliados', entero(ad.cortes_mes_conciliados) + ' de ' + entero(ad.cortes_mes) + (esNum(ad.pct_conciliados_mes) ? ' · ' + porc(ad.pct_conciliados_mes) : ''), 'con efectivo llegado en el espejo de "ERP Cortes" (Alan lo captura en la hoja)');
   a += kv('Cortes del mes anterior conciliados', entero(ad.cortes_mes_anterior_conciliados) + ' de ' + entero(ad.cortes_mes_anterior));
   a += kv('Monto de CFDI clasificado', porc(ad.pct_cfdi_clasificado), 'facturas recibidas con clasificación aceptada');
   a += kv('Capturas pendientes de firma', esNum(ad.capturas_pendientes_firma) ? entero(ad.capturas_pendientes_firma) : '—', esc(ad.nota_capturas || ''));
@@ -951,7 +964,8 @@ async function vCortes(arg, vez) {
   const sig = mesMas(d.mes, 1); const puedeSig = sig <= hoyMes;
   let acts = '<span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="mesCor" data-arg="' + esc(mesMas(d.mes, -1)) + '" aria-label="Mes anterior">' + icon('chevronL', 14) + '</button><b class="text-sm text-center" style="min-width:128px">' + mesLargo(d.mes) + '</b><button class="btn btn-ghost p-15" data-act="mesCor" data-arg="' + esc(sig) + '"' + (puedeSig ? '' : ' disabled') + ' aria-label="Mes siguiente">' + icon('chevronR', 14) + '</button></span>';
   acts += '<select class="sel" data-chg="tienda" aria-label="Tienda"><option value="">Todas las tiendas</option>' + S.tiendas.map(x => '<option value="' + esc(x.branch_id) + '"' + (x.branch_id === branch ? ' selected' : '') + '>' + esc(x.tienda) + '</option>').join('') + '</select>' + btnActualizar();
-  let h = topbar(branch != null ? 'Cortes · ' + esc(tienda) : 'Cortes de caja', esc(S.inicio.empresa || '') + ' · ' + mesLargo(d.mes) + ' · solo lectura (la conciliación llega en F3)', acts) + '<div class="p-8">';
+  let h = topbar(branch != null ? 'Cortes · ' + esc(tienda) : 'Cortes de caja', esc(S.inicio.empresa || '') + ' · ' + mesLargo(d.mes) + ' · conciliación: espejo de ERP Cortes', acts) + '<div class="p-8">';
+  h += segCortes('pos');
   h += '<div class="banner banner-gris"><div class="flex items-center gap-2 flex-wrap mb-1">' + CONF_AUTO + '<span class="text-13">' + esc(d.fuente || '') + '</span></div><ul style="margin:4px 0 0 18px">' + (d.notas || []).map(x => '<li class="text-13">' + esc(x) + '</li>').join('') + '</ul></div>';
   const est = d.estados || {}; const sumaEst = f => Object.keys(est).filter(f).reduce((s, k) => s + N(est[k]), 0);
   h += '<div class="grid grid-4 mb-6">' + stat('Días que cuadran', entero(sumaEst(k => k === 'ok')), 'R26 contra corte, estado "ok"', 'var(--verde)') +
@@ -979,7 +993,7 @@ async function vCortes(arg, vez) {
       tdP(c.efectivo_llegado) + tdP(c.tdc_real) + tdP(c.compras_caja) + '<td>' + (c.conciliado ? '<span class="badge b-verde">Sí</span>' : '<span class="badge b-gris">No</span>') + '</td></tr>').join('')
       : '<tr><td colspan="22" class="text-center text-gray-500" style="padding:24px">Sin cortes en el mes.</td></tr>';
     t += '</tbody></table></div>';
-    h += card('Cortes (' + entero(cs.length) + ')', 'Uno por renglón, en el orden del día. Sin nombre del cajero ni comentario del POS. Efectivo llegado, TDC real y compras de caja son la conciliación de F3: "—" quiere decir que todavía no se captura.', t);
+    h += card('Cortes (' + entero(cs.length) + ')', 'Uno por renglón, en el orden del día. Sin nombre del cajero ni comentario del POS. Efectivo llegado, TDC real y compras de caja salen del espejo de la hoja "ERP Cortes" (Alan los captura en la hoja; se copian a las 7:30 y 13:00): "—" quiere decir que todavía no se capturan. El detalle está en <a class="lnk" href="#conciliacion">Conciliación</a>.', t);
   }
   // R26 contra corte, por día
   const ds = d.dias || []; const f = S.ui.diasFiltro;
@@ -993,6 +1007,283 @@ async function vCortes(arg, vez) {
   t += '</tbody></table></div>';
   h += card('R26 contra corte, por día', 'Ventas del POS (R26) contra lo que dicen los cortes (R22), con IVA. "Dif." distinta de cero se marca.', t, seg, 'Mostrando ' + verD.length + ' de ' + ds.length + ' días.');
   pon(h + '</div>');
+}
+
+/* ════════════════ Espejo de Drive (mig. 094, 8-oct-2026): conciliación ("ERP Cortes") y caja ("Control de Efectivo") ════════════════
+   Pedido de Sergio: "construyelo como esta el drive y por mientras que solo sea un espejo". Un robot de n8n copia las hojas a SQL a las
+   7:30 y 13:00; aquí se muestran tal cual, en SOLO LECTURA (no hay campos ni botones de guardar; se edita en Drive). Lo que SQL no
+   entrega a propósito: el cajero, el texto del comentario del POS y de las notas (solo "sí"), la descripción y las observaciones de la
+   caja, el saldo renglón por renglón y los pagos al personal uno por uno (van agrupados por semana). */
+const VISTAS_CONC = [['semana', 'Semana'], ['motor', 'Motor'], ['resumen', 'Resumen'], ['falta', 'Falta'], ['cambios', 'Cambios']];
+const EST_ESP = { 'ok': 'b-verde', '⚠ FALTA': 'b-rojo', '⚠ SOBRA': 'b-ambar', '⚠ MIXTO': 'b-mixto', '⏳ FALTA DE LLEGAR': 'b-gris', '· hist.': 'b-hist' };
+const FILTROS_EST = [['', 'Todos'], ['distinto_de_ok', 'Distintos de ok'], ['falta', '⚠ Falta'], ['sobra', '⚠ Sobra'], ['mixto', '⚠ Mixto'], ['falta_de_llegar', '⏳ Falta de llegar'], ['ok', 'ok'], ['hist', '· hist.']];
+const NUM2 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 });
+function segCortes(on) {
+  return '<div class="seg mb-4" role="group" aria-label="Cortes de caja"><button class="' + (on === 'pos' ? 'on' : '') + '" data-act="ir" data-arg="cortes">Cortes del POS (R22)</button>' +
+    '<button class="' + (on === 'conc' ? 'on' : '') + '" data-act="ir" data-arg="conciliacion">Conciliación (espejo de ERP Cortes)</button></div>';
+}
+function instanteDrive(iso) {   // "08-oct-2026 07:31" en hora de Chihuahua
+  if (!iso) return '—'; const t = new Date(iso); if (isNaN(t.getTime())) return '—';
+  try { const p = {}; new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Chihuahua', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(t).forEach(x => { p[x.type] = x.value; });
+        return p.day + '-' + MESES_C[Number(p.month) - 1] + '-' + p.year + ' ' + p.hour + ':' + p.minute; }
+  catch (e) { return t.toISOString().slice(0, 16).replace('T', ' ') + ' UTC'; }
+}
+const ligaSegura = u => /^https:\/\/(docs|drive)\.google\.com\/[A-Za-z0-9/_-]+$/.test(String(u || '')) ? u : null;
+function leyendaEspejo(cp, que, extra) {   // cp = respuesta.copia (ultima_buena, ultima_corrida, robot)
+  const ub = (cp && cp.ultima_buena) || null, uc = (cp && cp.ultima_corrida) || {}, rb = (cp && cp.robot) || {};
+  if (!ub) return '<div class="banner banner-amber"><span class="badge b-gris">Solo lectura</span> <b>Espejo de Drive:</b> el robot todavía no copia ' + esc(que) + '.</div>';
+  // el atraso se mide contra la última revisión del robot (verificado_en), no contra la copia: un Excel sin cambios no deja copia nueva
+  const tCop = new Date(ub.copiado_en).getTime(), tVer = cp.verificado_en ? new Date(cp.verificado_en).getTime() : NaN;
+  const revisado = isNaN(tVer) ? tCop : Math.max(tCop, tVer);
+  const horas = (Date.now() - revisado) / 3600000;
+  let cls = 'banner-gris', aviso = '';
+  if (uc.estado === 'error') { cls = 'banner-red'; aviso = 'La última corrida no pudo copiar este archivo: se muestra la copia buena anterior.'; }
+  else if (rb.estado === 'error') { cls = 'banner-red'; aviso = 'La última corrida del robot falló: se muestra la copia buena anterior.'; }
+  else if (horas > 26) { cls = 'banner-amber'; aviso = 'El robot no ha revisado Drive en más de 26 horas.'; }
+  else if (uc.estado === 'sospechosa') { cls = 'banner-amber'; aviso = 'La última lectura de Drive llegó incompleta: no se quitó nada del espejo.'; }
+  else if (rb.estado === 'parcial') { cls = 'banner-amber'; aviso = 'La última corrida del robot fue parcial (algún archivo no se copió).'; }
+  const liga = ligaSegura(ub.liga);
+  // En las hojas de Google el modifiedTime de Drive no se mueve cuando la hoja se llena por fórmula o importación (ERP Cortes), así que
+  // "se modificó el …" solo se dice para los Excel (.xlsx), donde sí refleja la última edición.
+  const hojaGoogle = ub.mime === 'application/vnd.google-apps.spreadsheet' || /^https:\/\/docs\.google\.com\/spreadsheets\//.test(String(ub.liga || ''));
+  const modXlsx = ub.modificado_en_drive && !hojaGoogle;
+  return '<div class="banner ' + cls + '"><div class="flex items-center gap-2 flex-wrap"><span class="badge b-gris">Solo lectura</span><span><b>Espejo de Drive</b>, copia del ' + instanteDrive(ub.copiado_en) +
+    ' (hora de Chihuahua)' + (modXlsx ? '; el archivo se modificó por última vez el ' + instanteDrive(ub.modificado_en_drive) : '') +
+    (revisado - tCop > 3600000 ? '; el robot lo revisó el ' + instanteDrive(new Date(revisado).toISOString()) + ' y no ha cambiado' : '') + '. Se edita en Drive; aquí no se captura nada.</span>' +
+    (liga ? '<a class="lnk" href="' + esc(liga) + '" target="_blank" rel="noopener noreferrer">Abrir ' + esc(ub.archivo || 'la hoja') + '</a>' : '') + '</div>' +
+    (aviso ? '<div class="mt-1 font-medium">' + esc(aviso) + (rb.ultima_corrida ? ' <span class="text-xs">(robot: ' + horaChih(rb.ultima_corrida) + ', ' + esc(rb.estado || '—') + ')</span>' : '') + '</div>' : '') +
+    (extra ? '<div class="text-xs mt-1">' + extra + '</div>' : '') + '</div>';
+}
+function avisosEspejo(av) {
+  return (av || []).map(a => '<div class="banner banner-amber">' + icon('alert', 14) + ' ' + (typeof a === 'string' ? esc(a)
+    : esc(a.texto || a.aviso || '') + (a.aviso === 'no_encadena' ? ' Saldo final del mes anterior: <b class="num">' + pesos(a.saldo_final_mes_anterior) + '</b>; saldo inicial de este mes: <b class="num">' + pesos(a.saldo_inicial_este_mes) + '</b>.' : '')) + '</div>').join('');
+}
+function vacioEspejo(e, que) {   // sin_espejo, sin_copia o estructura_cambio: se explica, no es un error de la pantalla
+  const tit = e.codigo === 'sin_espejo' ? 'Sin espejo de Drive' : e.codigo === 'sin_copia' ? 'Todavía no hay copia' : 'La hoja cambió de forma';
+  return '<div class="banner ' + (e.codigo === 'estructura_cambio' ? 'banner-red' : 'banner-gris') + '"><b>' + tit + '.</b> ' + esc(e.message || '') +
+    (e.codigo === 'sin_espejo' ? ' Por ahora solo se espeja Doña Tota; otra empresa se agrega con configuración (contrato §4.9).' : e.codigo === 'sin_copia' ? ' El robot copia ' + esc(que) + ' a las 7:30 y 13:00.' : '') + '</div>';
+}
+const montoE = n => esNum(n) ? pesos(n) : '<span class="dim">—</span>';
+function tdE(n, cls) { return '<td class="text-right num' + (cls ? ' ' + cls : '') + '">' + (esNum(n) && Number(n) === 0 ? '<span class="dim">' + pesos(0) + '</span>' : montoE(n)) + '</td>'; }
+function tdDif(n, u) { if (!esNum(n)) return '<td class="text-right num"><span class="dim">—</span></td>'; const v = Number(n), sale = Math.abs(v) > N(u);
+  return '<td class="text-right num' + (sale ? (v < 0 ? ' neg font-medium' : ' warn font-medium') : '') + '">' + (v === 0 ? '<span class="dim">' + pesos(0) + '</span>' : pesos(v)) + '</td>'; }
+function badgeEst(e, distinto) { return '<span class="badge ' + (EST_ESP[e] || 'b-gris') + '">' + esc(e || '—') + '</span>' + (distinto ? ' <span class="badge b-ambar" title="La regla de la hoja recalculada no da este estado">≠ regla</span>' : ''); }
+const siNo = b => b ? '<span class="badge b-lem">sí</span>' : '<span class="dim">—</span>';
+function celdaCuadri(v) {
+  if (v === null || v === undefined || v === '') return '<td></td>';
+  if (typeof v === 'number') return '<td class="n">' + (v < 0 ? '−' : '') + NUM2.format(Math.abs(v)) + '</td>';
+  if (typeof v === 'boolean') return '<td>' + (v ? 'VERDADERO' : 'FALSO') + '</td>';
+  const s = String(v); if (s === '(texto)' || s === '(oculto)') return '<td class="oc">' + s + '</td>';
+  return '<td' + (/^[-+$(),.%0-9 −]+$/.test(s) ? ' class="n"' : '') + '>' + esc(s) + '</td>';
+}
+// Aun "tal cual", los renglones con nombre de colaborador o palabra de nómina/préstamo salen (texto)/(oculto) (mig. 094, fn_conta_espejo_cuadricula).
+const ocultosCuadri = g => N(g && g.renglones_sensibles) ? ' Renglones con nombre o nómina ocultos: ' + entero(g.renglones_sensibles) + '.' : '';
+const letraCol = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+function cuadricula(g) {   // {columnas, enmascarada, renglones_sensibles, filas:[{f, c:[…]}]} con el número de fila de la hoja a la izquierda
+  const fs = (g && g.filas) || []; if (!fs.length) return '<p class="text-sm text-gray-500">La pestaña está vacía en la copia.</p>';
+  const nc = Math.max(1, N(g.columnas));
+  let t = '<div class="tabla"><table class="cuadri"><thead><tr><th></th>' + Array.from({ length: nc }, (_, i) => '<th>' + letraCol(i) + '</th>').join('') + '</tr></thead><tbody>';
+  t += fs.map(f => '<tr><td class="fn">' + esc(f.f) + '</td>' + Array.from({ length: nc }, (_, i) => celdaCuadri((f.c || [])[i])).join('') + '</tr>').join('');
+  return t + '</tbody></table></div>';
+}
+function semCorta(s) { return s.etiqueta + ' · ' + (s.desde ? Number(s.desde.slice(8, 10)) + '–' + fechaCorta(s.hasta) : ''); }
+function selTiendaConc() {
+  const ts = S.ui.concTiendas || [];
+  return '<select class="sel" data-chg="concTienda" aria-label="Tienda"><option value="">Todas las tiendas</option>' + ts.map(x => '<option value="' + esc(x.branch_id) + '"' + (x.branch_id === S.ui.concBranch ? ' selected' : '') + '>' + esc(x.sucursal) + '</option>').join('') + '</select>';
+}
+function anotaTiendas(lista) {   // tiendas en el orden de la hoja, para el filtro
+  (lista || []).forEach(x => { if (x.branch_id != null && !S.ui.concTiendas.some(y => y.branch_id === x.branch_id)) S.ui.concTiendas.push({ branch_id: x.branch_id, sucursal: x.sucursal }); });
+}
+async function vConciliacion(arg, vez) {
+  const partes = String(arg || '').split('/'); const vista = VISTAS_CONC.some(v => v[0] === partes[0]) ? partes[0] : 'semana';
+  cargando('Cortes de caja', 'conciliación: espejo de ERP Cortes');
+  const datos = { vista };
+  if (vista === 'semana' && /^\d{4}-\d{1,2}$/.test(partes[1] || '')) { datos.anio = Number(partes[1].slice(0, 4)); datos.semana = Number(partes[1].slice(5)); }
+  if (vista === 'motor') { if (/^\d{4}-\d{2}$/.test(partes[1] || '')) { datos.anio = Number(partes[1].slice(0, 4)); datos.mes = Number(partes[1].slice(5, 7)); } if (S.ui.concEstado) datos.estado = S.ui.concEstado;
+                           if (/^\d{1,5}$/.test(partes[2] || '')) S.ui.concBranch = Number(partes[2]); }
+  if ((vista === 'semana' || vista === 'motor') && S.ui.concBranch != null) datos.branch_id = S.ui.concBranch;
+  if (vista === 'cambios') datos.dias = S.ui.concDias;
+  let d;
+  try { d = await traer('conta_espejo_cortes', datos); }
+  catch (e) {
+    if (vez !== S.vez || e.obsoleto) return;
+    if (['sin_espejo', 'sin_copia', 'estructura_cambio'].includes(e.codigo)) { pon(topbar('Cortes de caja', esc(S.inicio.empresa || '') + ' · conciliación', btnActualizar()) + '<div class="p-8">' + segCortes('conc') + vacioEspejo(e, 'la hoja "ERP Cortes"') + '</div>'); return; }
+    throw e;
+  }
+  if (vez !== S.vez) return;
+  const tabs = '<div class="seg" role="group" aria-label="Vista de la conciliación">' + VISTAS_CONC.map(([k, t]) => '<button class="' + (vista === k ? 'on' : '') + '" data-act="ir" data-arg="conciliacion/' + k + '">' + t + '</button>').join('') + '</div>';
+  let h = topbar('Cortes de caja', esc(S.inicio.empresa || '') + ' · conciliación: espejo de la hoja "ERP Cortes" · ' + entero(d.cortes_en_el_motor) + ' cortes en el motor, el último del ' + fecha(d.ultimo_corte), btnActualizar()) + '<div class="p-8">';
+  h += segCortes('conc') + leyendaEspejo(d.copia, 'la hoja "ERP Cortes"', 'Sin el cajero; el comentario del POS y las notas solo dicen si hay.') + avisosEspejo(d.avisos);
+  h += '<div class="flex items-center gap-2 flex-wrap mb-4">' + tabs + '</div>';
+  if (vista === 'semana') h += conciliacionSemana(d);
+  else if (vista === 'motor') h += conciliacionMotor(d);
+  else if (vista === 'resumen') h += conciliacionResumen(d);
+  else if (vista === 'falta') h += conciliacionFalta(d);
+  else h += conciliacionCambios(d);
+  pon(h + '</div>');
+}
+function conciliacionSemana(d) {
+  if (S.ui.concBranch == null) anotaTiendas(d.bloques);
+  const sems = d.semanas || []; const i = sems.findIndex(s => s.anio === d.anio && s.semana === d.semana);
+  const ant = sems[i + 1], sig = i > 0 ? sems[i - 1] : null; const k = s => s.anio + '-' + s.semana;
+  let h = '<div class="flex items-center gap-2 flex-wrap mb-4"><span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="ir" data-arg="conciliacion/semana/' + (ant ? k(ant) : '') + '"' + (ant ? '' : ' disabled') + ' aria-label="Semana anterior">' + icon('chevronL', 14) + '</button>' +
+    '<select class="sel" data-chg="concSemana" aria-label="Semana">' + sems.map(s => '<option value="' + esc(k(s)) + '"' + (s.anio === d.anio && s.semana === d.semana ? ' selected' : '') + '>' + esc(semCorta(s)) + '</option>').join('') + '</select>' +
+    '<button class="btn btn-ghost p-15" data-act="ir" data-arg="conciliacion/semana/' + (sig ? k(sig) : '') + '"' + (sig ? '' : ' disabled') + ' aria-label="Semana siguiente">' + icon('chevronR', 14) + '</button></span>' + selTiendaConc() +
+    '<span class="text-xs text-gray-500">Como la pestaña ' + esc(d.etiqueta || '') + ' de la hoja · amarillo = lo que captura Alan · umbral ' + pesos(d.umbral) + '</span></div>';
+  const bl = d.bloques || [];
+  if (!bl.length) return h + '<div class="banner banner-gris">No hay cortes en esa semana' + (S.ui.concBranch != null ? ' para esta tienda' : '') + '.</div>';
+  const cab = '<thead><tr>' + th('Fecha', false, ' class="fija"') + th('#', true) + th('Inicio') + th('Fin') + th('Tarjeta', true) + th('Cupón', true) + th('Uber', true) + th('Rappi', true) + th('DiDi', true) + th('Efvo sistema', true) + th('Venta', true) +
+    th('Efectivo llegado', false, ' class="cap text-right"') + th('TDC Real', false, ' class="cap text-right"') + th('Compras', false, ' class="cap text-right"') + th('Notas', false, ' class="cap"') + th('Dif. Efectivo', true) + th('Dif. TDC', true) + th('Estado') + '</tr></thead>';
+  for (const b of bl) {
+    const cs = b.cortes || []; const nEst = e => cs.filter(c => c.estado === e).length;
+    let t = '<div class="tabla"><table class="lem-table densa" style="min-width:1500px">' + cab + '<tbody>';
+    t += cs.map(c => '<tr><td class="fija num nowrap">' + fechaCorta(c.fecha) + '</td><td class="text-right num">' + esc(c.corte_n == null ? '—' : c.corte_n) + '</td><td class="num">' + esc(c.inicio || '—') + '</td><td class="num">' + esc(c.fin || '—') + '</td>' +
+      tdE(c.tarjeta) + tdE(c.cupon) + tdE(c.uber) + tdE(c.rappi) + tdE(c.didi) + tdE(c.efectivo_sistema) + tdE(c.venta, 'font-semibold') +
+      tdE(c.efectivo_llegado, 'cap') + tdE(c.tdc_real, 'cap') + tdE(c.compras, 'cap') + '<td class="cap">' + siNo(c.con_notas) + '</td>' + tdDif(c.dif_efectivo, d.umbral) + tdDif(c.dif_tdc, d.umbral) +
+      '<td class="nowrap">' + badgeEst(c.estado, c.estado_distinto) + '</td></tr>').join('');
+    t += '</tbody></table></div>';
+    const resumenEst = Object.keys(EST_ESP).filter(e => nEst(e)).map(e => '<span class="badge ' + EST_ESP[e] + '">' + esc(e) + ' ' + nEst(e) + '</span>').join(' ');
+    h += card(esc(b.sucursal || '—'), entero(cs.length) + (cs.length === 1 ? ' corte' : ' cortes') + ' en la semana', t, '<div class="flex gap-1 flex-wrap">' + resumenEst + '</div>');
+  }
+  return h;
+}
+function conciliacionMotor(d) {
+  if (S.ui.concBranch == null && !S.ui.concEstado) anotaTiendas(d.cortes);
+  const mes = d.mes; const hoyMes = String(S.inicio.hoy || '').slice(0, 7); const sig = mesMas(mes, 1);
+  const tec = S.ui.concTec; const tot = d.totales || {}; const est = tot.estados || {};
+  let h = '<div class="flex items-center gap-2 flex-wrap mb-3"><span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="ir" data-arg="conciliacion/motor/' + esc(mesMas(mes, -1)) + '" aria-label="Mes anterior">' + icon('chevronL', 14) + '</button><b class="text-sm text-center" style="min-width:128px">' + mesLargo(mes) + '</b>' +
+    '<button class="btn btn-ghost p-15" data-act="ir" data-arg="conciliacion/motor/' + esc(sig) + '"' + (sig <= hoyMes ? '' : ' disabled') + ' aria-label="Mes siguiente">' + icon('chevronR', 14) + '</button></span>' + selTiendaConc() +
+    '<label class="text-13 flex items-center gap-1"><input type="checkbox" data-chg="concTec"' + (tec ? ' checked' : '') + '> columnas técnicas</label></div>';
+  h += '<div class="seg mb-4" role="group" aria-label="Estado">' + FILTROS_EST.map(([k, t]) => '<button class="' + ((S.ui.concEstado || '') === k ? 'on' : '') + '" data-act="concEstado" data-arg="' + k + '">' + t + '</button>').join('') + '</div>';
+  h += '<div class="grid grid-4 mb-4">' + stat('Cortes', entero(tot.cortes), Object.keys(est).map(k => esc(k) + ' ' + entero(est[k])).join(' · ') || '—') + stat('Venta', pesos(tot.venta), 'suma de la columna Venta corte') +
+    stat('Efectivo llegado', pesos(tot.efectivo_llegado), 'contra efectivo sistema ' + pesos(tot.efectivo_sistema)) + stat('Dif. efectivo', pesos(tot.dif_efectivo), 'Dif. TDC ' + pesos(tot.dif_tdc), N(tot.dif_efectivo) < 0 ? 'var(--rojo)' : null) + '</div>';
+  const cs = d.cortes || [];
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:' + (tec ? 2900 : 2700) + 'px"><thead><tr>' + th('Fecha', false, ' class="fija"') + th('Sucursal') + th('Corte #', true) + th('Inicio') + th('Fin') + th('Tarjeta', true) + th('Cupón', true) + th('Uber', true) + th('Rappi', true) + th('DiDi', true) +
+    th('Efectivo sistema', true) + th('Venta corte', true) + th('Comentario POS') + th('Efectivo llegado a oficinas', false, ' class="cap text-right"') + th('TDC Real (vouchers)', false, ' class="cap text-right"') + th('Compras caja', false, ' class="cap text-right"') + th('Notas', false, ' class="cap"') +
+    th('Aplicaciones', true) + th('Efectivo esperado', true) + th('Dif. Efectivo', true) + th('Dif. TDC', true) + th('Estado') + th('Semana', true) + th('Año ISO', true) + th('Mes', true) + th('cutId', true) + th('#sem', true) + (tec ? th('clave') + th('orden') : '') + '</tr></thead><tbody>';
+  t += cs.length ? cs.map(c => '<tr><td class="fija num nowrap" title="Fila ' + esc(c.fila) + ' de la hoja">' + fechaCorta(c.fecha) + '</td><td class="nowrap">' + esc(c.sucursal || '—') + '</td><td class="text-right num">' + esc(c.corte_n == null ? '—' : c.corte_n) + '</td><td class="num">' + esc(c.inicio || '—') + '</td><td class="num">' + esc(c.fin || '—') + '</td>' +
+      tdE(c.tarjeta) + tdE(c.cupon) + tdE(c.uber) + tdE(c.rappi) + tdE(c.didi) + tdE(c.efectivo_sistema) + tdE(c.venta_corte, 'font-semibold') + '<td>' + siNo(c.con_comentario_pos) + '</td>' +
+      tdE(c.efectivo_llegado, 'cap') + tdE(c.tdc_real, 'cap') + tdE(c.compras_caja, 'cap') + '<td class="cap">' + siNo(c.con_notas) + '</td>' + tdE(c.aplicaciones) + tdE(c.efectivo_esperado) + tdDif(c.dif_efectivo, d.umbral) + tdDif(c.dif_tdc, d.umbral) +
+      '<td class="nowrap">' + badgeEst(c.estado, c.estado_distinto) + '</td>' + tdN(c.semana) + '<td class="text-right num">' + esc(c.anio_iso == null ? '—' : c.anio_iso) + '</td>' + tdN(c.mes) + '<td class="text-right num">' + esc(c.cut_id == null ? '—' : c.cut_id) + '</td>' + tdN(c.sem_n) +
+      (tec ? '<td class="num text-xs">' + esc(c.clave || '') + '</td><td class="num text-xs">' + esc(c.orden || '') + '</td>' : '') + '</tr>').join('') +
+      '<tr class="total"><td class="fija">Total</td><td colspan="4">' + entero(cs.length) + ' cortes</td>' + ['tarjeta', 'cupon', 'uber', 'rappi', 'didi', 'efectivo_sistema', 'venta_corte'].map(k => tdE(cs.reduce((s, c) => s + N(c[k]), 0))).join('') + '<td></td>' +
+      ['efectivo_llegado', 'tdc_real', 'compras_caja'].map(k => tdE(cs.reduce((s, c) => s + N(c[k]), 0), 'cap')).join('') + '<td class="cap"></td>' + ['aplicaciones', 'efectivo_esperado', 'dif_efectivo', 'dif_tdc'].map(k => tdE(cs.reduce((s, c) => s + N(c[k]), 0))).join('') +
+      '<td colspan="' + (tec ? 8 : 6) + '"></td></tr>'
+    : '<tr><td colspan="27" class="text-center text-gray-500" style="padding:24px">No hay cortes con este filtro en ' + mesLargo(mes) + '.</td></tr>';
+  t += '</tbody></table></div>';
+  return h + card('Pestaña Cortes (motor) · ' + entero(cs.length) + ' cortes', 'Las columnas de la hoja, menos el cajero. Comentario del POS y notas solo dicen si hay. Amarillo = lo que captura Alan. "≠ regla" = la regla de la hoja recalculada no da el estado que dice la hoja. El mes completo de todas las tiendas pesa unos 300 KB: con una tienda abre más rápido.', t);
+}
+function conciliacionResumen(d) {
+  const cq = d.cuadra_con_hoja || {}; const dif = (cq.diferencias || []).concat((cq.diferencias_meses || []));
+  let h = '<div class="flex items-center gap-2 flex-wrap mb-4">' + (cq.ok ? '<span class="badge b-verde">Cuadra con la hoja</span>' : '<span class="badge b-rojo">No cuadra: ' + entero(dif.length) + (dif.length === 1 ? ' diferencia' : ' diferencias') + '</span>') +
+    '<span class="text-xs text-gray-500">Se compararon ' + entero(cq.comparados) + ' tiendas del bloque por sucursal (mes ' + esc(d.mes_resumen_hoja == null ? '—' : d.mes_resumen_hoja) + ' de ' + esc(d.anio_resumen_hoja == null ? '—' : d.anio_resumen_hoja) + ' en Config) y ' + entero(cq.comparados_meses) + ' renglones de la tabla POR MES, celda por celda.</span></div>';
+  if (dif.length) h += '<div class="banner banner-red"><b>La hoja dice otra cosa que su propio motor:</b><ul>' + dif.slice(0, 30).map(x => '<li>' + esc(x.sucursal || x.mes) + ' · ' + esc(String(x.campo).replace(/_/g, ' ')) + ': la hoja dice <b class="num">' + esc(NUM2.format(Number(x.hoja))) + '</b>, el espejo calcula <b class="num">' + esc(NUM2.format(Number(x.espejo))) + '</b></li>').join('') + '</ul>' +
+    (dif.length > 30 ? '<p class="mt-1">… y ' + entero(dif.length - 30) + ' más.</p>' : '') + '<p class="text-xs mt-1">Suele pasar cuando la copia agarró la hoja a media captura, o si la pestaña Resumen ya no ve todos los renglones del motor.</p></div>';
+  const pm = d.por_mes || []; const pa = d.por_anio || [];
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:860px"><thead><tr>' + th('Mes', false, ' class="fija"') + th('Faltantes', true) + th('#', true) + th('Sobrantes', true) + th('#', true) + th('⚠ Mixtos', true) + th('⏳ Sin capturar', true) + th('Dif. neta', true) + '</tr></thead><tbody>';
+  // un renglón "AÑO <año ISO>" debajo de los meses de cada año (el AÑO de la hoja es solo el del año de Config B6)
+  const filaAnio = a => a ? '<tr class="total"><td class="fija">AÑO ' + esc(a.anio) + '</td>' + tdE(a.faltantes) + tdN(a.n_faltantes) + tdE(a.sobrantes) + tdN(a.n_sobrantes) + tdN(a.mixtos) + tdN(a.sin_capturar) + tdE(a.dif_neta) + '</tr>' : '';
+  t += pm.map((m, i) => '<tr><td class="fija nowrap font-medium">' + MESES[m.mes - 1] + ' ' + m.anio + '</td>' + tdE(m.faltantes, N(m.faltantes) ? 'neg' : '') + tdN(m.n_faltantes) + tdE(m.sobrantes, N(m.sobrantes) ? 'pos' : '') + tdN(m.n_sobrantes) + tdN(m.mixtos) + tdN(m.sin_capturar) + tdE(m.dif_neta) + '</tr>' +
+    (i === pm.length - 1 || pm[i + 1].anio !== m.anio ? filaAnio(pa.find(a => a.anio === m.anio)) : '')).join('');
+  t += '</tbody></table></div>';
+  h += card('Por mes (calculado del espejo con las fórmulas de la hoja)', esc(d.regla || '') + ' Ojo: "faltantes" aquí solo mira la Dif. Efectivo; la columna Estado del motor también mira la tarjeta.', t);
+  h += card('Pestaña Resumen (tal cual, como se ve en Drive)', 'Copia de la pestaña con sus valores formateados; el número de la izquierda es la fila de la hoja.' + ocultosCuadri(d.hoja_resumen), '<div class="card-body">' + cuadricula(d.hoja_resumen) + '</div>');
+  return h;
+}
+function conciliacionFalta(d) {
+  const sucs = d.sucursales || [];
+  let t = '<div class="tabla"><table class="lem-table densa falta" style="min-width:' + (140 + 110 * sucs.length) + 'px"><thead><tr>' + th('Fecha', false, ' class="fija"') + sucs.map(s => th(esc(s))).join('') + '</tr></thead><tbody>';
+  t += (d.dias || []).map(x => '<tr><td class="fija num nowrap">' + fecha(x.fecha) + '</td>' + (x.celdas || []).map(c => c === '—' ? '<td class="h" title="Sin ningún corte ese día (hueco a revisar)">—</td>' : c ? '<td class="p" title="pendientes/total">' + esc(c) + '</td>' : '<td class="v" title="Todo capturado">✓</td>').join('') + '</tr>').join('');
+  t += '</tbody></table></div>';
+  let h = card('¿Qué falta de llegar a oficinas? · últimos 14 días al ' + fecha(d.hasta), '"⚠ p/t" = cortes sin efectivo llegado de los cortes del día; ✓ = todo capturado; "—" = la tienda no tiene ningún corte ese día (hueco a revisar). Recalculado del motor con la regla de la hoja.', t);
+  h += '<details class="card"><summary class="card-head" style="cursor:pointer"><h3>Pestaña FALTA (tal cual, como se ve en Drive)</h3></summary><div class="card-body">' + (N(d.hoja_falta && d.hoja_falta.renglones_sensibles) ? '<p class="text-xs text-gray-500 mb-2">' + ocultosCuadri(d.hoja_falta).trim() + '</p>' : '') + cuadricula(d.hoja_falta) + '</div></details>';
+  return h;
+}
+function conciliacionCambios(d) {
+  const cs = d.cambios || []; const CAMPO = { efectivo_llegado: 'Efectivo llegado', tdc_real: 'TDC real', compras_caja: 'Compras caja', estado: 'Estado', fecha: 'Fecha', sucursal: 'Sucursal' };
+  const val = (x, v) => x.campo === 'fecha' ? fecha(v) : (x.campo === 'estado' || x.campo === 'sucursal') ? esc(v == null ? '—' : v) : montoE(v);
+  let h = '<div class="seg mb-4" role="group" aria-label="Días">' + [7, 14, 30, 60].map(n => '<button class="' + (N(S.ui.concDias) === n ? 'on' : '') + '" data-act="concDias" data-arg="' + n + '">' + n + ' días</button>').join('') + '</div>';
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:900px"><thead><tr>' + th('Copiado', false, ' class="fija"') + th('Fecha') + th('Tienda') + th('#', true) + th('Campo') + th('Antes', true) + th('Después', true) + '</tr></thead><tbody>';
+  t += cs.length ? cs.map(x => '<tr><td class="fija num nowrap">' + instanteDrive(x.copiado_en) + '</td><td class="num nowrap">' + fechaCorta(x.fecha) + '</td><td class="nowrap">' + esc(x.sucursal || '—') + '</td><td class="text-right num">' + esc(x.corte_n == null ? '—' : x.corte_n) + '</td><td>' + esc(CAMPO[x.campo] || x.campo) + '</td>' +
+      '<td class="text-right num">' + val(x, x.antes) + '</td><td class="text-right num font-medium">' + val(x, x.despues) + '</td></tr>').join('')
+    : '<tr><td colspan="7" class="text-center text-gray-500" style="padding:24px">Sin cambios en las capturas en ' + entero(d.dias) + ' días.</td></tr>';
+  t += '</tbody></table></div>';
+  const est = d.cambios_de_estructura || [];
+  if (est.length) h += '<div class="banner banner-gris">' + icon('alert', 14) + ' La pestaña Cortes cambió de estructura (columnas movidas o insertadas): ' + est.slice(0, 5).map(x => instanteDrive(x.copiado_en) + ' · ' + entero(x.columnas_antes) + ' → ' + entero(x.columnas_despues) + ' columnas').join('; ') +
+    '. Cada versión se lee con el encabezado de su copia: eso no aparece como cambio de captura.</div>';
+  h += card('Cambios en las capturas entre copias', esc(d.nota || ''), t);
+  const cap = d.capturas_sin_corte || [];
+  let c = '<div class="tabla"><table class="lem-table densa" style="min-width:560px"><thead><tr>' + th('Fila de _capturas', true) + th('Efectivo llegado', true) + th('TDC real', true) + th('Compras', true) + '</tr></thead><tbody>';
+  c += cap.length ? cap.map(x => '<tr><td class="text-right num">' + esc(x.fila) + '</td>' + tdE(x.efectivo_llegado) + tdE(x.tdc_real) + tdE(x.compras) + '</tr>').join('') : '<tr><td colspan="4" class="text-center text-gray-500" style="padding:18px">Ninguna.</td></tr>';
+  c += '</tbody></table></div>';
+  return h + card('Capturas sin corte ligado (' + entero(cap.length) + ')', 'Renglones de la pestaña interna _capturas sin cutId: un monto que Alan capturó y que ya no apunta a ningún corte (suele ser un renglón movido en la pestaña semanal). Solo montos.', c);
+}
+
+/* ── Efectivo (espejo de "Control de Efectivo"): el Excel del mes y el histórico feb–ago ── */
+async function vEfectivo(arg, vez) {
+  const a = String(arg || ''); const datos = {};
+  if (/^\d{4}-\d{2}$/.test(a)) datos.mes = a;
+  else if (/^historico\/[a-z0-9 ._-]{1,60}$/.test(a)) datos.hoja = 'hoja:' + a.slice(10);
+  cargando('Efectivo (espejo)', datos.hoja ? 'histórico' : (datos.mes ? mesLargo(datos.mes) : 'mes más reciente'));
+  let d;
+  try { d = await traer('conta_espejo_efectivo', datos); }
+  catch (e) {
+    if (vez !== S.vez || e.obsoleto) return;
+    if (['sin_espejo', 'sin_copia', 'estructura_cambio'].includes(e.codigo)) { pon(topbar('Efectivo (espejo)', esc(S.inicio.empresa || ''), btnActualizar()) + '<div class="p-8">' + vacioEspejo(e, 'la carpeta "Control de Efectivo"') + '</div>'); return; }
+    throw e;
+  }
+  if (vez !== S.vez) return;
+  const meses = d.meses || [], hist = d.historico || [];
+  const actual = d.vista === 'historico' ? 'historico/' + String(d.hoja || '').slice(5) : (d.mes || '');
+  const sel = '<select class="sel" data-chg="efeMes" aria-label="Mes o pestaña del histórico">' + (meses.length ? '<optgroup label="Excel del mes">' + meses.map(m => '<option value="' + esc(m.mes) + '"' + (actual === m.mes ? ' selected' : '') + '>' + mesLargo(m.mes) + (m.duplicado ? ' (hay 2 archivos)' : '') + '</option>').join('') + '</optgroup>' : '') +
+    (hist.length ? '<optgroup label="Histórico feb–ago (hoja TOTA)">' + hist.map(x => '<option value="historico/' + esc(String(x.hoja).slice(5)) + '"' + (actual === 'historico/' + String(x.hoja).slice(5) ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('') + '</optgroup>' : '') + '</select>';
+  let h = topbar('Efectivo (espejo)', esc(S.inicio.empresa || '') + ' · ' + (d.vista === 'historico' ? 'histórico · ' + esc(String(d.hoja || '').slice(5)) : mesLargo(d.mes)) + ' · carpeta "Control de Efectivo"', sel + btnActualizar()) + '<div class="p-8">';
+  h += leyendaEspejo(d.copia, d.vista === 'historico' ? 'el histórico "TOTA"' : 'el Excel de este mes', d.vista === 'historico' ? '' : 'Sin descripción ni observaciones; nómina, finiquitos, préstamos y pagos que mencionan a un colaborador van agrupados por semana.') + avisosEspejo(d.avisos);
+  if (d.vista === 'historico') {
+    const g = d.cuadricula || {};
+    h += card('Pestaña ' + esc(String(d.hoja || '').slice(5)) + ' (tal cual, enmascarada)', esc(d.nota || '') + (N(g.renglones_sensibles) ? ' Renglones con montos ocultos: ' + entero(g.renglones_sensibles) + '.' : ''), '<div class="card-body">' + cuadricula(g) + '</div>');
+    pon(h + '</div>'); return;
+  }
+  if (!d.hoja) { h += '<div class="banner banner-gris">' + esc(d.nota || 'No hay Excel de caja copiado para ese mes.') + '</div>'; pon(h + '</div>'); return; }
+  const hj = d.hoja || {}, ca = d.calculado || {};
+  const distinto = (a, b) => esNum(a) && esNum(b) && Math.abs(Number(a) - Number(b)) > 0.01;
+  const sub = (txt, a, b, rot, fmt) => (txt || '') + (distinto(a, b) ? '<div class="warn font-medium mt-1">' + (rot || 'Suma de renglones') + ': ' + (fmt || pesos)(b) + '</div>' : '');
+  h += '<div class="grid grid-4 mb-4">' + stat('Saldo inicial', pesos(hj.saldo_inicial), hj.saldo_inicial_al ? 'al ' + fecha(hj.saldo_inicial_al) : 'según la hoja') +
+    stat('Entradas del mes', pesos(hj.entradas_mes), sub('según la hoja', hj.entradas_mes, ca.entradas), 'var(--verde)') +
+    stat('Compras y gastos del mes', pesos(hj.compras_y_gastos_mes), sub('según la hoja', hj.compras_y_gastos_mes, ca.salidas)) +
+    stat('Saldo final', pesos(hj.saldo_final), sub('según la hoja', hj.saldo_final, ca.saldo_final), N(hj.saldo_final) < 0 ? 'var(--rojo)' : null) + '</div>';
+  h += '<div class="grid grid-4 mb-6">' + stat('Resguardo', pesos(hj.resguardo), 'según la hoja') + stat('Movimientos capturados', entero(hj.movimientos_capturados), sub('según la hoja', hj.movimientos_capturados, ca.movimientos, 'Renglones en el espejo', entero)) +
+    stat('Sin clasificar (tipo)', pesos(ca.sin_clasificar_tipo), 'salidas cuyo tipo no está en el catálogo del espejo') + stat('Archivo', '<span class="text-13">' + esc(((d.copia || {}).ultima_buena || {}).archivo || '—') + '</span>', 'el mes sale del nombre del archivo') + '</div>';
+  const pt = hj.por_tipo || [], cs = hj.corte_semanal || [];
+  let t1 = '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Tipo') + th('Importe', true) + '</tr></thead><tbody>' + (pt.length ? pt.map(x => '<tr' + (/^total/i.test(x.tipo) ? ' class="total"' : '') + '><td>' + esc(x.tipo) + '</td>' + tdE(x.importe) + '</tr>').join('') : '<tr><td colspan="2" class="text-gray-500">—</td></tr>') + '</tbody></table></div>';
+  let t2 = '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Semana') + th('Entradas', true) + th('Salidas', true) + th('Saldo al cierre', true) + '</tr></thead><tbody>' + (cs.length ? cs.map(x => '<tr' + (/^total/i.test(x.semana) ? ' class="total"' : '') + '><td class="nowrap">' + esc(x.semana) + '</td>' + tdE(x.entradas) + tdE(x.salidas) + tdE(x.saldo_al_cierre) + '</tr>').join('') : '<tr><td colspan="4" class="text-gray-500">—</td></tr>') + '</tbody></table></div>';
+  h += '<div class="grid grid-2">' + card('Compras y gastos por tipo (según la hoja)', 'Como lo calcula el Excel.', t1) + card('Corte semanal (según la hoja)', 'Como lo calcula el Excel.', t2) + '</div>';
+  h += card('Movimientos (' + entero(d.movimientos.length) + ' visibles · ' + entero((d.agrupados || []).reduce((s, x) => s + N(x.movimientos), 0)) + ' agrupados)', esc(d.privacidad || '') + ' No se muestra el saldo renglón por renglón: con él se podrían deducir los montos agrupados; el corte semanal de arriba es el de la hoja.',
+    '<div class="card-body" style="padding-bottom:8px"><div class="seg" role="group" aria-label="Orden"><button class="' + (S.ui.efeOrden === 'semana' ? 'on' : '') + '" data-act="efeOrden" data-arg="semana">Por semana</button><button class="' + (S.ui.efeOrden === 'hoja' ? 'on' : '') + '" data-act="efeOrden" data-arg="hoja">Como la hoja (por fila)</button></div></div>' + tablaMovimientos(d));
+  const gr = (titulo, lista, k) => card(titulo, 'Calculado de los renglones del espejo.', '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th(k === 'concepto' ? 'Concepto' : k === 'tipo' ? 'Tipo' : 'Departamento / sucursal') + th('Entradas', true) + th('Salidas', true) + th('Mov.', true) + '</tr></thead><tbody>' +
+    (lista || []).map(x => '<tr><td>' + esc(x[k]) + '</td>' + tdE(x.entradas) + tdE(x.salidas) + tdN(x.movimientos) + '</tr>').join('') + '</tbody></table></div>');
+  h += '<div class="grid grid-2">' + gr('Por tipo', d.por_tipo, 'tipo') + gr('Por concepto (el personal, en un solo total)', d.por_concepto, 'concepto') + '</div>' + gr('Por departamento / sucursal', d.por_departamento, 'departamento');
+  h += '<details class="card"><summary class="card-head" style="cursor:pointer"><h3>Hoja RESUMEN del Excel (tal cual, enmascarada)</h3></summary><div class="card-body"><p class="text-xs text-gray-500 mb-2">Los textos que no son etiquetas conocidas salen como (texto); en renglones de nómina, préstamos o con nombres, los montos salen (oculto).</p>' + cuadricula(d.hoja_resumen) + '</div></details>';
+  pon(h + '</div>');
+}
+function lunes(iso) { const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); }
+function tablaMovimientos(d) {
+  const mv = d.movimientos || [], ag = d.agrupados || []; const ini = (d.mes || '') + '-01';
+  const fila = m => '<tr><td class="text-right num text-gray-500">' + esc(m.fila) + '</td><td class="num nowrap">' + (m.fecha ? fechaCorta(m.fecha) : '—') + '</td><td>' + (m.tipo_valor === 'Sin clasificar' ? '<span class="dim">Sin clasificar</span>' : esc(m.tipo_valor || '—')) + '</td>' +
+    '<td>' + (m.departamento_valor === 'Sin clasificar' ? '<span class="dim">Sin clasificar</span>' : esc(m.departamento_valor || '—')) + '</td><td>' + (m.concepto_valor === 'Sin clasificar' ? '<span class="dim">Sin clasificar</span>' : esc(m.concepto_valor || '—')) + '</td>' +
+    tdE(m.entrada, 'pos') + tdE(m.salida) + '<td>' + esc(m.comprobante || '—') + '</td><td>' + siNo(m.con_descripcion) + '</td><td>' + siNo(m.con_observaciones) + '</td></tr>';
+  const grupo = a => '<tr class="grupo"><td></td><td class="num nowrap">' + (a.desde ? fechaCorta(a.desde) + '–' + fechaCorta(a.hasta) : 'mes') + '</td><td colspan="3"><b>' + esc(a.grupo) + '</b> · ' + entero(a.movimientos) + ' movimientos (agrupados: no se muestran uno por uno)</td>' + tdE(a.entradas) + tdE(a.salidas) + '<td colspan="3"></td></tr>';
+  let cuerpo = '';
+  if (S.ui.efeOrden === 'hoja') cuerpo = mv.slice().sort((a, b) => a.fila - b.fila).map(fila).join('') + ag.map(grupo).join('');
+  else {
+    const semanas = new Map(); const llave = f => { if (!f) return 'zz'; const l = lunes(f); return l < ini ? ini : l; };
+    mv.forEach(m => { const k = llave(m.fecha); if (!semanas.has(k)) semanas.set(k, { m: [], a: [] }); semanas.get(k).m.push(m); });
+    ag.forEach(a => { const k = a.desde ? a.desde : 'zzz'; if (!semanas.has(k)) semanas.set(k, { m: [], a: [] }); semanas.get(k).a.push(a); });
+    Array.from(semanas.keys()).sort().forEach(k => { const s = semanas.get(k);
+      cuerpo += '<tr class="semhead"><td colspan="10">' + (k === 'zz' ? 'Sin fecha' : k === 'zzz' ? 'Del mes (grupos de menos de 3 movimientos)' : 'Semana del ' + fechaCorta(k)) + '</td></tr>' + s.m.sort((a, b) => a.fila - b.fila).map(fila).join('') + s.a.map(grupo).join(''); });
+  }
+  return '<div class="tabla"><table class="lem-table densa" style="min-width:1180px"><thead><tr>' + th('Fila', true) + th('Fecha') + th('Tipo') + th('Departamento / sucursal') + th('Concepto') + th('Entrada', true) + th('Salida (compra / gasto)', true) + th('Comprobante') + th('Descripción') + th('Observaciones') + '</tr></thead><tbody>' +
+    (cuerpo || '<tr><td colspan="10" class="text-center text-gray-500" style="padding:24px">Sin movimientos.</td></tr>') + '</tbody></table></div>';
 }
 
 /* ── Eventos (delegados: no hay funciones globales en window) ── */
@@ -1011,6 +1302,11 @@ document.addEventListener('change', ev => {
   else if (k === 'orden') { S.ui.orden = el.value; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
   else if (k === 'factSolo') { S.ui.factSolo = !!el.checked; router(); }
   else if (k === 'tienda') ir(el.value ? 'cortes/' + el.value : 'cortes');
+  else if (k === 'concTienda') { S.ui.concBranch = /^\d{1,5}$/.test(el.value) ? Number(el.value) : null; const r = ruta(); const p = String(r.arg || '').split('/');
+                                 if (p[0] === 'motor' && p[2]) ir('conciliacion/motor/' + p[1] + (S.ui.concBranch != null ? '/' + S.ui.concBranch : '')); else router(); }
+  else if (k === 'concSemana') { if (/^\d{4}-\d{1,2}$/.test(el.value)) ir('conciliacion/semana/' + el.value); }
+  else if (k === 'concTec') { S.ui.concTec = !!el.checked; router(); }
+  else if (k === 'efeMes') { if (/^(\d{4}-\d{2}|historico\/[a-z0-9 ._-]{1,60})$/.test(el.value)) ir('efectivo/' + el.value); }
 });
 document.addEventListener('input', ev => {
   const el = ev.target.closest('[data-inp]'); if (!el) return;
@@ -1037,6 +1333,10 @@ function accion(k, arg) {
   else if (k === 'diasFiltro') { S.ui.diasFiltro = arg || 'revisar'; router(); }
   else if (k === 'baseVer') { const v = ($('fBase') || {}).value || ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Elige una fecha.'); return; } S.ui.base = v; router(); }
   else if (k === 'baseHoy') { S.ui.base = null; router(); }
+  else if (k === 'ir') { if (arg && /^[a-z]+(\/[A-Za-z0-9 ._-]+)*$/.test(arg)) ir(arg); }
+  else if (k === 'concEstado') { S.ui.concEstado = arg || null; router(); }
+  else if (k === 'concDias') { const n = Number(arg); if ([7, 14, 30, 60].includes(n)) { S.ui.concDias = n; router(); } }
+  else if (k === 'efeOrden') { S.ui.efeOrden = arg === 'hoja' ? 'hoja' : 'semana'; router(); }
 }
 async function actualizar() {
   const ep = S.epoca; S.cache.clear();
