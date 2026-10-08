@@ -26,6 +26,7 @@
   .compras { background:#f3eef8; border-color:#dccbea; } .compras a { background:#5b3a86; color:#fff; }
   .nomina { background:#e9f5ee; border-color:#c3e2cf; } .nomina a { background:#2f855a; color:#fff; }
   .inventarios { background:#fbf0e6; border-color:#f0d5bb; } .inventarios a { background:#b5541c; color:#fff; }
+  .contabilidad { background:#e9f0f8; border-color:#c7d7ea; } .contabilidad a { background:#1f4e79; color:#fff; }
   .etq { position:absolute; top:14px; right:14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:#fff; border:1px solid var(--borde); border-radius:99px; padding:3px 8px; color:var(--txt2); }
   .login { text-align:center; padding-top:70px; }
   .login .ico { font-size:46px; }
@@ -96,7 +97,10 @@ const MODULOS = {
   compras:     { clase: 'compras',     ico: '🛒', titulo: 'Compras',     texto: 'Gestiona proveedores, pedidos de sucursal, órdenes de compra y recepciones.', href: '/compras/', boton: 'Ir a Compras →' },
   inventarios: { clase: 'inventarios', ico: '📦', titulo: 'Inventarios', texto: 'Conteos diarios de guisos, postres y bebidas por sucursal, eficiencia contra el POS y captura del día.', href: '/inventarios/', boton: 'Ir a Inventarios →' },
   nominas:     { clase: 'nomina',      ico: '👥', titulo: 'Nóminas',     texto: 'Pre-nómina semanal: captura del gerente, revisión y cierre de contabilidad, horas extra y nómina calculada.', href: '/nominas/', boton: 'Ir a Nóminas →' },
-  ventas:      { clase: 'ventas',      ico: '🚦', titulo: 'Ventas',      texto: 'Semáforo diario de ventas por sucursal: presupuesto del día, avance del mes y proyección.', href: '/ventas/', boton: 'Ir a Ventas →' }
+  ventas:      { clase: 'ventas',      ico: '🚦', titulo: 'Ventas',      texto: 'Semáforo diario de ventas por sucursal: presupuesto del día, avance del mes y proyección.', href: '/ventas/', boton: 'Ir a Ventas →' },
+  /* Contabilidad (F0, 7-oct-2026): solo administración y contabilidad. La tarjeta sale solo si perfil.modulos trae 'contabilidad';
+     aunque alguien abra la liga, el servidor responde "sin_acceso" a quien no tiene el módulo. */
+  contabilidad: { clase: 'contabilidad', ico: '📒', titulo: 'Contabilidad', texto: 'Cuánto debemos (estimado), ingresos por tienda y canal, cortes de caja y qué tan al día están los datos. Solo administración y contabilidad.', href: '/contabilidad/', boton: 'Ir a Contabilidad →' }
 };
 function vLogin(msj) {
   $('hUser').innerHTML = 'ERP modular';
@@ -115,7 +119,7 @@ function pintar(p) {
   $('hUser').innerHTML = esc(p.usuario) + '<button onclick="salir()">Salir</button>';
   if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; return; }
   let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div class="grid">';
-  for (const k of ['compras', 'nominas', 'inventarios', 'ventas']) {
+  for (const k of ['compras', 'nominas', 'inventarios', 'ventas', 'contabilidad']) {
     if (!mods.includes(k)) continue; const m = MODULOS[k];
     h += '<div class="mod ' + m.clase + '">' + (m.etiqueta ? '<span class="etq">' + m.etiqueta + '</span>' : '') + '<div class="ico">' + m.ico + '</div><h3>' + m.titulo + '</h3><p>' + m.texto + '</p><a href="' + m.href + '">' + m.boton + '</a></div>';
   }
