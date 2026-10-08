@@ -1193,8 +1193,19 @@ function conciliacionMotor(d) {
 }
 function conciliacionResumen(d) {
   const cq = d.cuadra_con_hoja || {}; const dif = (cq.diferencias || []).concat((cq.diferencias_meses || []));
-  let h = '<div class="flex items-center gap-2 flex-wrap mb-4">' + (cq.ok ? '<span class="badge b-verde">Cuadra con la hoja</span>' : '<span class="badge b-rojo">No cuadra: ' + entero(dif.length) + (dif.length === 1 ? ' diferencia' : ' diferencias') + '</span>') +
-    '<span class="text-xs text-gray-500">Se compararon ' + entero(cq.comparados) + ' tiendas del bloque por sucursal (mes ' + esc(d.mes_resumen_hoja == null ? '—' : d.mes_resumen_hoja) + ' de ' + esc(d.anio_resumen_hoja == null ? '—' : d.anio_resumen_hoja) + ' en Config) y ' + entero(cq.comparados_meses) + ' renglones de la tabla POR MES, celda por celda.</span></div>';
+  // (096) la insignia dice POR QUÉ no cuadra: diferencias, celdas que no se leen (no_legibles, p. ej. "#REF!"), tiendas del mapa de
+  // Config que no vienen en el bloque (faltan_en_hoja) y renglones de POR MES que no vienen (faltan_meses); nunca "No cuadra: 0
+  // diferencias". Solo conteos, nunca el texto de una celda. Sin la 096 la API no trae esos campos y queda como antes (salvo el bloque vacío).
+  const arrQ = x => Array.isArray(x) ? x : [];
+  const nl = arrQ(cq.no_legibles), ft = arrQ(cq.faltan_en_hoja), fm = arrQ(cq.faltan_meses);
+  const cntQ = (n, uno, varios) => n ? entero(n) + (n === 1 ? uno : varios) : '';
+  const motivos = [cntQ(dif.length, ' diferencia', ' diferencias'), cntQ(nl.length, ' celda sin leer', ' celdas sin leer'),
+    cntQ(ft.length, ' tienda sin comparar', ' tiendas sin comparar'), cntQ(fm.length, ' renglón de POR MES sin comparar', ' renglones de POR MES sin comparar')].filter(Boolean);
+  const porQue = motivos.length ? (motivos.length > 1 ? motivos.slice(0, -1).join(', ') + ' y ' + motivos[motivos.length - 1] : motivos[0])
+    : (N(cq.comparados) ? 'ver los avisos de arriba' : 'no se pudo comparar el bloque por sucursal');
+  let h = '<div class="flex items-center gap-2 flex-wrap mb-4">' + (cq.ok ? '<span class="badge b-verde">Cuadra con la hoja</span>' : '<span class="badge b-rojo">No cuadra: ' + porQue + '</span>') +
+    '<span class="text-xs text-gray-500">Se compararon ' + entero(cq.comparados) + ' tiendas del bloque por sucursal (mes ' + esc(d.mes_resumen_hoja == null ? '—' : d.mes_resumen_hoja) + ' de ' + esc(d.anio_resumen_hoja == null ? '—' : d.anio_resumen_hoja) + ' en Config)' + (cq.total_comparado ? ', el renglón TOTAL' : '') + ' y ' + entero(cq.comparados_meses) + ' renglones de la tabla POR MES, celda por celda' +
+    (nl.length ? ', salvo ' + entero(nl.length) + (nl.length === 1 ? ' celda que no se lee (ver el aviso de arriba)' : ' celdas que no se leen (ver el aviso de arriba)') : '') + '.</span></div>';
   if (dif.length) h += '<div class="banner banner-red"><b>La hoja dice otra cosa que su propio motor:</b><ul>' + dif.slice(0, 30).map(x => '<li>' + esc(x.sucursal || x.mes) + ' · ' + esc(String(x.campo).replace(/_/g, ' ')) + ': la hoja dice <b class="num">' + esc(NUM2.format(Number(x.hoja))) + '</b>, el espejo calcula <b class="num">' + esc(NUM2.format(Number(x.espejo))) + '</b></li>').join('') + '</ul>' +
     (dif.length > 30 ? '<p class="mt-1">… y ' + entero(dif.length - 30) + ' más.</p>' : '') + '<p class="text-xs mt-1">Suele pasar cuando la copia agarró la hoja a media captura, o si la pestaña Resumen ya no ve todos los renglones del motor.</p></div>';
   const pm = d.por_mes || []; const pa = d.por_anio || [];
