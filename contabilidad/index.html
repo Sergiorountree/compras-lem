@@ -210,6 +210,8 @@ const F1 = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 1, maximumFra
 const F0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
 function pesos(n) { if (!esNum(n)) return '—'; const v = Number(n); return (v < 0 ? '−$' : '$') + F2.format(Math.abs(v)); }
 function entero(n) { return esNum(n) ? F0.format(Number(n)) : '—'; }
+// Monto en su moneda (095): MXN como pesos; otra moneda con su clave y sin convertir (nunca se suma a los pesos)
+function monto(n, mon) { if (!mon || String(mon).toUpperCase() === 'MXN') return pesos(n); if (!esNum(n)) return '—'; const v = Number(n); return (v < 0 ? '−' : '') + F2.format(Math.abs(v)) + ' ' + esc(String(mon).toUpperCase()); }
 function porc(n) { return esNum(n) ? F1.format(Number(n)) + '%' : '—'; }
 function variacion(n) { if (!esNum(n)) return '—'; const v = Number(n); return (v > 0 ? '+' : v < 0 ? '−' : '') + F1.format(Math.abs(v)) + '%'; }
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -405,6 +407,7 @@ const CONF_EST = '<span class="conf conf-est" title="Estimado: no es un saldo ve
 const CONF_AUTO = '<span class="conf conf-auto" title="Automático: sale directo de la base">Automático</span>';
 const th = (t, num, extra) => '<th' + (num ? ' class="text-right"' : '') + (extra || '') + '>' + t + '</th>';
 function tdP(n, cls) { const cero = esNum(n) && Number(n) === 0; return '<td class="text-right num' + (cls ? ' ' + cls : '') + '">' + (cero ? '<span class="dim">' + pesos(0) + '</span>' : pesos(n)) + '</td>'; }
+function tdM(n, mon, cls) { return (!mon || String(mon).toUpperCase() === 'MXN') ? tdP(n, cls) : '<td class="text-right num nowrap' + (cls ? ' ' + cls : '') + '">' + monto(n, mon) + '</td>'; }
 function tdN(n) { const cero = esNum(n) && Number(n) === 0; return '<td class="text-right num">' + (cero ? '<span class="dim">0</span>' : entero(n)) + '</td>'; }
 function pon(h) { const v = $('vista'); if (v) v.innerHTML = '<div class="fade-in">' + h + '</div>'; }
 function arriba() { const sc = $('scroll'); if (sc) sc.scrollTop = 0; if (window.innerWidth <= 760) window.scrollTo(0, 0); }
@@ -440,7 +443,7 @@ function errorEnVista(e) {
 /* ════════════════ C0 · Inicio: frescura de las fuentes, excepciones y adopción ════════════════ */
 const ESTADO_FUENTE = { al_dia: ['Al día', 'b-verde'], atrasado: ['Atrasado', 'b-rojo'], sin_datos: ['Sin datos', 'b-gris'] };
 const ROBOT_ST = { ok: 'b-verde', parcial: 'b-ambar', error: 'b-rojo', fallo: 'b-rojo', fallido: 'b-rojo' };
-const TIPO_EXC = { corte_cero: 'Corte en cero', cfdi_mes_cerrado: 'Factura de mes cerrado' };
+const TIPO_EXC = { corte_cero: 'Corte en cero', cfdi_mes_cerrado: 'Factura de mes cerrado', cfdi: 'Factura en cuarentena', sku_nuevo: 'Producto nuevo de CDC' };
 const SEV = { alta: 'b-rojo', media: 'b-ambar', baja: 'b-gris' };
 const RESULTADO_NEG = { sin_acceso: 'Sin acceso', solo_sql_connect: 'Otro canal (no SQL Connect)', error: 'Error' };
 async function vInicio(arg, vez) {
@@ -465,7 +468,7 @@ async function vInicio(arg, vez) {
   // Excepciones + adopción
   const lista = ex.lista || []; const ver = S.ui.excTodas ? lista : lista.slice(0, 8);
   let e = '<div class="card-body">';
-  e += lista.length ? ver.map(x => '<div class="exc"><div class="flex items-center gap-2 flex-wrap mb-1"><span class="badge b-lem">' + esc(TIPO_EXC[x.tipo] || x.tipo) + '</span>' + (x.severidad ? '<span class="badge ' + (SEV[x.severidad] || 'b-gris') + '">' + esc(x.severidad) + '</span>' : '') + (x.sin_empresa ? '<span class="chip" title="Esta excepción no trae empresa">sin empresa</span>' : '') + '<span class="text-11 text-gray-500">' + instante(x.creada) + '</span></div><div class="text-13">' + esc(x.motivo) + '</div></div>').join('')
+  e += lista.length ? ver.map(x => '<div class="exc"><div class="flex items-center gap-2 flex-wrap mb-1"><span class="badge b-lem">' + esc(TIPO_EXC[x.tipo] || x.tipo) + '</span>' + (x.severidad ? '<span class="badge ' + (SEV[x.severidad] || 'b-gris') + '">' + esc(x.severidad) + '</span>' : '') + '<span class="text-11 text-gray-500">' + instante(x.creada) + '</span></div><div class="text-13">' + esc(x.motivo) + '</div></div>').join('')
     : '<p class="text-sm text-gray-500">No hay excepciones abiertas.</p>';
   if (lista.length > 8) e += '<button class="btn btn-ghost sm mt-2" data-act="excTodas">' + (S.ui.excTodas ? 'Ver menos' : 'Ver las ' + lista.length) + '</button>';
   if (N(ex.abiertas) > lista.length) e += '<p class="text-11 text-gray-400 mt-2">La lista muestra las ' + lista.length + ' más recientes de ' + entero(ex.abiertas) + '.</p>';
@@ -754,16 +757,29 @@ function subAccion(k, arg) {
 
 /* ════════════════ C1 · Cuánto debemos (estimado) ════════════════ */
 const TRAMOS = [['0_30', '0 a 30 días', '#86C9A4'], ['31_60', '31 a 60 días', '#EAB308'], ['61_90', '61 a 90 días', '#F97316'], ['mas_90', 'Más de 90 días', '#DC2626']];
-const MOTIVO_REP = { saldo_anterior_mayor_que_factura: 'Saldo anterior mayor que el total de la factura', saldo_no_cuadra: 'Saldo anterior − pagado no da el insoluto' };
+const MOTIVO_REP = { saldo_anterior_mayor_que_factura: 'Saldo anterior mayor que el total de la factura', saldo_no_cuadra: 'Saldo anterior − pagado no da el insoluto', moneda_distinta_de_la_factura: 'La moneda del REP (MonedaDR) no es la de la factura: no manda ni suma a lo pagado' };
+const AVISO_SAT = 'No se verifica la cancelación ante el SAT: una factura que el proveedor canceló sigue contando aquí hasta que se sustituya o se quite de la base.';
 function datosDebemos(extra) { return Object.assign({}, extra || {}, S.ui.base ? { cargados_antes: S.ui.base } : {}); }
 function bannerEstimado(d, corto) {
   let h = '<div class="banner banner-amber"><div class="flex items-center gap-2 flex-wrap mb-1">' + CONF_EST + '<b>No es un saldo verificado</b></div><div>' + esc(d.leyenda || '') + '</div>';
+  // 095 (hallazgo 5): sin fuente del SAT, se dice claro en cada vista de C1
+  h += '<div class="mt-2"><span class="badge b-ambar">Cancelación SAT sin verificar</span> ' + esc((d.cancelacion_sat && d.cancelacion_sat.aviso) || AVISO_SAT) + '</div>';
   if (!corto) h += '<details><summary>Cómo se calcula</summary><ul>' + (d.regla_rep || []).map(x => '<li>' + esc(x) + '</li>').join('') +
-    '<li>Lo abierto de una factura PPD es su total si no tiene REP, o el saldo insoluto del REP que manda. Pagado = total − abierto.</li>' +
-    '<li>Un saldo menor a 1 peso (redondeo del REP) suma al abierto, pero no cuenta como factura abierta ni vencida.</li>' +
+    '<li>Lo abierto de una factura PPD es su total si no tiene REP, o el saldo insoluto del REP que manda (solo cuentan los REP en la moneda de la factura). Pagado = total − abierto; un mismo pago timbrado dos veces cuenta una vez.</li>' +
+    '<li>Un saldo menor a 1 peso (redondeo del REP) suma al abierto, pero no cuenta como factura abierta ni entra en vencido, por vencer o sin plazo: va en "centavos".</li>' +
     '<li>Vence = fecha de la factura + plazo de CondicionesDePago del XML; sin número de días, "sin plazo". La antigüedad se cuenta desde la fecha de la factura.</li>' +
-    '<li>Las PUE (de contado) se suponen pagadas y no suman. Las notas de crédito son informativas: no se restan todavía (F4).</li></ul></details>';
+    '<li>Los importes son en pesos y solo con facturas en MXN. Lo que viene en otra moneda va aparte, por moneda y sin convertir.</li>' +
+    '<li>Las PUE (de contado) se suponen pagadas y no suman. Las notas de crédito son informativas: no se restan todavía (F4). El "abierto neto" solo descuenta la parte de las notas ligadas que el REP todavía no refleja; si los REP declaran pagado más de lo que bajó, no descuenta ninguna.</li></ul></details>';
   return h + '</div>';
+}
+// 095 (hallazgo 7): lo que viene en otra moneda no se suma a los pesos; se enseña aparte, por moneda y sin convertir
+function otrasTxt(l, campo) { return (l || []).length ? '<div class="text-11 text-gray-400">aparte, sin convertir: ' + l.map(x => monto(x[campo], x.moneda)).join(' · ') + '</div>' : ''; }
+function bannerMonedas(d) {
+  const t = d.totales || {}; const l = t.otras_monedas || [];
+  if (!l.length) return '';
+  return '<div class="banner banner-lem"><b>Otras monedas (no se suman a los pesos de arriba):</b> ' + l.map(m => esc(m.moneda) + ': ' + entero(m.ppd_facturas) + ' PPD por ' + monto(m.ppd_facturado, m.moneda) + ', abierto ' + monto(m.ppd_abierto, m.moneda) +
+    (N(m.pue_facturas) ? ' · ' + entero(m.pue_facturas) + ' PUE por ' + monto(m.pue_monto, m.moneda) : '') + (N(m.notas_credito) ? ' · ' + entero(m.notas_credito) + ' notas por ' + monto(m.notas_credito_monto, m.moneda) : '')).join(' — ') +
+    '<div class="text-11 mt-1">' + esc(t.monedas_nota || '') + '</div></div>';
 }
 function bannerBase(d) {
   if (!S.ui.base) return '';
@@ -787,10 +803,11 @@ async function vDebemos(arg, vez) {
   let h = topbar('Cuánto debemos', esc(S.inicio.empresa || '') + ' · facturas a crédito (PPD) y sus complementos de pago', btnActualizar()) + '<div class="p-8">';
   h += bannerEstimado(d) + bannerBase(d) + lineaCorte(d);
   h += '<div class="grid grid-4 mb-4">' +
-    stat('Abierto', pesos(t.ppd_abierto), entero(t.facturas_abiertas) + ' facturas abiertas' + (N(t.facturas_con_centavos) ? ' · ' + entero(t.facturas_con_centavos) + ' más con centavos' : ''), 'var(--text)', CONF_EST) +
-    stat('Vencido', pesos(t.vencido), 'ya pasó el plazo del XML', N(t.vencido) > 0 ? 'var(--rojo)' : null) +
-    stat('Por vencer', pesos(t.por_vencer), 'con plazo que no se cumple aún') +
-    stat('Sin plazo en el XML', pesos(t.sin_plazo), entero(t.facturas_con_plazo_en_xml) + ' de ' + entero(t.ppd_facturas) + ' facturas traen plazo') + '</div>';
+    stat('Abierto (MXN)', pesos(t.ppd_abierto), entero(t.facturas_abiertas) + ' facturas abiertas' + (N(t.facturas_con_centavos) ? ' · ' + entero(t.facturas_con_centavos) + ' más con centavos' + (esNum(t.saldo_centavos) ? ' (' + pesos(t.saldo_centavos) + ')' : '') : ''), 'var(--text)', CONF_EST) +
+    stat('Vencido', pesos(t.vencido), 'facturas abiertas que ya pasaron el plazo del XML', N(t.vencido) > 0 ? 'var(--rojo)' : null) +
+    stat('Por vencer', pesos(t.por_vencer), 'facturas abiertas con plazo que no se cumple aún') +
+    stat('Sin plazo en el XML', pesos(t.sin_plazo), 'facturas abiertas · ' + entero(t.facturas_con_plazo_en_xml) + ' de ' + entero(t.ppd_facturas) + ' facturas traen plazo') + '</div>';
+  h += bannerMonedas(d);
   h += '<div class="grid grid-4 mb-6">' +
     stat('Facturado a crédito (PPD)', pesos(t.ppd_facturado), entero(t.ppd_facturas) + ' facturas · ' + entero(t.ppd_con_rep) + ' con REP') +
     stat('Total − abierto', pesos(t.ppd_pagado), 'REP declaran ' + pesos(t.ppd_pagado_rep) + (N(t.ppd_no_declarado_rep) >= 1 ? ' · ' + pesos(t.ppd_no_declarado_rep) + ' bajó sin pago en REP (notas aplicadas)' : '')) +
@@ -798,8 +815,8 @@ async function vDebemos(arg, vez) {
     stat('De contado (PUE)', pesos(t.pue_monto), entero(t.pue_facturas) + ' facturas · supuesto: ' + esc(t.pue_supuesto || 'pagada')) + '</div>';
   const otros = '<div class="kv"><div class="k">Notas de crédito<div class="text-11 text-gray-400">' + esc(t.notas_credito_nota || '') + '</div></div><div class="v num">' + entero(t.notas_credito) + ' · ' + pesos(t.notas_credito_monto) + '</div></div>' +
     '<div class="kv"><div class="k">Notas ligadas a facturas abiertas<div class="text-11 text-gray-400">' + esc(t.notas_ligadas_nota || '') + '</div></div><div class="v num">' + entero(t.notas_ligadas_a_abiertas) + ' · ' + pesos(t.notas_ligadas_a_abiertas_monto) + '</div></div>' +
-    '<div class="kv"><div class="k">Abierto neto de esas notas</div><div class="v num">' + pesos(t.abierto_neto_de_notas_ligadas) + '</div></div>' +
-    '<div class="kv"><div class="k">Deuda financiera</div><div class="v num">' + pesos(t.deuda_financiera) + '</div></div><div class="kv"><div class="k">Otras obligaciones sin CFDI</div><div class="v num">' + pesos(t.otras_obligaciones) + '</div></div>';
+    '<div class="kv"><div class="k">Abierto neto de esas notas<div class="text-11 text-gray-400">solo descuenta lo que el REP todavía no refleja' + (esNum(t.notas_ligadas_por_restar) ? ': ' + pesos(t.notas_ligadas_por_restar) : '') + '</div></div><div class="v num">' + pesos(t.abierto_neto_de_notas_ligadas) + '</div></div>' +
+    '<div class="kv"><div class="k">Deuda financiera' + otrasTxt(t.deuda_otras_monedas, 'saldo') + '</div><div class="v num">' + pesos(t.deuda_financiera) + '</div></div><div class="kv"><div class="k">Otras obligaciones sin CFDI' + otrasTxt(t.obligaciones_otras_monedas, 'monto') + '</div><div class="v num">' + pesos(t.otras_obligaciones) + '</div></div>';
   h += '<div class="grid grid-2">' + card('Antigüedad de lo abierto', 'Por fecha de la factura. Suma ' + pesos(t.ppd_abierto) + '.', '<div class="card-body">' + barraAntiguedad(t.antiguedad || {}) + '</div>') +
     card('Fuera del abierto', 'No suman a lo abierto: se muestran para tenerlos a la vista.', '<div class="card-body">' + otros + '</div>') + '</div>';
   // Proveedores
@@ -824,7 +841,7 @@ function filtrarProveedores(d) {
 }
 function quienProv(p) {
   return '<div class="nombre-prov"><a class="lnk" href="#debemos/' + esc(encodeURIComponent(p.clave)) + '">' + esc(p.nombre) + '</a></div><div class="text-11 text-gray-500 mt-1 flex items-center gap-1 flex-wrap">' +
-    (p.persona_fisica ? '<span class="chip chip-pf">Persona física</span>' : '<span class="num">' + esc(p.rfc || '') + '</span>') + (N(p.rep_inconsistentes) ? '<span class="badge b-rojo">REP inconsistente</span>' : '') + '</div>';
+    (p.persona_fisica ? '<span class="chip chip-pf">Persona física</span>' : '<span class="num">' + esc(p.rfc || '') + '</span>') + (N(p.rep_inconsistentes) ? '<span class="badge b-rojo">REP inconsistente</span>' : '') + ((p.otras_monedas || []).length ? '<span class="chip" title="Tiene facturas en otra moneda: no suman a las columnas en pesos">también en ' + esc(p.otras_monedas.map(m => m.moneda).join(', ')) + '</span>' : '') + '</div>';
 }
 function tablaProveedores(d) {
   const todos = d.proveedores || []; const l = filtrarProveedores(d);
@@ -841,20 +858,20 @@ function seccionRep(d) {
   const l = d.rep_inconsistentes || [];
   const cuerpo = l.length ? '<div class="tabla"><table class="lem-table densa" style="min-width:1200px"><thead><tr>' + th('Proveedor', false, ' class="fija"') + th('REP') + th('Factura') + th('Parcialidad', true) + th('Saldo anterior', true) + th('Pagado', true) + th('Insoluto', true) + th('Total de la factura', true) + th('Fecha de pago') + th('¿Manda?') + th('Motivo') + '</tr></thead><tbody>' +
     l.map(x => '<tr><td class="fija"><div class="nombre-prov">' + (x.clave ? '<a class="lnk" href="#debemos/' + esc(encodeURIComponent(x.clave)) + '">' + esc(x.proveedor || '—') + '</a>' : esc(x.proveedor || '—')) + '</div>' + (x.persona_fisica ? '<span class="chip chip-pf mt-1">Persona física</span>' : '') + '</td>' +
-      '<td class="num text-xs nowrap" title="' + esc(x.uuid_rep) + '">' + esc(x.folio_rep || '—') + '</td><td class="num text-xs nowrap" title="' + esc(x.uuid_factura) + '">' + esc(x.folio_factura || '—') + '</td>' + tdN(x.parcialidad) + tdP(x.saldo_anterior, 'neg') + tdP(x.pagado) + tdP(x.insoluto) + tdP(x.total_factura) +
+      '<td class="num text-xs nowrap" title="' + esc(x.uuid_rep) + '">' + esc(x.folio_rep || '—') + '</td><td class="num text-xs nowrap" title="' + esc(x.uuid_factura) + '">' + esc(x.folio_factura || '—') + '</td>' + tdN(x.parcialidad) + tdM(x.saldo_anterior, x.moneda, 'neg') + tdM(x.pagado, x.moneda) + tdM(x.insoluto, x.moneda) + tdP(x.total_factura) +
       '<td class="num nowrap">' + fecha(x.fecha_pago) + '</td><td>' + (x.vigente ? '<span class="badge b-ambar">Sí</span>' : '<span class="badge b-gris">No</span>') + '</td><td class="text-13" style="min-width:220px;white-space:normal">' + esc(MOTIVO_REP[x.motivo] || x.motivo || '') + '</td></tr>').join('') + '</tbody></table></div>'
     : '<div class="card-body"><p class="text-sm text-gray-500">Ninguno.</p></div>';
-  return card('REP inconsistentes (' + l.length + ')', 'Complementos de pago que no cuadran con su factura. "¿Manda?" dice si es el REP vigente de la factura (el que fija su saldo).', cuerpo);
+  return card('REP inconsistentes (' + l.length + ')', 'Complementos de pago que no cuadran con su factura. "¿Manda?" dice si es el REP vigente de la factura (el que fija su saldo). Uno en otra moneda que su factura nunca manda.', cuerpo);
 }
 function seccionControles(d) {
   const rs = d.rep_sustituidos || {}; const sf = d.rep_sin_factura_en_base || {};
   const kv = (k, v, sub) => '<div class="kv"><div class="k">' + k + (sub ? '<div class="text-11 text-gray-400">' + sub + '</div>' : '') + '</div><div class="v num">' + v + '</div></div>';
   let h = '<div class="card-body">' + kv('REP que sustituyen a otro (relación 04)', entero(rs.rep_que_sustituyen), entero(rs.sustituidos_en_base) + ' de los sustituidos están en la base y se excluyen') +
     kv('Facturas sustituidas excluidas', entero(d.facturas_sustituidas_excluidas)) + kv('REP ilegibles', entero(d.rep_ilegibles)) + kv('REP en otra moneda', entero(d.rep_otra_moneda)) +
-    kv('REP de facturas que no están en la base', entero(sf.facturas) + ' facturas · ' + entero(sf.con_saldo) + ' con saldo · ' + pesos(sf.saldo), esc(sf.nota || ''));
+    kv('REP de facturas que no están en la base', entero(sf.facturas) + ' facturas · ' + entero(sf.con_saldo) + ' con saldo · ' + pesos(sf.saldo) + ((sf.saldo_otras_monedas || []).length ? ' · aparte ' + sf.saldo_otras_monedas.map(x => monto(x.saldo, x.moneda)).join(' · ') : ''), esc(sf.nota || ''));
   const l = sf.lista || [];
   if (l.length) h += '<div class="tabla mt-3"><table class="lem-table densa" style="min-width:640px"><thead><tr>' + th('Proveedor') + th('Factura') + th('Parcialidad', true) + th('Insoluto', true) + th('Fecha de pago') + '</tr></thead><tbody>' +
-    l.map(x => '<tr><td><div class="nombre-prov">' + esc(x.proveedor || '—') + '</div></td><td class="num text-xs nowrap" title="' + esc(x.uuid_factura) + '">' + esc(x.folio_factura || '—') + '</td>' + tdN(x.parcialidad) + tdP(x.insoluto) + '<td class="num nowrap">' + fecha(x.fecha_pago) + '</td></tr>').join('') + '</tbody></table></div>';
+    l.map(x => '<tr><td><div class="nombre-prov">' + esc(x.proveedor || '—') + '</div></td><td class="num text-xs nowrap" title="' + esc(x.uuid_factura) + '">' + esc(x.folio_factura || '—') + '</td>' + tdN(x.parcialidad) + tdM(x.insoluto, x.moneda) + '<td class="num nowrap">' + fecha(x.fecha_pago) + '</td></tr>').join('') + '</tbody></table></div>';
   return card('Controles de la regla', 'Para revisar que la regla del REP se aplicó bien.', h + '</div>');
 }
 function seccionTardias(d) {
@@ -868,11 +885,11 @@ function seccionObligaciones(d) {
   let h = '<div class="card-body">';
   if (!df.length && !ob.length && !co.length) h += '<p class="text-sm text-gray-500">' + esc(d.nota_obligaciones || 'Sin registros.') + '</p>';
   if (df.length) h += '<div class="text-xs uppercase text-gray-500 font-medium mb-2">Deuda financiera</div><div class="tabla mb-4"><table class="lem-table densa" style="min-width:820px"><thead><tr>' + th('Acreedor') + th('Tipo') + th('Saldo', true) + th('Saldo al') + th('Próximo vencimiento') + th('Pago periódico', true) + th('Fuente') + '</tr></thead><tbody>' +
-    df.map(x => '<tr><td>' + esc(x.acreedor) + '<div class="text-11 text-gray-500">' + esc(x.descripcion || '') + '</div></td><td>' + esc(x.tipo || '') + '</td>' + tdP(x.saldo) + '<td class="num">' + fecha(x.saldo_al) + '</td><td class="num">' + fecha(x.proximo_vencimiento) + '</td>' + tdP(x.pago_periodico) + '<td class="text-xs">' + esc(x.fuente || '') + ' · ' + esc(x.confianza || '') + '</td></tr>').join('') + '</tbody></table></div>';
+    df.map(x => '<tr><td>' + esc(x.acreedor) + '<div class="text-11 text-gray-500">' + esc(x.descripcion || '') + '</div></td><td>' + esc(x.tipo || '') + '</td>' + tdM(x.saldo, x.moneda) + '<td class="num">' + fecha(x.saldo_al) + '</td><td class="num">' + fecha(x.proximo_vencimiento) + '</td>' + tdM(x.pago_periodico, x.moneda) + '<td class="text-xs">' + esc(x.fuente || '') + ' · ' + esc(x.confianza || '') + '</td></tr>').join('') + '</tbody></table></div>';
   if (ob.length) h += '<div class="text-xs uppercase text-gray-500 font-medium mb-2">Obligaciones sin CFDI</div><div class="tabla mb-4"><table class="lem-table densa" style="min-width:720px"><thead><tr>' + th('Acreedor') + th('Concepto') + th('Monto', true) + th('Vence') + th('Fuente') + '</tr></thead><tbody>' +
-    ob.map(x => '<tr><td>' + esc(x.acreedor) + '</td><td>' + esc(x.concepto || '') + '</td>' + tdP(x.monto) + '<td class="num">' + fecha(x.vence) + '</td><td class="text-xs">' + esc(x.fuente || '') + ' · ' + esc(x.confianza || '') + '</td></tr>').join('') + '</tbody></table></div>';
+    ob.map(x => '<tr><td>' + esc(x.acreedor) + '</td><td>' + esc(x.concepto || '') + '</td>' + tdM(x.monto, x.moneda) + '<td class="num">' + fecha(x.vence) + '</td><td class="text-xs">' + esc(x.fuente || '') + ' · ' + esc(x.confianza || '') + '</td></tr>').join('') + '</tbody></table></div>';
   if (co.length) h += '<div class="text-xs uppercase text-gray-500 font-medium mb-2">Contingencias (memo: no suman)</div><div class="tabla"><table class="lem-table densa" style="min-width:600px"><thead><tr>' + th('Acreedor') + th('Concepto') + th('Monto', true) + th('Fuente') + '</tr></thead><tbody>' +
-    co.map(x => '<tr><td>' + esc(x.acreedor) + '</td><td>' + esc(x.concepto || '') + '</td>' + tdP(x.monto) + '<td class="text-xs">' + esc(x.fuente || '') + '</td></tr>').join('') + '</tbody></table></div>';
+    co.map(x => '<tr><td>' + esc(x.acreedor) + '</td><td>' + esc(x.concepto || '') + '</td>' + tdM(x.monto, x.moneda) + '<td class="text-xs">' + esc(x.fuente || '') + '</td></tr>').join('') + '</tbody></table></div>';
   return card('Deuda financiera, obligaciones sin CFDI y contingencias', 'Solo con documento verificable (contrato, estado de cuenta o auxiliar de CONTPAQi).', h + '</div>');
 }
 async function vProveedor(clave, vez) {
@@ -883,21 +900,22 @@ async function vProveedor(clave, vez) {
   if (!p) { pon(topbar('Proveedor', 'Estimado', volver) + '<div class="p-8"><div class="msg-card shadow-card">No se encontró ese proveedor en esta empresa' + (S.ui.base ? ' con la base reproducida' : '') + '.</div></div>'); return; }
   const fs = d.facturas || []; const ver = S.ui.factSolo ? fs.filter(f => N(f.abierto) > 0) : fs;
   const a = p.antiguedad || {};
-  let h = topbar(esc(p.nombre), (p.persona_fisica ? 'Persona física' : '<span class="num">' + esc(p.rfc || '') + '</span>') + ' · ' + entero(p.ppd_facturas) + ' facturas a crédito', volver + btnActualizar()) + '<div class="p-8">';
+  let h = topbar(esc(p.nombre), (p.persona_fisica ? 'Persona física' : '<span class="num">' + esc(p.rfc || '') + '</span>') + ' · ' + entero(p.ppd_facturas) + ' facturas a crédito' + ((p.otras_monedas || []).length ? ' en pesos + ' + entero(p.otras_monedas.reduce((s, m) => s + N(m.ppd_facturas), 0)) + ' en otra moneda' : ''), volver + btnActualizar()) + '<div class="p-8">';
   h += bannerEstimado(d, true) + bannerBase(d);
-  h += '<div class="grid grid-4 mb-4">' + stat('Abierto', pesos(p.abierto), entero(p.facturas_abiertas) + ' facturas abiertas · ' + entero(p.facturas_sin_rep) + ' sin REP', null, CONF_EST) +
+  h += '<div class="grid grid-4 mb-4">' + stat('Abierto (MXN)', pesos(p.abierto), entero(p.facturas_abiertas) + ' facturas abiertas · ' + entero(p.facturas_sin_rep) + ' sin REP' + (N(p.saldo_centavos) ? ' · ' + pesos(p.saldo_centavos) + ' en centavos' : ''), null, CONF_EST) +
     stat('Vencido', pesos(p.vencido), esNum(p.max_dias_vencido) ? 'hasta ' + dias(p.max_dias_vencido) + ' vencida' : 'nada vencido', N(p.vencido) > 0 ? 'var(--rojo)' : null) +
     stat('Por vencer', pesos(p.por_vencer), p.proximo_vencimiento ? 'próximo el ' + fecha(p.proximo_vencimiento) : '') +
     stat('Sin plazo en el XML', pesos(p.sin_plazo), (p.condiciones || []).length ? esc(p.condiciones.join(' · ')) : 'sin CondicionesDePago') + '</div>';
   h += '<div class="grid grid-4 mb-6">' + stat('Facturado (PPD)', pesos(p.facturado), entero(p.ppd_facturas) + ' facturas') + stat('Total − abierto', pesos(p.pagado), 'REP declaran ' + pesos(p.pagado_rep) + (N(p.no_declarado_rep) >= 1 ? ' · ' + pesos(p.no_declarado_rep) + ' sin pago en REP' : '')) +
     stat('De contado (PUE)', pesos(p.pue && p.pue.monto), entero(p.pue && p.pue.facturas) + ' facturas · supuesto: pagadas') +
-    stat('Notas de crédito', pesos(p.notas_credito && p.notas_credito.monto), entero(p.notas_credito && p.notas_credito.n) + ' · informativo, no se restan' + (p.notas_ligadas_a_abiertas && N(p.notas_ligadas_a_abiertas.n) ? ' · ' + entero(p.notas_ligadas_a_abiertas.n) + ' ligadas a abiertas por ' + pesos(p.notas_ligadas_a_abiertas.monto) + ' (neto ' + pesos(p.abierto_neto_de_notas_ligadas) + ')' : '')) + '</div>';
+    stat('Notas de crédito', pesos(p.notas_credito && p.notas_credito.monto), entero(p.notas_credito && p.notas_credito.n) + ' · informativo, no se restan' + (p.notas_ligadas_a_abiertas && N(p.notas_ligadas_a_abiertas.n) ? ' · ' + entero(p.notas_ligadas_a_abiertas.n) + ' ligadas a abiertas por ' + pesos(p.notas_ligadas_a_abiertas.monto) + ' (neto ' + pesos(p.abierto_neto_de_notas_ligadas) + ', solo lo que el REP no refleja)' : '')) + '</div>';
+  if ((p.otras_monedas || []).length) h += '<div class="banner banner-lem"><b>En otra moneda (no suma a los pesos de arriba):</b> ' + p.otras_monedas.map(m => entero(m.ppd_facturas) + ' PPD por ' + monto(m.facturado, m.moneda) + ', abierto ' + monto(m.abierto, m.moneda)).join(' — ') + '. En la tabla, esas facturas van con su moneda.</div>';
   h += card('Antigüedad de lo abierto', 'La factura abierta más vieja es del ' + fecha(p.abierta_mas_vieja) + '. Devengado: sin fuente todavía.', '<div class="card-body">' + barraAntiguedad(a) + '</div>');
   const ctrl = '<label class="flex items-center gap-1 text-13"><input type="checkbox" data-chg="factSolo"' + (S.ui.factSolo ? ' checked' : '') + '> Solo con saldo</label>';
   let t = '<div class="tabla"><table class="lem-table densa" style="min-width:1320px"><thead><tr>' + th('Factura', false, ' class="fija"') + th('Fecha') + th('Total', true) + th('Pagado', true) + th('Abierto', true) + th('Estado') + th('REP') + th('Condiciones') + th('Vence') + th('Días vencida', true) + th('Antigüedad', true) + th('UUID') + '</tr></thead><tbody>';
   t += ver.length ? ver.map(f => { const est = f.rep_inconsistente ? '<span class="badge b-rojo">REP inconsistente</span> ' : '';
     const st = f.abierta ? (esNum(f.dias_vencida) ? '<span class="badge b-rojo">Vencida</span>' : '<span class="badge b-ambar">Abierta</span>') : N(f.abierto) > 0 ? '<span class="badge b-gris" title="Saldo menor a 1 peso: redondeo del REP">Centavos</span>' : '<span class="badge b-verde">Pagada</span>';
-    return '<tr><td class="fija num nowrap">' + esc([f.serie, f.folio].filter(Boolean).join('-') || '—') + '</td><td class="num nowrap">' + fecha(f.fecha) + '</td>' + tdP(f.total) + tdP(f.pagado).replace('<td', () => '<td title="' + esc('REP declaran ' + pesos(f.pagado_rep) + (N(f.no_declarado_rep) >= 1 ? ' · ' + pesos(f.no_declarado_rep) + ' sin pago en REP' : '') + (f.notas_ligadas && N(f.notas_ligadas.n) ? ' · ' + entero(f.notas_ligadas.n) + ' notas ligadas por ' + pesos(f.notas_ligadas.monto) : '')) + '"') + tdP(f.abierto, 'font-semibold') + '<td class="nowrap">' + est + st + '</td>' +
+    return '<tr><td class="fija num nowrap">' + esc([f.serie, f.folio].filter(Boolean).join('-') || '—') + '</td><td class="num nowrap">' + fecha(f.fecha) + '</td>' + tdM(f.total, f.moneda) + tdM(f.pagado, f.moneda).replace('<td', () => '<td title="' + esc('REP declaran ' + monto(f.pagado_rep, f.moneda) + (N(f.no_declarado_rep) >= 1 ? ' · ' + monto(f.no_declarado_rep, f.moneda) + ' sin pago en REP' : '') + (f.notas_ligadas && N(f.notas_ligadas.n) ? ' · ' + entero(f.notas_ligadas.n) + ' notas ligadas por ' + monto(f.notas_ligadas.monto, f.moneda) + (esNum(f.notas_ligadas.por_restar) ? ' (el REP no refleja ' + monto(f.notas_ligadas.por_restar, f.moneda) + ')' : '') : '')) + '"') + tdM(f.abierto, f.moneda, 'font-semibold') + '<td class="nowrap">' + est + st + '</td>' +
       '<td class="text-xs nowrap">' + (f.con_rep ? 'parcialidad ' + entero(f.parcialidad) + '<div class="text-11 text-gray-500">pago ' + fecha(f.ultimo_pago) + '</div>' : '<span class="text-gray-400">sin REP</span>') + '</td>' +
       '<td class="text-xs">' + esc(f.condiciones || '—') + (esNum(f.plazo_dias) ? '<div class="text-11 text-gray-500">' + dias(f.plazo_dias) + '</div>' : '') + '</td><td class="num nowrap">' + fecha(f.vence) + '</td>' +
       '<td class="text-right num">' + (esNum(f.dias_vencida) ? '<span class="neg">' + entero(f.dias_vencida) + '</span>' : '—') + '</td><td class="text-right num nowrap">' + dias(f.antiguedad_dias) + '</td>' +
