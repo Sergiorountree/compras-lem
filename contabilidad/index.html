@@ -107,6 +107,14 @@
   .w-full { width: 100%; } .grid { display: grid; gap: 16px; } .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .nombre-prov { min-width: 200px; max-width: 300px; white-space: normal; line-height: 1.3; }
   .badge.largo { white-space: normal; text-transform: none; letter-spacing: 0; line-height: 1.3; }
+  /* ── Subir XML ── */
+  .zona { border: 2px dashed var(--border-strong); border-radius: 12px; padding: 28px 20px; text-align: center; background: #FCFBF7; transition: background .1s ease, border-color .1s ease; }
+  .zona.sobre { background: var(--lem-light); border-color: var(--lem); } .zona .t { font-size: 15px; font-weight: 500; } .zona .s { font-size: 12.5px; color: var(--text-soft); margin-top: 6px; line-height: 1.5; }
+  .zona.apagada { opacity: .5; pointer-events: none; }
+  .barra { height: 10px; border-radius: 99px; background: #EEEDE6; overflow: hidden; } .barra > span { display: block; height: 100%; background: var(--lem); transition: width .2s ease; }
+  .lem-table td.motivo { min-width: 240px; max-width: 420px; white-space: normal; line-height: 1.35; font-size: 12.5px; color: var(--text-soft); }
+  .lem-table td.arch { min-width: 230px; max-width: 340px; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; font-size: 12.5px; }
+  .stat-card.click { cursor: pointer; } .stat-card.click:hover { border-color: var(--border-strong); } .stat-card.on { border-color: var(--lem); box-shadow: 0 0 0 1px var(--lem) inset; }
   @media print { .sidebar, .topbar .acciones, #toast { display: none !important; } .shell { display: block; } .main { overflow: visible; } }
   @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
@@ -165,8 +173,9 @@ const Conexion = Object.freeze({
 });
 /* ═══ SQL Connect (fin) ═══ */
 
-/* ── Módulo Contabilidad · F0 (7-oct-2026). Solo lectura: C0 Inicio, C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal,
-   C3 Cortes de caja. Los números los da SQL (lem.fn_api_conta_*, migración 091); la pantalla solo pinta. Contrato:
+/* ── Módulo Contabilidad · F0 (7-oct-2026). C0 Inicio, Subir XML (mig. 093: Alan sube los XML de las facturas aquí, sin Drive),
+   C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal, C3 Cortes de caja. Los números los da SQL (lem.fn_api_conta_*,
+   migraciones 091 y 093); la pantalla solo pinta. Contrato:
    compras-v1/docs/contabilidad-api.md. Solo entran administración y contabilidad: el servidor responde "sin_acceso" a los demás.
    Reglas: solo SQL Connect (sin respaldo de n8n); siempre empresa_id; ninguna respuesta se guarda en localStorage ni en el HTML
    (viven en memoria y se borran al salir); la sesión se cierra tras 15 minutos sin uso. ── */
@@ -174,10 +183,12 @@ document.documentElement.setAttribute('data-conta', 'ok');
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const INACTIVIDAD_MIN = 15;
 const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
-const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes']);
+const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas']);
 const ss = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }, del(k) { try { sessionStorage.removeItem(k); } catch (e) {} } };
 const uiInicial = () => ({ excTodas: false, q: '', soloSaldo: true, orden: 'abierto', base: null, factSolo: false, mesIng: null, mesCor: null, diasFiltro: 'revisar' });
-const S = { token: ss.get('lem_tok') || null, usuario: '', inicio: null, empresa: null, cache: new Map(), vez: 0, epoca: 0, ultima: Date.now(), motivo: '', tiendas: [], deb: null, ui: uiInicial(), toastT: null };
+const subInicial = () => ({ items: [], leyendo: false, enviando: false, detener: false, lote: null, empresa: null, hechos: 0, total: 0, error: null, filtro: 'todos',
+                            hist: null, histCargando: false, histErr: null, histEstado: 'todos', histQ: '', histT: null, sec: 0 });
+const S = { token: ss.get('lem_tok') || null, usuario: '', inicio: null, empresa: null, cache: new Map(), vez: 0, epoca: 0, ultima: Date.now(), motivo: '', tiendas: [], deb: null, ui: uiInicial(), sub: subInicial(), toastT: null };
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const N = n => Number(n) || 0;
@@ -215,7 +226,8 @@ const ICONS = { home: '<path d="M3 12L12 4l9 8M5 10v10h4v-6h6v6h4V10"/>', chart:
   cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>', lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>', refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>',
-  chevronR: '<path d="M9 6l6 6-6 6"/>', chevronL: '<path d="M15 6l-6 6 6 6"/>', alert: '<path d="M12 2L2 22h20L12 2zM12 9v4M12 17h.01"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>' };
+  chevronR: '<path d="M9 6l6 6-6 6"/>', chevronL: '<path d="M15 6l-6 6 6 6"/>', alert: '<path d="M12 2L2 22h20L12 2zM12 9v4M12 17h.01"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>' };
 const icon = (n, s) => '<svg width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
 
 /* ── Sesión: solo mientras la pestaña está abierta y con cierre por inactividad ── */
@@ -242,7 +254,7 @@ setInterval(revisarInactividad, 15000);
   }
 })();
 function cerrarSesion(msj, soloAqui) {
-  S.epoca++; S.vez++; S.inicio = null; S.empresa = null; S.usuario = ''; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial();
+  S.epoca++; S.vez++; S.inicio = null; S.empresa = null; S.usuario = ''; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial(); S.sub = subInicial();   // los XML en memoria se borran
   if (soloAqui && S.token) ss.set('lem_conta_cerrado', huella(S.token)); else ss.del('lem_tok');
   ss.del('lem_conta_ultima'); S.token = null;
   Conexion.salir();   // solo la sesión de Firebase de esta página (browserSessionPersistence)
@@ -368,7 +380,7 @@ function pintarShell() {
     '<main class="main"><div class="scroll" id="scroll"><div id="vista"></div></div></main></div>';
 }
 function pintarNav(r) {
-  const items = [['inicio', 'home', 'Inicio'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja']];
+  const items = [['inicio', 'home', 'Inicio'], ['subir', 'upload', 'Subir XML'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja']];
   const n = $('nav'); if (!n) return;
   n.innerHTML = items.map(([k, ic, t]) => '<a class="nav-item' + (r === k ? ' active' : '') + '" href="#' + k + '"' + (r === k ? ' aria-current="page"' : '') + '>' + icon(ic) + '<span>' + t + '</span></a>').join('') +
     '<div class="nav-item soon-item">' + icon('file') + '<span>Estado de resultados</span><span class="soon">F1</span></div>' +
@@ -387,8 +399,8 @@ function pon(h) { const v = $('vista'); if (v) v.innerHTML = '<div class="fade-i
 function arriba() { const sc = $('scroll'); if (sc) sc.scrollTop = 0; if (window.innerWidth <= 760) window.scrollTo(0, 0); }
 function cargando(t, sub) { pon(topbar(t, sub) + '<div class="p-8"><div class="msg-card shadow-card">Cargando…</div></div>'); }
 
-/* ── Rutas: #inicio · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ── */
-const RUTAS = { inicio: vInicio, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes };
+/* ── Rutas: #inicio · #subir · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ── */
+const RUTAS = { inicio: vInicio, subir: vSubir, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes };
 function ruta() {
   let h = (location.hash || '').replace(/^#/, ''); try { h = decodeURIComponent(h); } catch (e) {}
   const i = h.indexOf('/'); const r = i < 0 ? h : h.slice(0, i); const arg = i < 0 ? null : (h.slice(i + 1) || null);
@@ -421,7 +433,7 @@ const RESULTADO_NEG = { sin_acceso: 'Sin acceso', solo_sql_connect: 'Otro canal 
 async function vInicio(arg, vez) {
   const p = S.inicio; const F = p.fuentes || []; const n = e => F.filter(f => f.estado === e).length; const ex = p.excepciones || {}; const ad = p.adopcion || {};
   let h = topbar('Inicio', esc(p.empresa || '') + ' · hoy ' + fecha(p.hoy), btnActualizar()) + '<div class="p-8">';
-  h += '<div class="banner banner-lem"><b>Contabilidad · F0, solo lectura.</b> Aquí todavía no se captura ni se firma nada. Cada cifra sale de la base y dice su confianza: ' + CONF_AUTO + ' (directo de la base) o ' + CONF_EST + ' (no es un saldo verificado). CONTPAQi sigue siendo lo fiscal.</div>';
+  h += '<div class="banner banner-lem"><b>Contabilidad · F0.</b> Los XML de las facturas se suben en <a class="lnk" href="#subir">Subir XML</a> (ya no en Drive); lo demás es de solo lectura: todavía no se captura ni se firma nada. Cada cifra sale de la base y dice su confianza: ' + CONF_AUTO + ' (directo de la base) o ' + CONF_EST + ' (no es un saldo verificado). CONTPAQi sigue siendo lo fiscal.</div>';
   h += '<div class="grid grid-4 mb-6">' + stat('Fuentes al día', n('al_dia') + ' de ' + F.length, 'dentro de su umbral de días', 'var(--verde)') +
     stat('Fuentes atrasadas', n('atrasado'), 'más días que su umbral', n('atrasado') ? 'var(--rojo)' : null) +
     stat('Fuentes sin datos', n('sin_datos'), 'todavía no llegan a la base') +
@@ -461,6 +473,270 @@ async function vInicio(arg, vez) {
   a += '</div>';
   h += '<div class="grid grid-2">' + card('Excepciones abiertas', esc(ex.nota || ''), e) + card('Adopción del módulo', 'Qué tanto se usa Contabilidad y qué tanto está conciliado en el portal.', a) + '</div>';
   pon(h + '</div>');
+}
+
+/* ════════════════ Subir XML (mig. 093): Alan sube aquí los XML de las facturas; ya no se usa Drive ════════════════
+   1. La pantalla revisa cada archivo ANTES de mandarlo (extensión .xml, 200 KB, UTF-8, sin caracteres nulos ni DOCTYPE, que parezca
+      factura timbrada). Los PDF y demás archivos de una carpeta se ignoran.
+   2. Manda los listos en paquetes de 25 a conta_xml_subir; si un paquete falla, lo parte a la mitad hasta llegar a un solo archivo
+      (así se aísla un archivo que truena la llamada o un paquete demasiado grande). Pero si la conexión falla 3 veces seguidas, o la
+      base truena 3 archivos seguidos con el mismo error, se detiene: es una falla de todo el sistema y partir no sirve; lo que no se
+      mandó sigue en la lista. Los errores que detienen todo (sin acceso, falta el RFC de la empresa…) se muestran arriba.
+   3. La base vuelve a revisar todo y guarda el XML idéntico; responde por archivo: aceptado, ya estaba o rechazado con su motivo.
+   4. El historial (conta_xml_subidas) dice en qué va cada uno: cargada, pendiente (el robot la procesa cada 30 min de 7:00 a 22:00;
+      lo de la noche, a las 6:15), en revisión o
+      de mes cerrado. El contenido de los XML vive solo en memoria y se borra al terminar de mandarlo, al salir o al cambiar de empresa. */
+const MAX_KB = 200, PAQUETE = 25;
+const FATALES = new Set(['sin_acceso', 'solo_sql_connect', 'sin_bitacora', 'falta_rfc_empresa', 'demasiados_archivos', 'faltan_datos', 'accion_desconocida', 'sin_email']);
+const TXT_FATAL = { accion_desconocida: 'La subida de XML todavía no está activa en la base: avisa a Sergio. Los archivos siguen en la lista.',
+  sin_email: 'La base no recibió tu cuenta: sal y vuelve a entrar. Los archivos siguen en la lista.' };
+const FALLAS_SEGUIDAS = 3, ESPERA_RED_MS = 2000;   // fallas iguales seguidas = falla de todo el sistema: se detiene en vez de partir
+const RES_SUB = { aceptado: ['Aceptado', 'b-verde'], ya_estaba: ['Ya estaba', 'b-gris'], rechazado: ['Rechazado', 'b-rojo'], no_enviado: ['No se envió', 'b-ambar'] };
+const EST_SUB = { cargada: ['Cargada', 'b-verde'], pendiente: ['Pendiente', 'b-ambar'], en_revision: ['En revisión', 'b-rojo'], mes_cerrado: ['Mes cerrado', 'b-gris'] };
+const TIPO_CFDI = { I: 'Ingreso', E: 'Egreso (nota de crédito)', P: 'Pago (REP)', N: 'Nómina', T: 'Traslado' };
+const kb = n => F1.format(Number(n) / 1024) + ' KB';
+function nuevoLote() { const d = new Date(); const p = n => String(n).padStart(2, '0'); const r = new Uint8Array(3); crypto.getRandomValues(r);
+  return 'L' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '-' + Array.from(r, b => b.toString(16).padStart(2, '0')).join(''); }
+function cuentaSub() {
+  const it = S.sub.items; const c = { listos: 0, omitidos: 0, porEnviar: 0, aceptado: 0, ya_estaba: 0, rechazado: 0, no_enviado: 0, conRes: 0 };
+  for (const x of it) { if (x.previa === 'omitido') { c.omitidos++; continue; } c.listos++; if (x.res) { c.conRes++; c[x.res.resultado] = (c[x.res.resultado] || 0) + 1; } else c.porEnviar++; }
+  return c;
+}
+async function vSubir(arg, vez) {
+  pon(topbar('Subir XML', esc(S.inicio.empresa || '') + ' · facturas recibidas (CFDI 4.0)', '<button class="btn btn-secondary" data-act="histActualizar">' + icon('refresh', 14) + 'Actualizar historial</button>') +
+      '<div class="p-8"><div id="subirCuerpo"></div><div id="hist"></div></div>');
+  if (S.sub.hist && S.sub.hist.empresa_id !== S.empresa) S.sub.hist = null;
+  pintarSubir(); pintarHist();
+  await cargarHistorial(vez);   // siempre fresco al entrar: el robot pudo haber cargado lo pendiente
+}
+function pintarSubir() {
+  const el = $('subirCuerpo'); if (!el) return;
+  const sub = S.sub; const c = cuentaSub(); const h = sub.hist;
+  const sinRfc = h && h.empresa_id === S.empresa && !h.rfc_empresa;
+  let x = '<div class="banner banner-lem"><b>Aquí se suben los XML de las facturas que recibió ' + esc(S.inicio.empresa || 'la empresa') + '.</b> Ya no hace falta Drive: el XML se guarda en la base tal cual y no se puede cambiar ni borrar. ' +
+    'Arrastra todos los XML del mes (o la carpeta completa); se revisan aquí y otra vez en la base. Lo aceptado lo carga el robot a la base en su siguiente revisión (cada 30 min de 7:00 a 22:00; lo que subas de noche entra a las 6:15): no tienes que esperar en esta pantalla.' +
+    (h && h.rfc_empresa ? ' Solo se aceptan facturas a nombre del RFC <b class="num">' + esc(h.rfc_empresa) + '</b>.' : '') + '</div>';
+  if (sinRfc) x += '<div class="banner banner-red"><b>Falta el RFC de ' + esc(h.empresa || 'la empresa') + ' en el sistema.</b> Sin él no se puede revisar a quién van dirigidas las facturas, así que por ahora no se pueden subir sus XML. Pídele a Sergio que lo dé de alta.</div>';
+  if (sub.error) x += '<div class="banner banner-red"><b>Se detuvo la subida.</b> ' + esc(sub.error) + '</div>';
+  else if (!sub.enviando && c.no_enviado) x += '<div class="banner banner-amber"><b>' + entero(c.no_enviado) + (c.no_enviado === 1 ? ' archivo no se pudo enviar' : ' archivos no se pudieron enviar') + ' (falló la conexión o la base no respondió).</b> No están guardados: dale "Reintentar ' + entero(c.no_enviado) + ' no enviados" abajo antes de cerrar la pestaña.</div>';
+  // 1 · elegir
+  const bloqueada = sub.enviando || sub.leyendo || sinRfc;
+  x += card('1 · Elige los XML', 'Puedes arrastrar varios archivos o una carpeta, o usar los botones. Se ignoran los PDF y lo que no sea .xml.',
+    '<div class="card-body"><div id="zona" class="zona' + (bloqueada ? ' apagada' : '') + '"><div class="t">' + icon('upload', 18) + ' Arrastra aquí los XML o la carpeta del mes</div>' +
+    '<div class="flex justify-center gap-2 flex-wrap mt-3"><label class="btn btn-primary">Elegir archivos<input type="file" multiple accept=".xml,.XML,text/xml,application/xml" data-chg="archivos" hidden></label>' +
+    '<label class="btn btn-secondary">Elegir carpeta<input type="file" webkitdirectory directory multiple data-chg="carpeta" hidden></label></div>' +
+    '<div class="s">Antes de mandarlos se revisa que cada archivo termine en .xml, pese ' + MAX_KB + ' KB o menos, esté en UTF-8 y parezca factura timbrada (CFDI con TimbreFiscalDigital).</div></div>' +
+    (sub.leyendo ? '<p class="text-sm text-gray-500 mt-3">Revisando archivos…</p>' : '') + '</div>');
+  // 2 · revisión previa y envío
+  if (sub.items.length) {
+    let b = '<div class="card-body"><div class="grid grid-4 mb-4">' + stat('Listos para subir', entero(c.porEnviar), 'pasaron la revisión de la pantalla', c.porEnviar ? 'var(--lem-dark)' : null) +
+      stat('Omitidos', entero(c.omitidos), 'no se mandan (ver abajo)', c.omitidos ? 'var(--ambar)' : null) +
+      stat('Ya enviados', entero(c.conRes), 'con respuesta de la base') + stat('Lote', '<span class="text-13">' + esc(sub.lote || '—') + '</span>', 'una subida, en paquetes de ' + PAQUETE) + '</div>';
+    if (sub.enviando) {
+      const pct = sub.total ? Math.round(100 * sub.hechos / sub.total) : 0;
+      b += '<div class="mb-3"><div class="flex justify-between text-13 mb-1"><span>Subiendo… ' + entero(sub.hechos) + ' de ' + entero(sub.total) + '</span><span class="num">' + pct + '%</span></div><div class="barra"><span style="width:' + pct + '%"></span></div></div>' +
+        '<div class="flex gap-2 flex-wrap"><button class="btn btn-secondary" data-act="subDetener"' + (sub.detener ? ' disabled' : '') + '>' + (sub.detener ? 'Deteniendo…' : 'Detener') + '</button></div>';
+    } else {
+      b += '<div class="flex gap-2 flex-wrap items-center"><button class="btn btn-primary" data-act="subSubir"' + (c.porEnviar && !sinRfc && !sub.leyendo ? '' : ' disabled') + '>' + icon('upload', 14) + 'Subir ' + entero(c.porEnviar) + (c.porEnviar === 1 ? ' factura' : ' facturas') + '</button>' +
+        (c.no_enviado ? '<button class="btn btn-secondary" data-act="subReintentar">Reintentar ' + entero(c.no_enviado) + ' no enviados</button>' : '') +
+        '<button class="btn btn-ghost" data-act="subLimpiar">Quitar la lista</button></div>';
+    }
+    const om = sub.items.filter(i => i.previa === 'omitido');
+    if (om.length) {
+      const grupos = new Map(); om.forEach(i => { const k = i.motivo; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i.nombre); });
+      b += '<details class="mt-4"><summary class="text-13 font-medium" style="cursor:pointer">Omitidos (' + entero(om.length) + '): por qué no se mandan</summary><ul class="text-13 mt-2" style="margin-left:18px;line-height:1.5">' +
+        Array.from(grupos.entries()).map(([m, ns]) => '<li><b>' + esc(m) + '</b> · ' + entero(ns.length) + ': <span class="text-gray-500">' + ns.slice(0, 15).map(esc).join(', ') + (ns.length > 15 ? '… y ' + entero(ns.length - 15) + ' más' : '') + '</span></li>').join('') + '</ul></details>';
+    }
+    b += '</div>';
+    x += card('2 · Revisión y envío', 'Lo que no pasa la revisión de la pantalla no se manda. Lo demás se manda en paquetes de ' + PAQUETE + ' y la base lo vuelve a revisar.', b);
+  }
+  // 3 · resultado por archivo
+  if (c.conRes) {
+    const f = sub.filtro; const conR = sub.items.filter(i => i.res);
+    const ver = f === 'todos' ? conR : conR.filter(i => i.res.resultado === f);
+    const seg = '<div class="seg" role="group" aria-label="Filtrar resultados">' + [['todos', 'Todos', conR.length], ['aceptado', 'Aceptados', c.aceptado], ['ya_estaba', 'Ya estaban', c.ya_estaba], ['rechazado', 'Rechazados', c.rechazado], ['no_enviado', 'No enviados', c.no_enviado]]
+      .filter(([k, , n]) => k === 'todos' || n).map(([k, t, n]) => '<button class="' + (f === k ? 'on' : '') + '" data-act="subFiltro" data-arg="' + k + '">' + t + ' (' + entero(n) + ')</button>').join('') + '</div>';
+    let t = '<div class="card-body"><div class="grid grid-4 mb-4">' + stat('Aceptados', entero(c.aceptado), 'guardados; el robot los carga', 'var(--verde)') + stat('Ya estaban', entero(c.ya_estaba), 'ya cargados o ya subidos: no se duplican') +
+      stat('Rechazados', entero(c.rechazado), 'ver el motivo de cada uno', c.rechazado ? 'var(--rojo)' : null) + stat('No enviados', entero(c.no_enviado), 'falló la conexión: reintenta', c.no_enviado ? 'var(--ambar)' : null) + '</div></div>';
+    t += '<div class="tabla"><table class="lem-table densa" style="min-width:980px"><thead><tr>' + th('Archivo') + th('Resultado') + th('Detalle') + th('Fecha') + th('Tipo') + th('Total', true) + th('Emisor') + th('UUID') + '</tr></thead><tbody>';
+    t += ver.length ? ver.slice(0, 1500).map(i => { const r = i.res; const [et, ec] = RES_SUB[r.resultado] || [r.resultado, 'b-gris'];
+      return '<tr><td class="arch">' + esc(i.nombre) + '</td><td><span class="badge ' + ec + '">' + esc(et) + '</span></td><td class="motivo">' + esc(r.motivo || '') + '</td>' +
+        '<td class="num nowrap">' + (r.fecha ? fecha(r.fecha) : '—') + '</td><td class="nowrap text-xs">' + esc(TIPO_CFDI[r.tipo] || r.tipo || '—') + '</td>' + (esNum(r.total) ? tdP(r.total) : '<td class="text-right">—</td>') +
+        '<td class="num text-xs nowrap">' + esc(r.emisor || '—') + '</td><td class="num text-11 nowrap">' + esc(r.uuid || '—') + '</td></tr>'; }).join('')
+      : '<tr><td colspan="8" class="text-center text-gray-500" style="padding:24px">Nada en este filtro.</td></tr>';
+    t += '</tbody></table></div>';
+    x += card('3 · Resultado por archivo', 'Lo que respondió la base para cada archivo de esta subida.', t, seg, ver.length > 1500 ? 'Se muestran 1,500 de ' + entero(ver.length) + '.' : '');
+  }
+  el.innerHTML = x;
+}
+async function cargarHistorial(vez) {
+  const sub = S.sub; const sec = ++sub.sec; const ep = S.epoca; const rfcAntes = sub.hist ? (sub.hist.rfc_empresa || '') : null;
+  sub.histCargando = true; sub.histErr = null;
+  if (!sub.hist) pintarHist(); else { const z = $('histCargando'); if (z) z.textContent = 'Cargando…'; }
+  try {
+    const d = { limite: 300 }; if (sub.histEstado !== 'todos') d.estado = sub.histEstado; if (sub.histQ.trim()) d.buscar = sub.histQ.trim();
+    const r = await api('conta_xml_subidas', d);
+    if (ep !== S.epoca || sec !== sub.sec) return;
+    sub.hist = r;
+  } catch (e) {
+    if (ep !== S.epoca || sec !== sub.sec || e.obsoleto) return;
+    if (e.sesion) { errorEnVista(e); return; }
+    sub.histErr = e.message || 'No se pudo cargar el historial';
+  } finally {
+    if (ep === S.epoca && sec === sub.sec) {
+      sub.histCargando = false;
+      if (ruta().r === 'subir') { pintarHist(); if (sub.hist && rfcAntes !== (sub.hist.rfc_empresa || '') && !sub.enviando) pintarSubir(); }   // solo si cambió el aviso del RFC
+    }
+  }
+}
+function pintarHist() {
+  const el = $('hist'); if (!el) return;
+  const act = document.activeElement; const foco = !!(act && act.getAttribute && act.getAttribute('data-inp') === 'histQ'); const pos = foco ? act.selectionStart : null;
+  pintarHistDentro(el);
+  if (foco) { const i = el.querySelector('[data-inp="histQ"]'); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (e) {} } }
+}
+function pintarHistDentro(el) {
+  const sub = S.sub; const h = sub.hist;
+  if (!h) { el.innerHTML = card('Historial de XML subidos', '', '<div class="card-body"><p class="text-sm ' + (sub.histErr ? 'neg' : 'text-gray-500') + '">' + esc(sub.histErr || 'Cargando…') + '</p>' + (sub.histErr ? '<button class="btn btn-secondary sm mt-2" data-act="histActualizar">Reintentar</button>' : '') + '</div>'); return; }
+  const T = h.totales || {}; const TF = h.totales_filtro || {}; const e = sub.histEstado;
+  const tarjeta = (k, t, hint, color) => '<div class="stat-card click' + (e === k ? ' on' : '') + '" data-act="histEstado" data-arg="' + k + '" role="button" tabindex="0"><div class="stat-label">' + t + '</div><div class="stat-value num" style="color:' + (color || 'var(--text)') + '">' + entero(T[k]) + '</div><div class="text-xs text-gray-500 mt-1">' + hint + '</div></div>';
+  let b = '<div class="card-body"><div class="grid grid-4 mb-4">' + tarjeta('cargada', 'Cargadas', 'ya están en la base', 'var(--verde)') + tarjeta('pendiente', 'Pendientes', 'el robot las carga cada 30 min de 7:00 a 22:00 (de noche, a las 6:15)', N(T.pendiente) ? 'var(--ambar)' : null) +
+    tarjeta('en_revision', 'En revisión', 'el robot no las pudo cargar: avisa a Sergio', N(T.en_revision) ? 'var(--rojo)' : null) + tarjeta('mes_cerrado', 'Mes cerrado', 'no entran hasta que se reabra el mes') + '</div>';
+  const u = h.ultima_subida; const rb = h.robot;
+  b += '<p class="text-13 text-gray-600 mb-3">' + (u ? 'Última subida: <b>' + instante(u.cuando) + '</b> por ' + esc(u.por) + ' (' + entero(u.archivos) + (u.archivos === 1 ? ' archivo' : ' archivos') + ').' : 'Todavía no se ha subido ningún XML desde aquí.') +
+    (rb ? ' · Robot de facturas: última corrida ' + horaChih(rb.ultima_corrida) + (rb.corrida ? ' (' + esc(rb.corrida) + ')' : '') + (rb.status ? ' <span class="badge ' + (ROBOT_ST[rb.status] || 'b-gris') + '">' + esc(rb.status) + '</span>' : '') : '') + '</p>';
+  b += '<div class="flex gap-2 flex-wrap items-center mb-3"><div class="seg" role="group" aria-label="Estado"><button class="' + (e === 'todos' ? 'on' : '') + '" data-act="histEstado" data-arg="todos">Todas (' + entero(T.subidas) + ')</button></div>' +
+    '<input class="inp" style="min-width:240px" placeholder="Buscar por archivo, UUID o RFC" data-inp="histQ" value="' + esc(sub.histQ) + '" aria-label="Buscar en el historial"><span id="histCargando" class="text-xs text-gray-500">' + (sub.histCargando ? 'Cargando…' : '') + '</span></div></div>';
+  const L = h.lista || [];
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:1050px"><thead><tr>' + th('Subido') + th('Archivo') + th('Estado') + th('Detalle') + th('Fecha factura') + th('Tipo') + th('Total', true) + th('Emisor') + '</tr></thead><tbody>';
+  t += L.length ? L.map(i => { const [et, ec] = EST_SUB[i.estado] || [i.estado, 'b-gris'];
+    return '<tr><td class="num nowrap text-xs">' + instante(i.subido_en) + '<div class="text-11 text-gray-500">' + esc((i.subido_por || '').split('@')[0]) + '</div></td><td class="arch">' + esc(i.archivo) + '<div class="num text-11 text-gray-400">' + esc(i.uuid) + '</div></td>' +
+      '<td><span class="badge ' + ec + '">' + esc(et) + '</span>' + (i.cargada_el ? '<div class="text-11 text-gray-500 nowrap">' + instante(i.cargada_el) + '</div>' : '') + '</td><td class="motivo">' + esc(i.motivo || '') + '</td>' +
+      '<td class="num nowrap">' + fecha(i.fecha) + '</td><td class="nowrap text-xs">' + esc(TIPO_CFDI[i.tipo] || i.tipo || '—') + '</td>' + tdP(i.total) + '<td class="num text-xs nowrap">' + esc(i.emisor || '—') + '</td></tr>'; }).join('')
+    : '<tr><td colspan="8" class="text-center text-gray-500" style="padding:24px">' + (N(T.subidas) ? 'Nada con este filtro.' : 'Todavía no hay XML subidos desde la app.') + '</td></tr>';
+  t += '</tbody></table></div>';
+  const pie = 'Mostrando ' + entero(L.length) + ' de ' + entero(TF.subidas) + '. ' + esc(h.nota || '');
+  el.innerHTML = card('Historial de XML subidos', 'En qué va cada XML que se subió aquí. El estado se calcula cada vez que lo abres.', b + t, '', pie);
+}
+// Revisión en el navegador (la base vuelve a revisar todo)
+async function agregarArchivos(lista) {
+  const sub = S.sub; if (sub.enviando || sub.leyendo) { toast('Espera a que termine lo que está en curso.'); return; }
+  if (!lista.length) return;
+  sub.leyendo = true; sub.error = null; pintarSubir();
+  const ep = S.epoca; const ya = new Map(sub.items.filter(i => i.clave).map(i => [i.clave, i.nombre]));
+  let nuevos = 0, ocultos = 0;
+  const dec = new TextDecoder('utf-8', { fatal: true });
+  for (const { file, ruta: r } of lista) {
+    if (ep !== S.epoca) return;
+    const nombre = file.name || '(sin nombre)';
+    if (/^\._/.test(nombre) || nombre === '.DS_Store' || nombre === 'Thumbs.db') { ocultos++; continue; }   // archivos ocultos del sistema
+    const it = { id: sub.items.length + 1, nombre, ruta: r || nombre, tam: file.size, previa: 'omitido', motivo: '', texto: null, clave: null, res: null };
+    sub.items.push(it); nuevos++;
+    if (!/\.xml$/i.test(nombre)) { it.motivo = 'No es un .xml (PDF u otro archivo)'; continue; }
+    if (!file.size) { it.motivo = 'Está vacío'; continue; }
+    if (file.size > MAX_KB * 1024) { it.motivo = 'Pesa más de ' + MAX_KB + ' KB (una factura normal pesa menos de 30 KB)'; continue; }
+    let buf; try { buf = await file.arrayBuffer(); } catch (e) { it.motivo = 'No se pudo leer el archivo'; continue; }
+    if (new Uint8Array(buf).includes(0)) { it.motivo = 'Trae caracteres nulos: parece un PDF o ZIP renombrado como .xml'; continue; }
+    let txt; try { txt = dec.decode(buf); } catch (e) { it.motivo = 'No está en UTF-8 (no se puede leer como texto)'; continue; }
+    if (/<!\s*(DOCTYPE|ENTITY)/i.test(txt)) { it.motivo = 'Trae DOCTYPE o ENTITY (una factura del SAT nunca los trae)'; continue; }
+    if (txt.indexOf('<cfdi:Comprobante') < 0 || txt.indexOf('TimbreFiscalDigital') < 0) { it.motivo = 'No parece una factura timbrada (no trae cfdi:Comprobante con TimbreFiscalDigital)'; continue; }
+    let clave; try { clave = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', buf)), b => b.toString(16).padStart(2, '0')).join(''); } catch (e) { clave = 'n' + txt.length + ':' + txt.slice(-200); }
+    if (ya.has(clave)) { it.motivo = 'Repetido en tu selección (es igual a ' + ya.get(clave) + ')'; continue; }
+    ya.set(clave, nombre); it.clave = clave; it.texto = txt; it.previa = 'listo';   // clave = huella SHA-256: el contenido no se queda en memoria después de mandarlo
+  }
+  sub.leyendo = false; S.ultima = Date.now();
+  if (!sub.lote) sub.lote = nuevoLote();
+  pintarSubir();
+  toast(entero(nuevos) + (nuevos === 1 ? ' archivo revisado' : ' archivos revisados') + (ocultos ? ' · ' + entero(ocultos) + ' ocultos del sistema ignorados' : '') + '.');
+}
+async function archivosDeDrop(dt) {
+  const out = []; const ents = [];
+  for (const it of Array.from(dt.items || [])) { const e = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null; if (e) ents.push(e); }   // antes de cualquier await
+  if (!ents.length) { Array.from(dt.files || []).forEach(f => out.push({ file: f, ruta: f.name })); return out; }
+  const recorrer = async (ent, base) => {
+    if (ent.isFile) { const f = await new Promise((res, rej) => ent.file(res, rej)); out.push({ file: f, ruta: base + f.name }); }
+    else if (ent.isDirectory) { const lector = ent.createReader(); let lote;
+      do { lote = await new Promise((res, rej) => lector.readEntries(res, rej)); for (const e of lote) await recorrer(e, base + ent.name + '/'); } while (lote.length); }
+  };
+  for (const e of ents) { try { await recorrer(e, ''); } catch (x) { console.error(x); } }
+  return out;
+}
+async function subirTodo() {
+  const sub = S.sub; if (sub.enviando || sub.leyendo) return;
+  if (sub.hist && sub.hist.empresa_id === S.empresa && !sub.hist.rfc_empresa) { toast('Falta el RFC de la empresa: avisa a Sergio.'); return; }
+  const cola = sub.items.filter(i => i.previa === 'listo' && !i.res && i.texto != null);
+  if (!cola.length) { toast('No hay archivos listos para subir.'); return; }
+  const ep = S.epoca; sub.enviando = true; sub.detener = false; sub.error = null; sub.lote = sub.lote || nuevoLote(); sub.empresa = S.empresa; sub.total = cola.length; sub.hechos = 0;
+  sub.redSeguidas = 0; sub.solosSeguidos = 0; sub.ultimoMotivo = null;
+  let sesionCaida = false;
+  pintarSubir();
+  try {
+    for (let k = 0; k < cola.length && !sub.detener; k += PAQUETE) {
+      await enviarPaquete(cola.slice(k, k + PAQUETE), ep);
+      if (ep !== S.epoca) return;
+      S.ultima = Date.now(); guardarActividad();   // subir cuenta como uso de la pantalla
+      if (ruta().r === 'subir') pintarSubir();
+    }
+    if (sub.detener) sub.error = 'La detuviste. Lo que no se mandó sigue en la lista: dale "Subir" para continuar.';
+  } catch (e) {
+    if (ep !== S.epoca || e.obsoleto) return;
+    if (e.sesion) {   // la lista se queda en memoria: se vuelve a entrar aquí mismo, sin pasar por Salir (Salir la borra)
+      sesionCaida = true;
+      sub.error = 'Se cerró tu sesión a media subida. Faltan ' + entero(cuentaSub().porEnviar) + ' por mandar y siguen en la lista: dale "Subir" para continuar. ' +
+        'Si recargas la página o usas Salir, la lista se borra y tendrías que arrastrar otra vez los mismos XML (los que ya se guardaron saldrán como "Ya estaba" y no se duplican).';
+    } else sub.error = e.message || 'Error desconocido';
+    if (e.codigo === 'falta_rfc_empresa' && sub.hist) sub.hist.rfc_empresa = null;
+  } finally {
+    if (ep === S.epoca) {
+      sub.enviando = false; sub.detener = false; S.cache.clear();
+      if (sesionCaida) { errorEnVista(errSesion('Tu sesión expiró a media subida. Vuelve a entrar aquí, sin recargar la página: los XML que faltan siguen en la lista.')); return; }
+      const c = cuentaSub();
+      const resumen = entero(c.aceptado) + ' aceptados, ' + entero(c.ya_estaba) + ' ya estaban, ' + entero(c.rechazado) + ' rechazados';
+      if (!sub.error) toast(c.no_enviado ? (c.no_enviado === 1 ? 'Falta 1 no enviado' : 'Faltan ' + entero(c.no_enviado) + ' no enviados') + ': dale "Reintentar". (' + resumen + ')' : 'Listo: ' + resumen + '.');
+      if (ruta().r === 'subir') { pintarSubir(); cargarHistorial(S.vez); }
+    }
+  }
+}
+async function enviarPaquete(items, ep) {
+  if (S.sub.detener) return;
+  let r;
+  try { r = await api('conta_xml_subir', { empresa_id: S.sub.empresa, lote: S.sub.lote, archivos: items.map(i => ({ archivo: i.nombre, xml: i.texto })) }); }
+  catch (e) {
+    if (e.obsoleto || ep !== S.epoca) throw errObsoleto();
+    if (e.sesion || (e.negocio && FATALES.has(e.codigo))) { if (e.negocio && TXT_FATAL[e.codigo]) e.message = TXT_FATAL[e.codigo]; throw e; }   // detiene toda la subida
+    if (e.red) {   // conexión, tiempo o tamaño: partir ayuda con un paquete muy grande, no con la red caída
+      if (++S.sub.redSeguidas >= FALLAS_SEGUIDAS) {
+        const quedan = S.sub.items.filter(i => i.previa === 'listo' && !i.res).length;
+        throw new Error('Se perdió la conexión con SQL Connect: ' + FALLAS_SEGUIDAS + ' intentos seguidos fallaron, así que se detuvo la subida. ' + entero(quedan) + ' siguen en la lista: dale "Subir" cuando vuelva.');
+      }
+      if (S.sub.redSeguidas >= 2) {   // una falla suelta se parte de inmediato (paquete grande); a la segunda seguida, espera un poco
+        await new Promise(res => setTimeout(res, ESPERA_RED_MS));
+        if (ep !== S.epoca) throw errObsoleto();
+        if (S.sub.detener) return;
+      }
+    }
+    if (items.length > 1) { const m = Math.ceil(items.length / 2); await enviarPaquete(items.slice(0, m), ep); await enviarPaquete(items.slice(m), ep); return; }
+    const motivo = (e.negocio ? 'La base no lo pudo revisar: ' : 'No se pudo enviar: ') + (e.message || 'error');
+    items[0].res = { resultado: 'no_enviado', motivo };
+    S.sub.hechos += 1;
+    S.sub.solosSeguidos = (S.sub.ultimoMotivo === motivo) ? S.sub.solosSeguidos + 1 : 1; S.sub.ultimoMotivo = motivo;
+    if (S.sub.solosSeguidos >= FALLAS_SEGUIDAS) throw new Error('La base falló ' + FALLAS_SEGUIDAS + ' archivos seguidos con el mismo error (' + (e.message || 'error') + '), así que se detuvo la subida. Avisa a Sergio; lo que no se mandó sigue en la lista.');
+    return;
+  }
+  S.sub.redSeguidas = 0; S.sub.solosSeguidos = 0; S.sub.ultimoMotivo = null;   // respondió: no es falla de todo el sistema
+  for (const x of (r.resultados || [])) { const it = items[Number(x.i) - 1]; if (it) { it.res = x; it.texto = null; } }   // el contenido ya no se guarda en memoria
+  for (const it of items) if (!it.res) it.res = { resultado: 'no_enviado', motivo: 'La base no devolvió resultado para este archivo; reintenta.' };
+  S.sub.hechos += items.length;
+}
+function subAccion(k, arg) {
+  const sub = S.sub;
+  if (k === 'subSubir') subirTodo();
+  else if (k === 'subDetener') { sub.detener = true; pintarSubir(); }
+  else if (k === 'subReintentar') { sub.items.forEach(i => { if (i.res && i.res.resultado === 'no_enviado' && i.texto != null) i.res = null; }); subirTodo(); }
+  else if (k === 'subLimpiar') { if (sub.enviando) return; sub.items = []; sub.lote = null; sub.error = null; sub.filtro = 'todos'; pintarSubir(); }
+  else if (k === 'subFiltro') { sub.filtro = arg || 'todos'; pintarSubir(); }
+  else if (k === 'histEstado') { sub.histEstado = (arg && arg === sub.histEstado && arg !== 'todos') ? 'todos' : (arg || 'todos'); cargarHistorial(S.vez); }
+  else if (k === 'histActualizar') cargarHistorial(S.vez);
 }
 
 /* ════════════════ C1 · Cuánto debemos (estimado) ════════════════ */
@@ -726,9 +1002,11 @@ document.addEventListener('click', ev => {
   const f = ev.target.closest('[data-ir]');
   if (f && !ev.target.closest('a,button,input,select,label')) ir(f.getAttribute('data-ir'));
 });
+document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.stat-card.click[data-act]')) { ev.preventDefault(); accion(ev.target.getAttribute('data-act'), ev.target.getAttribute('data-arg'), ev.target); } });
 document.addEventListener('change', ev => {
   const el = ev.target.closest('[data-chg]'); if (!el) return; const k = el.getAttribute('data-chg');
   if (k === 'empresa') cambiarEmpresa(el.value);
+  else if (k === 'archivos' || k === 'carpeta') { const fs = Array.from(el.files || []).map(f => ({ file: f, ruta: f.webkitRelativePath || f.name })); el.value = ''; agregarArchivos(fs); }
   else if (k === 'soloSaldo') { S.ui.soloSaldo = !!el.checked; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
   else if (k === 'orden') { S.ui.orden = el.value; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
   else if (k === 'factSolo') { S.ui.factSolo = !!el.checked; router(); }
@@ -737,8 +1015,18 @@ document.addEventListener('change', ev => {
 document.addEventListener('input', ev => {
   const el = ev.target.closest('[data-inp]'); if (!el) return;
   if (el.getAttribute('data-inp') === 'q') { S.ui.q = el.value || ''; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
+  else if (el.getAttribute('data-inp') === 'histQ') { S.sub.histQ = el.value || ''; clearTimeout(S.sub.histT); S.sub.histT = setTimeout(() => cargarHistorial(S.vez), 450); }
+});
+document.addEventListener('dragover', ev => { if (!S.inicio || ruta().r !== 'subir') return; ev.preventDefault(); const z = $('zona'); if (z && !z.classList.contains('apagada')) z.classList.add('sobre'); });
+document.addEventListener('dragleave', ev => { const z = $('zona'); if (z && (!ev.relatedTarget || !document.documentElement.contains(ev.relatedTarget))) z.classList.remove('sobre'); });
+document.addEventListener('drop', ev => {
+  if (!S.inicio || ruta().r !== 'subir') return; ev.preventDefault();   // en Subir XML, soltar en cualquier parte de la página cuenta
+  const z = $('zona'); if (z) z.classList.remove('sobre');
+  if (S.sub.enviando || S.sub.leyendo || (z && z.classList.contains('apagada'))) { toast('Ahora no se pueden agregar archivos.'); return; }
+  archivosDeDrop(ev.dataTransfer).then(agregarArchivos);
 });
 function accion(k, arg) {
+  if (/^(sub|hist)[A-Z]/.test(k)) { subAccion(k, arg); return; }
   if (k === 'salir') salir();
   else if (k === 'arrancar') arrancar();
   else if (k === 'actualizar') actualizar();
@@ -756,7 +1044,11 @@ async function actualizar() {
   catch (e) { if (ep !== S.epoca || e.obsoleto) return; if (e.sesion || e.codigo === 'sin_acceso') { if (e.sesion) errorEnVista(e); else vSinAcceso(e.message); return; } errorEnVista(e); return; }
   pintarShell(); await router(); toast('Actualizado.');
 }
-function cambiarEmpresa(v) { const n = Number(v); if (!Number.isInteger(n)) return; S.empresa = n; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial(); arrancar(); }
+function cambiarEmpresa(v) {
+  const n = Number(v); if (!Number.isInteger(n)) return;
+  if (S.sub.enviando || S.sub.leyendo) { toast('Espera a que termine la subida para cambiar de empresa.'); const s = $('selEmp'); if (s) s.value = String(S.empresa); return; }
+  S.empresa = n; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial(); S.sub = subInicial(); arrancar();
+}
 
 /* ── Arranque ── */
 if (S.token) arrancar(); else { Conexion.salir(); vLogin(S.motivo); }
