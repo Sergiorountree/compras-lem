@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Contabilidad · Grupo LEM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  /* ── Mismo sistema visual que Ventas y Nóminas (app de pre-nómina) ── */
+  :root { --font-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif; --font-serif: 'Instrument Serif', Georgia, serif; --font-mono: 'JetBrains Mono', monospace;
+          --lem: #534AB7; --lem-dark: #3C3489; --lem-light: #EEEDFE; --tota: #C03028;
+          --bg: #FAFAF7; --surface: #FFFFFF; --border: #E8E6DF; --border-strong: #D5D2C7; --text: #1A1A1A; --text-soft: #6B6B66; --text-faint: #9B9A92;
+          --verde: #0E5A42; --verde-bg: #DAF1E9; --ambar: #7A4B05; --ambar-bg: #FCEFD5; --rojo: #8C1F1B; --rojo-bg: #FCE7E5; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { font-family: var(--font-sans); background: var(--bg); color: var(--text); font-feature-settings: 'cv11', 'ss01'; letter-spacing: -0.005em; font-size: 14px; }
+  button, input, select, textarea { font-family: inherit; }
+  button { background: none; border: none; color: inherit; }
+  a { color: inherit; }
+  .font-serif { font-family: var(--font-serif); letter-spacing: 0; } .num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  .grain { background-image: radial-gradient(circle at 20% 10%, rgba(83,74,183,0.04) 0%, transparent 50%), radial-gradient(circle at 80% 90%, rgba(192,48,40,0.03) 0%, transparent 50%); }
+  .shadow-card { box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 0 0 1px var(--border); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; font-size: 14px; color: var(--text-soft); cursor: pointer; transition: background 0.1s ease, color 0.1s ease; width: 100%; text-align: left; text-decoration: none; }
+  .nav-item:hover { background: rgba(0,0,0,0.04); color: var(--text); } .nav-item.active { background: var(--lem-light); color: var(--lem-dark); font-weight: 500; } .nav-item.active svg { color: var(--lem); }
+  .nav-item .soon { margin-left: auto; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
+  .nav-item.soon-item { cursor: default; color: var(--text-faint); } .nav-item.soon-item:hover { background: none; color: var(--text-faint); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: all 0.1s ease; cursor: pointer; border: 1px solid transparent; text-decoration: none; white-space: nowrap; }
+  .btn-primary { background: var(--lem); color: white; } .btn-primary:hover { background: var(--lem-dark); }
+  .btn-secondary { background: white; color: var(--text); border-color: var(--border-strong); } .btn-secondary:hover { background: var(--bg); }
+  .btn-ghost { background: transparent; color: var(--text-soft); } .btn-ghost:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; } .btn.p-2 { padding: 8px; } .btn.p-15 { padding: 6px; } .btn.sm { padding: 5px 10px; font-size: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+  .b-verde { background: var(--verde-bg); color: var(--verde); } .b-ambar { background: var(--ambar-bg); color: var(--ambar); } .b-rojo { background: var(--rojo-bg); color: var(--rojo); }
+  .b-gris { background: #F1EFE8; color: #565550; } .b-lem { background: var(--lem-light); color: var(--lem-dark); }
+  .conf { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 99px; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; border: 1px solid; white-space: nowrap; vertical-align: middle; }
+  .conf-est { background: #FFF7E6; color: var(--ambar); border-color: #F0CD83; } .conf-auto { background: #EEF8F2; color: var(--verde); border-color: #B9E0CB; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; border-radius: 99px; padding: 1px 8px; background: #F1EFE8; color: #565550; white-space: nowrap; }
+  .chip-pf { background: #EAE6F7; color: #322787; }
+  .lem-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+  .lem-table thead th { background: #F5F3EC; font-size: 11px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .lem-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13.5px; background: white; vertical-align: middle; }
+  .lem-table tbody tr:hover td { background: #FAFAF7; } .lem-table tbody tr:last-child td { border-bottom: none; }
+  .lem-table.densa thead th { padding: 8px 10px; font-size: 10.5px; } .lem-table.densa tbody td { padding: 8px 10px; font-size: 13px; }
+  .lem-table td.num, .lem-table th.text-right { white-space: nowrap; }
+  .lem-table .fija { position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--border); } .lem-table thead th.fija { z-index: 3; }
+  .lem-table tr.total td { background: #F5F3EC !important; font-weight: 600; } .lem-table tr.sel td { background: var(--lem-light) !important; }
+  .lem-table tr.link { cursor: pointer; } .lem-table tr.cero td { background: #FFFBEB; }
+  .lnk { color: var(--lem-dark); text-decoration: none; font-weight: 500; } .lnk:hover { text-decoration: underline; }
+  .tabla { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .dim { color: #C5C2B5; } .neg { color: var(--rojo); } .pos { color: var(--verde); } .warn { color: #9A5B00; }
+  .toast { position: fixed; bottom: 24px; right: 24px; z-index: 200; background: #1A1A1A; color: white; padding: 12px 16px; border-radius: 10px; font-size: 13px; max-width: 400px; box-shadow: 0 10px 32px rgba(0,0,0,0.2); animation: toast-in 0.2s ease; }
+  @keyframes toast-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .tip { position: relative; } .tip:hover .tip-body { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .tip-body { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(4px); background: #1A1A1A; color: white; padding: 6px 10px; border-radius: 5px; font-size: 11px; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.12s ease; z-index: 30; font-weight: 400; }
+  .stat-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+  .stat-card .stat-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-top: 8px; overflow-wrap: anywhere; line-height: 1.15; }
+  .stat-card .stat-label { font-size: 12px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .card { background: white; border-radius: 12px; box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 0 0 1px var(--border); margin-bottom: 20px; min-width: 0; }
+  .card-head { padding: 16px 20px 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .card-head h3 { font-size: 15px; font-weight: 600; } .card-head p { font-size: 12.5px; color: var(--text-soft); margin-top: 3px; max-width: 760px; line-height: 1.45; }
+  .card-body { padding: 0 20px 18px; } .card-foot { padding: 10px 20px 14px; font-size: 12px; color: var(--text-soft); border-top: 1px solid var(--border); line-height: 1.5; }
+  .fade-in { animation: fade-in 0.2s ease; } @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  /* ── Armazón (sidebar + main), igual que Ventas ── */
+  .shell { display: flex; height: 100%; } .sidebar { width: 248px; flex-shrink: 0; border-right: 1px solid var(--border); background: #FCFBF7; display: flex; flex-direction: column; }
+  .sb-head { padding: 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .logo { width: 32px; height: 32px; background: var(--lem); border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-family: var(--font-serif); flex-shrink: 0; }
+  .sb-brand { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: #6B7280; text-transform: uppercase; } .sb-app { font-size: 13px; font-weight: 500; line-height: 1.2; }
+  .sb-nav { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  .sb-foot { padding: 8px 12px 12px; border-top: 1px solid var(--border); } .sb-label { padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9CA3AF; font-weight: 500; }
+  .user-menu { padding: 10px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px; }
+  .avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 500; font-size: 12px; color: white; flex-shrink: 0; }
+  .sb-extra { padding: 4px 8px 0; display: flex; flex-direction: column; gap: 6px; } .sb-extra label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #9CA3AF; font-weight: 500; display: block; margin-bottom: 2px; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; } .main > .scroll { flex: 1; overflow: auto; }
+  .topbar { border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); flex-wrap: wrap; }
+  .topbar h1 { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; } .topbar p { font-size: 14px; color: #6B7280; margin-top: 2px; }
+  .sel { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 13.5px; background: white; max-width: 100%; }
+  .inp { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-strong); font-size: 13.5px; background: white; max-width: 100%; }
+  .login-wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+  .login-box { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 12px 40px rgba(0,0,0,0.08), 0 0 0 1px var(--border); }
+  .logo-lg { width: 52px; height: 52px; background: var(--lem); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 22px; font-family: var(--font-serif); }
+  .msg-card { background: white; border-radius: 12px; padding: 32px; text-align: center; font-size: 14px; color: #6B7280; }
+  .banner { padding: 14px 16px; border-radius: 8px; border: 1px solid; margin-bottom: 16px; font-size: 13.5px; line-height: 1.5; }
+  .banner-amber { background: #FFFBEB; border-color: #F0CD83; color: #4A3205; } .banner-lem { background: var(--lem-light); border-color: #D9D6F7; color: var(--lem-dark); }
+  .banner-red { background: #FEF2F2; border-color: #F2B8B3; color: var(--rojo); } .banner-gris { background: white; border-color: var(--border); color: var(--text-soft); }
+  .banner details { margin-top: 8px; } .banner summary { cursor: pointer; font-weight: 500; } .banner ul { margin: 6px 0 0 18px; } .banner li { margin-top: 3px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; flex-wrap: wrap; }
+  .seg button { padding: 6px 10px; font-size: 12.5px; font-weight: 500; background: white; color: var(--text-soft); cursor: pointer; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: none; } .seg button.on { background: var(--lem-light); color: var(--lem-dark); }
+  .stack { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: #EEEDE6; } .stack > span { display: block; height: 100%; }
+  .leyendas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; margin-top: 12px; }
+  .ley { display: flex; gap: 8px; align-items: flex-start; } .ley i { width: 10px; height: 10px; border-radius: 3px; margin-top: 4px; flex-shrink: 0; } .ley .t { font-size: 12px; color: var(--text-soft); } .ley .v { font-size: 14px; font-weight: 600; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; } .kv:last-child { border-bottom: none; } .kv .k { color: var(--text-soft); } .kv .v { text-align: right; font-weight: 500; }
+  .exc { padding: 10px 0; border-bottom: 1px solid var(--border); } .exc:last-child { border-bottom: none; }
+  /* utilidades */
+  .flex { display: flex; } .items-center { align-items: center; } .items-start { align-items: flex-start; } .justify-between { justify-content: space-between; } .justify-center { justify-content: center; } .flex-wrap { flex-wrap: wrap; } .flex-1 { flex: 1; } .min-w-0 { min-width: 0; }
+  .gap-1 { gap: 4px; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; }
+  .p-8 { padding: 28px 32px 48px; } .mb-1 { margin-bottom: 4px; } .mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 12px; } .mb-4 { margin-bottom: 16px; } .mb-5 { margin-bottom: 20px; } .mb-6 { margin-bottom: 24px; }
+  .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; } .mt-5 { margin-top: 20px; }
+  .text-10 { font-size: 10px; } .text-11 { font-size: 11px; } .text-xs { font-size: 12px; } .text-13 { font-size: 13px; } .text-sm { font-size: 14px; } .text-base { font-size: 16px; } .text-lg { font-size: 18px; } .text-xl { font-size: 20px; } .text-2xl { font-size: 24px; }
+  .text-gray-400 { color: #9CA3AF; } .text-gray-500 { color: #6B7280; } .text-gray-600 { color: #4B5563; }
+  .font-medium { font-weight: 500; } .font-semibold { font-weight: 600; } .uppercase { text-transform: uppercase; } .text-center { text-align: center; } .text-right { text-align: right; } .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .leading-relaxed { line-height: 1.6; } .nowrap { white-space: nowrap; }
+  .w-full { width: 100%; } .grid { display: grid; gap: 16px; } .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .nombre-prov { min-width: 200px; max-width: 300px; white-space: normal; line-height: 1.3; }
+  .badge.largo { white-space: normal; text-transform: none; letter-spacing: 0; line-height: 1.3; }
+  @media print { .sidebar, .topbar .acciones, #toast { display: none !important; } .shell { display: block; } .main { overflow: visible; } }
+  @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  @media (max-width: 760px) {
+    .shell { flex-direction: column; height: auto; min-height: 100%; } .sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .sb-head { padding: 12px 16px; } .sb-nav { flex-direction: row; overflow-x: auto; padding: 8px; gap: 4px; } .nav-item { white-space: nowrap; width: auto; padding: 6px 10px; } .nav-item.soon-item { display: none; }
+    .sb-foot { padding: 4px 8px 8px; } .sb-label { display: none; } .sb-extra { flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .main { overflow: visible; } .main > .scroll { overflow: visible; } .topbar { padding: 14px 16px; } .topbar h1 { font-size: 18px; } .topbar p { font-size: 13px; }
+    .p-8 { padding: 16px 16px 40px; } .card-head { padding: 14px 14px 10px; } .card-body { padding: 0 14px 14px; } .card-foot { padding: 10px 14px 12px; }
+    .stat-card { padding: 12px; } .stat-card .stat-value { font-size: 16px; margin-top: 6px; } .stat-card .stat-label { font-size: 10.5px; }
+    .nombre-prov { min-width: 130px; max-width: 160px; } .lem-table td.fija, .lem-table th.fija { max-width: 170px; }
+    .grid { gap: 10px; } .toast { left: 16px; right: 16px; bottom: 16px; max-width: none; } .login-box { padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="msg-card">Cargando…</div></div>
+<div id="toast"></div>
+
+<script>
+/* Si la conexión (SQL Connect / Firebase) no carga —sin internet, bloqueador de contenido—, la pantalla lo dice en lugar de
+   quedarse en "Cargando…". Contabilidad no tiene otro camino: no usa el respaldo de n8n. */
+setTimeout(function () {
+  if (document.documentElement.getAttribute('data-conta') === 'ok') return;
+  var r = document.getElementById('root');
+  if (r) r.innerHTML = '<div class="login-wrap"><div class="login-box" style="max-width:420px;text-align:center"><div class="font-serif text-xl mb-2">No cargó la conexión</div>' +
+    '<p class="text-sm text-gray-500">No se pudo cargar SQL Connect (Firebase). Revisa tu internet o el bloqueador de contenido y vuelve a cargar la página.</p>' +
+    '<a class="btn btn-secondary mt-4" href="/">Volver a los módulos</a></div></div>';
+}, 15000);
+</script>
+
+<script type="module">
+/* ═══ SQL Connect (inicio) ═══ Firebase → Postgres directo (decisión 8/12-sep-2026), con la misma credencial de Google del botón.
+   Diferencias con los otros módulos (plan de Contabilidad §6):
+   - La sesión de Firebase vive en sessionStorage (browserSessionPersistence): dura lo que la pestaña.
+   - La conexión y la función de llamada NO se publican en window: viven dentro de este módulo.
+   - Siempre la mutación "Accion": cada acción conta_* escribe su renglón en lem.conta_bitacora (por "Consulta", de solo
+     lectura, responden sin_bitacora). */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { initializeAuth, browserSessionPersistence, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+import { getDataConnect, mutationRef, executeMutation } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-data-connect.js";
+const fbApp = initializeApp({"apiKey": "AIzaSyC1ycKtN1atpb1monWFIJqmR4X5vmpnNoo", "authDomain": "lem-erp.firebaseapp.com", "projectId": "lem-erp", "appId": "1:902179844288:web:e887a0886fa1188da2fd25"});
+const fbAuth = initializeAuth(fbApp, { persistence: browserSessionPersistence });
+const dc = getDataConnect(fbApp, { connector: "api", location: "us-central1", service: "lem-api" });
+let resolverListo; const listoFb = new Promise(r => { resolverListo = r; });
+onAuthStateChanged(fbAuth, () => resolverListo());
+const Conexion = Object.freeze({
+  listo: listoFb,
+  usuario: () => fbAuth.currentUser,
+  entrar: (idToken) => signInWithCredential(fbAuth, GoogleAuthProvider.credential(idToken)),
+  salir: () => signOut(fbAuth).catch(() => {}),
+  llamar: async (accion, datos) => {
+    const r = await executeMutation(mutationRef(dc, "Accion", { accion, datos: JSON.stringify(datos || {}) }));
+    return (r && r.data && r.data.r && r.data.r.r) || {};
+  }
+});
+/* ═══ SQL Connect (fin) ═══ */
+
+/* ── Módulo Contabilidad · F0 (7-oct-2026). Solo lectura: C0 Inicio, C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal,
+   C3 Cortes de caja. Los números los da SQL (lem.fn_api_conta_*, migración 091); la pantalla solo pinta. Contrato:
+   compras-v1/docs/contabilidad-api.md. Solo entran administración y contabilidad: el servidor responde "sin_acceso" a los demás.
+   Reglas: solo SQL Connect (sin respaldo de n8n); siempre empresa_id; ninguna respuesta se guarda en localStorage ni en el HTML
+   (viven en memoria y se borran al salir); la sesión se cierra tras 15 minutos sin uso. ── */
+document.documentElement.setAttribute('data-conta', 'ok');
+const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
+const INACTIVIDAD_MIN = 15;
+const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
+const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes']);
+const ss = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }, del(k) { try { sessionStorage.removeItem(k); } catch (e) {} } };
+const uiInicial = () => ({ excTodas: false, q: '', soloSaldo: true, orden: 'abierto', base: null, factSolo: false, mesIng: null, mesCor: null, diasFiltro: 'revisar' });
+const S = { token: ss.get('lem_tok') || null, usuario: '', inicio: null, empresa: null, cache: new Map(), vez: 0, epoca: 0, ultima: Date.now(), motivo: '', tiendas: [], deb: null, ui: uiInicial(), toastT: null };
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const N = n => Number(n) || 0;
+const esNum = n => n !== null && n !== undefined && n !== '' && isFinite(Number(n));
+
+/* ── Formatos: montos con 2 decimales, fechas dd/mm/aaaa, instantes en hora de Chihuahua. null = "no hay dato" (—), no cero. ── */
+const F2 = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const F1 = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const F0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+function pesos(n) { if (!esNum(n)) return '—'; const v = Number(n); return (v < 0 ? '−$' : '$') + F2.format(Math.abs(v)); }
+function entero(n) { return esNum(n) ? F0.format(Number(n)) : '—'; }
+function porc(n) { return esNum(n) ? F1.format(Number(n)) + '%' : '—'; }
+function variacion(n) { if (!esNum(n)) return '—'; const v = Number(n); return (v > 0 ? '+' : v < 0 ? '−' : '') + F1.format(Math.abs(v)) + '%'; }
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fecha(d) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : '—'; }
+function fechaCorta(d) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? Number(m[3]) + ' ' + MESES_C[Number(m[2]) - 1] : '—'; }
+function instante(iso) {   // "…+00:00" → hora de Chihuahua
+  if (!iso) return '—'; const t = new Date(iso); if (isNaN(t.getTime())) return '—';
+  try { return t.toLocaleString('es-MX', { timeZone: 'America/Chihuahua', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', ''); }
+  catch (e) { return t.toISOString().slice(0, 16).replace('T', ' ') + ' UTC'; }
+}
+function horaChih(s) {   // robot_ultima_corrida ya viene en hora de Chihuahua y sin zona: no se convierte
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(s || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4] + ':' + m[5] : '—';
+}
+function hhmm(s) { const m = /^(\d{2}):(\d{2})/.exec(String(s || '')); return m ? m[1] + ':' + m[2] : '—'; }
+function mesLargo(ym) { const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '')); return m ? MESES[Number(m[2]) - 1] + ' ' + m[1] : '—'; }
+function mesMas(ym, n) { const a = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) - 1 + n; const d = new Date(Date.UTC(a, m, 1)); return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'); }
+function dias(n) { if (!esNum(n)) return '—'; const v = Number(n); return v === 0 ? 'hoy' : v === 1 ? '1 día' : F0.format(v) + ' días'; }
+function sinAcentos(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+
+/* ── Iconos ── */
+const ICONS = { home: '<path d="M3 12L12 4l9 8M5 10v10h4v-6h6v6h4V10"/>', chart: '<path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-7"/>',
+  money: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9a3 3 0 0 0-2.8-2c-1.7 0-3 1-3 2.5s1.5 2 3 2.5 3 1 3 2.5-1.3 2.5-3 2.5a3 3 0 0 1-2.8-2M12 6v2m0 8v2"/>',
+  cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>', lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>', refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>',
+  chevronR: '<path d="M9 6l6 6-6 6"/>', chevronL: '<path d="M15 6l-6 6 6 6"/>', alert: '<path d="M12 2L2 22h20L12 2zM12 9v4M12 17h.01"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>' };
+const icon = (n, s) => '<svg width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
+
+/* ── Sesión: solo mientras la pestaña está abierta y con cierre por inactividad ── */
+const huella = t => String(t || '').slice(-24);
+function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
+function sesionAbierta() { return !!(S.token || S.inicio); }
+const AVISO_INACT = 'Contabilidad se cerró: pasaron ' + INACTIVIDAD_MIN + ' min sin usar esta pantalla. Tus otros módulos siguen abiertos; vuelve a entrar aquí.';
+function guardarActividad() { if (S.token) ss.set('lem_conta_ultima', JSON.stringify({ t: S.ultima, tok: huella(S.token) })); }
+function actividad() {
+  const ahora = Date.now();
+  if (sesionAbierta() && ahora - S.ultima >= INACTIVIDAD_MS) { cerrarSesion(AVISO_INACT, true); return; }
+  const antes = S.ultima; S.ultima = ahora; if (ahora - antes > 5000) guardarActividad();
+}
+function revisarInactividad() { if (sesionAbierta() && Date.now() - S.ultima >= INACTIVIDAD_MS) cerrarSesion(AVISO_INACT, true); }
+['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll', 'mousemove'].forEach(ev => window.addEventListener(ev, actividad, { passive: true, capture: true }));
+document.addEventListener('visibilitychange', revisarInactividad); window.addEventListener('focus', revisarInactividad); window.addEventListener('pageshow', revisarInactividad);
+setInterval(revisarInactividad, 15000);
+(function alCargar() {   // una pestaña recargada o restaurada después de 15 min sin uso entra cerrada
+  let prev = null; try { prev = JSON.parse(ss.get('lem_conta_ultima') || 'null'); } catch (e) {}
+  if (S.token && ss.get('lem_conta_cerrado') === huella(S.token)) { S.token = null; S.motivo = AVISO_INACT; return; }   // ya se cerró aquí con este token
+  if (S.token && prev && prev.tok === huella(S.token) && Date.now() - N(prev.t) >= INACTIVIDAD_MS) {
+    ss.set('lem_conta_cerrado', huella(S.token)); ss.del('lem_conta_ultima'); S.token = null; Conexion.salir();   // lem_tok se queda: es de los otros módulos
+    S.motivo = AVISO_INACT;
+  }
+})();
+function cerrarSesion(msj, soloAqui) {
+  S.epoca++; S.vez++; S.inicio = null; S.empresa = null; S.usuario = ''; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial();
+  if (soloAqui && S.token) ss.set('lem_conta_cerrado', huella(S.token)); else ss.del('lem_tok');
+  ss.del('lem_conta_ultima'); S.token = null;
+  Conexion.salir();   // solo la sesión de Firebase de esta página (browserSessionPersistence)
+  try { if (location.hash) history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  vLogin(msj);
+}
+function salir() { cerrarSesion('Sesión cerrada.'); }
+
+/* ── API: solo SQL Connect, solo acciones conta_*. Sin respaldo de n8n: si SQL Connect falla, se muestra el error. ── */
+function errSesion(m) { const e = new Error(m); e.sesion = true; return e; }
+function errObsoleto() { const e = new Error('obsoleto'); e.obsoleto = true; return e; }
+async function sesion() {
+  await Promise.race([Conexion.listo, new Promise(r => setTimeout(r, 5000))]);
+  const em = emailDeToken(S.token);
+  let u = Conexion.usuario();
+  if (u && em && String(u.email || '').toLowerCase() !== em) { await Conexion.salir(); u = null; }
+  if (!u) {
+    if (!S.token) throw errSesion('Entra con tu cuenta @grupolem.com.');
+    try { await Conexion.entrar(S.token); }
+    catch (e) { const c = String((e && (e.code || e.message)) || ''); throw errSesion(/expired|invalid-credential|invalid-idp|token/i.test(c) ? 'Tu sesión de Google expiró — vuelve a entrar.' : 'No se pudo abrir la sesión (' + (c || 'error') + '). Vuelve a entrar.'); }
+    u = Conexion.usuario();
+  }
+  if (!u) throw errSesion('No se pudo abrir la sesión. Vuelve a entrar.');
+  S.usuario = String(u.email || em || '').toLowerCase();
+}
+async function api(accion, datos) {
+  if (!ACCIONES.has(accion)) throw new Error('Acción no permitida en Contabilidad: ' + accion);
+  const d = Object.assign({}, datos || {});
+  if (S.empresa != null && d.empresa_id == null) d.empresa_id = S.empresa;
+  const ep = S.epoca;
+  await sesion();
+  if (ep !== S.epoca) throw errObsoleto();
+  let j;
+  try { j = await Conexion.llamar(accion, d); }
+  catch (e) {
+    if (ep !== S.epoca) throw errObsoleto();
+    const c = String((e && (e.code || e.message)) || '');
+    if (/unauthenticated|unauthorized|auth\//i.test(c)) throw errSesion('Tu sesión expiró — vuelve a entrar.');
+    const x = new Error('SQL Connect no respondió (' + (c || 'sin respuesta') + '). Contabilidad no usa otro camino: reintenta en un momento.'); x.red = true; throw x;
+  }
+  if (ep !== S.epoca) throw errObsoleto();
+  if (!j || typeof j !== 'object' || Array.isArray(j) || !Object.keys(j).length) { const x = new Error('SQL Connect respondió vacío. Reintenta en un momento.'); x.red = true; throw x; }
+  if (j.error) { const x = new Error(j.detalle || j.error); x.negocio = true; x.codigo = j.error; throw x; }
+  return j;
+}
+async function traer(accion, datos) {   // memoria de la pestaña; se borra con Actualizar, al cambiar de empresa y al salir
+  const k = accion + '|' + S.empresa + '|' + JSON.stringify(datos || {});
+  if (S.cache.has(k)) return S.cache.get(k);
+  const ep = S.epoca; const r = await api(accion, datos);
+  if (ep !== S.epoca) throw errObsoleto();
+  S.cache.set(k, r); return r;
+}
+function guardarEnMemoria(accion, datos, r) { S.cache.set(accion + '|' + S.empresa + '|' + JSON.stringify(datos || {}), r); }
+
+/* ── Toast ── */
+function toast(msg) { const t = $('toast'); if (!t) return; t.innerHTML = '<div class="toast" role="status">' + esc(msg) + '</div>'; clearTimeout(S.toastT); S.toastT = setTimeout(() => { t.innerHTML = ''; }, 3200); }
+
+/* ── Entrada con Google, "Sin acceso" y errores de arranque ── */
+let intentosGsi = 0;
+function vLogin(msj) {
+  S.inicio = null;
+  $('root').innerHTML = '<div class="login-wrap grain"><div style="width:100%;max-width:380px"><div class="login-box">' +
+    '<div class="flex justify-center mb-4"><div class="logo-lg">L</div></div><div class="text-center mb-1"><h1 class="font-serif text-2xl" style="color:var(--lem);font-weight:400">Grupo LEM Contabilidad</h1></div>' +
+    '<p class="text-center text-gray-500 text-sm mb-6">Solo administración y contabilidad</p><div id="gbtn" class="flex justify-center"></div>' +
+    '<p class="text-center text-xs text-gray-500 mt-4" id="loginMsg">' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p>' +
+    '<p class="text-center text-11 text-gray-400 mt-3">La sesión dura mientras la pestaña esté abierta y se cierra tras ' + INACTIVIDAD_MIN + ' min sin uso.</p></div>' +
+    '<div class="text-center mt-5 text-xs text-gray-400"><a href="/" style="color:inherit">Portal Grupo LEM · compras.grupolem.com</a></div></div></div>';
+  intentosGsi = 0; pintarBotonGoogle();
+}
+function pintarBotonGoogle() {
+  const b = $('gbtn'); if (!b) return;
+  if (window.google && google.accounts && google.accounts.id) {
+    google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
+      error_callback: (e) => toast('Google no pudo abrir la ventana de acceso (' + ((e && e.type) || 'desconocido') + '). Permite ventanas emergentes para este sitio y reintenta.'),
+      callback: (resp) => { S.token = resp.credential; ss.set('lem_tok', S.token); ss.del('lem_conta_cerrado'); S.ultima = Date.now(); guardarActividad(); arrancar(); } });
+    google.accounts.id.renderButton(b, { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
+  } else if (++intentosGsi < 40) setTimeout(pintarBotonGoogle, 400);
+  else b.innerHTML = '<p class="text-xs" style="color:var(--rojo)">No cargó el botón de Google. Revisa tu internet o el bloqueador y recarga la página.</p>';
+}
+function vSinAcceso(detalle) {
+  S.inicio = null;
+  $('root').innerHTML = '<div class="login-wrap grain"><div class="login-box" style="max-width:420px;text-align:center"><div class="flex justify-center mb-3"><div class="logo-lg">L</div></div>' +
+    '<div class="font-serif text-2xl mb-2">Sin acceso</div><p class="text-sm text-gray-600">' + esc(detalle || 'No tienes acceso al módulo de Contabilidad') + '.</p>' +
+    '<p class="text-xs text-gray-500 mt-3">Contabilidad es solo para administración y contabilidad. Si crees que deberías entrar, pídeselo a Sergio.</p>' +
+    (S.usuario ? '<p class="text-11 text-gray-400 mt-3">Entraste como ' + esc(S.usuario) + '</p>' : '') +
+    '<div class="flex justify-center gap-2 mt-5 flex-wrap"><a class="btn btn-secondary" href="/">Volver a los módulos</a><button class="btn btn-ghost" data-act="salir">Entrar con otra cuenta</button></div></div></div>';
+}
+function vErrorArranque(e) {
+  const titulo = e.codigo === 'solo_sql_connect' ? 'Solo por SQL Connect' : 'No se pudo abrir Contabilidad';
+  $('root').innerHTML = '<div class="login-wrap grain"><div class="login-box" style="max-width:460px;text-align:center"><div class="font-serif text-xl mb-2">' + titulo + '</div>' +
+    '<p class="text-sm text-gray-600">' + esc(e.message || 'Error desconocido') + '</p>' + (e.red ? '<p class="text-xs text-gray-500 mt-2">Contabilidad solo usa SQL Connect: no hay respaldo por otro camino.</p>' : '') +
+    '<div class="flex justify-center gap-2 mt-5 flex-wrap"><button class="btn btn-primary" data-act="arrancar">Reintentar</button><a class="btn btn-secondary" href="/">Volver a los módulos</a><button class="btn btn-ghost" data-act="salir">Salir</button></div></div></div>';
+}
+async function arrancar() {
+  const ep = S.epoca;
+  $('root').innerHTML = '<div class="login-wrap grain"><div class="msg-card shadow-card">Abriendo Contabilidad…</div></div>';
+  let r;
+  try { r = await api('conta_inicio', S.empresa != null ? { empresa_id: S.empresa } : {}); }
+  catch (e) {
+    if (ep !== S.epoca || e.obsoleto) return;
+    if (e.sesion) { ss.del('lem_tok'); S.token = null; Conexion.salir(); vLogin(e.message); return; }
+    if (e.codigo === 'sin_acceso') { vSinAcceso(e.message); return; }
+    vErrorArranque(e); return;
+  }
+  if (ep !== S.epoca) return;
+  S.inicio = r; S.empresa = r.empresa_id; S.ultima = Date.now(); guardarActividad();
+  pintarShell(); router();
+}
+
+/* ── Armazón ── */
+const ROLES = { admin: { label: 'Administrador', color: '#534AB7' }, contabilidad: { label: 'Contabilidad', color: '#0E5A42' } };
+function pintarShell() {
+  const p = S.inicio; const rol = ROLES[p.rol] || { label: p.rol || '—', color: '#6B6B66' };
+  const quien = S.usuario || '—'; const ini = (quien.split('@')[0] || '?').slice(0, 2).toUpperCase();
+  const emps = p.empresas || [];
+  let extra = emps.length > 1
+    ? '<div><label for="selEmp">Empresa</label><select id="selEmp" class="sel w-full" data-chg="empresa">' + emps.map(e => '<option value="' + esc(e.empresa_id) + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></div>'
+    : '<div class="text-11 text-gray-500" style="padding:0 4px">' + esc(p.empresa || '') + '</div>';
+  extra += '<a href="/" class="nav-item" style="padding:6px 10px;font-size:12px">' + icon('home', 14) + '<span>Portal de módulos</span></a>';
+  $('root').innerHTML = '<div class="shell"><aside class="sidebar"><div class="sb-head"><div class="logo">L</div><div><div class="sb-brand">Grupo LEM</div><div class="sb-app">Contabilidad</div></div></div><nav class="sb-nav" id="nav" aria-label="Pantallas"></nav>' +
+    '<div class="sb-foot"><div class="sb-label">Sesión</div><div class="user-menu"><div class="avatar" style="width:32px;height:32px;background:' + rol.color + '">' + esc(ini) + '</div><div class="flex-1 min-w-0"><div class="text-13 font-medium truncate">' + esc(quien) + '</div><div class="text-11 text-gray-500 truncate">' + esc(rol.label) + '</div></div>' +
+    '<button class="btn btn-ghost p-2 tip" data-act="salir" aria-label="Salir">' + icon('logout', 14) + '<span class="tip-body">Salir</span></button></div><div class="sb-extra">' + extra + '</div></div></aside>' +
+    '<main class="main"><div class="scroll" id="scroll"><div id="vista"></div></div></main></div>';
+}
+function pintarNav(r) {
+  const items = [['inicio', 'home', 'Inicio'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja']];
+  const n = $('nav'); if (!n) return;
+  n.innerHTML = items.map(([k, ic, t]) => '<a class="nav-item' + (r === k ? ' active' : '') + '" href="#' + k + '"' + (r === k ? ' aria-current="page"' : '') + '>' + icon(ic) + '<span>' + t + '</span></a>').join('') +
+    '<div class="nav-item soon-item">' + icon('file') + '<span>Estado de resultados</span><span class="soon">F1</span></div>' +
+    '<div class="nav-item soon-item">' + icon('lock') + '<span>Cierre del mes</span><span class="soon">F2</span></div>';
+}
+function topbar(t, sub, acciones) { return '<header class="topbar"><div class="min-w-0"><h1>' + t + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (acciones ? '<div class="acciones flex items-center gap-2 flex-wrap">' + acciones + '</div>' : '') + '</header>'; }
+function btnActualizar() { return '<button class="btn btn-secondary" data-act="actualizar">' + icon('refresh', 14) + 'Actualizar</button>'; }
+function stat(label, valor, hint, color, tag) { return '<div class="stat-card"><div class="stat-label">' + label + (tag || '') + '</div><div class="stat-value num" style="color:' + (color || 'var(--text)') + '">' + valor + '</div>' + (hint ? '<div class="text-xs text-gray-500 mt-1">' + hint + '</div>' : '') + '</div>'; }
+function card(titulo, sub, cuerpo, derecha, pie) { return '<section class="card"><div class="card-head"><div class="min-w-0"><h3>' + titulo + '</h3>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (derecha || '') + '</div>' + cuerpo + (pie ? '<div class="card-foot">' + pie + '</div>' : '') + '</section>'; }
+const CONF_EST = '<span class="conf conf-est" title="Estimado: no es un saldo verificado">Estimado</span>';
+const CONF_AUTO = '<span class="conf conf-auto" title="Automático: sale directo de la base">Automático</span>';
+const th = (t, num, extra) => '<th' + (num ? ' class="text-right"' : '') + (extra || '') + '>' + t + '</th>';
+function tdP(n, cls) { const cero = esNum(n) && Number(n) === 0; return '<td class="text-right num' + (cls ? ' ' + cls : '') + '">' + (cero ? '<span class="dim">' + pesos(0) + '</span>' : pesos(n)) + '</td>'; }
+function tdN(n) { const cero = esNum(n) && Number(n) === 0; return '<td class="text-right num">' + (cero ? '<span class="dim">0</span>' : entero(n)) + '</td>'; }
+function pon(h) { const v = $('vista'); if (v) v.innerHTML = '<div class="fade-in">' + h + '</div>'; }
+function arriba() { const sc = $('scroll'); if (sc) sc.scrollTop = 0; if (window.innerWidth <= 760) window.scrollTo(0, 0); }
+function cargando(t, sub) { pon(topbar(t, sub) + '<div class="p-8"><div class="msg-card shadow-card">Cargando…</div></div>'); }
+
+/* ── Rutas: #inicio · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ── */
+const RUTAS = { inicio: vInicio, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes };
+function ruta() {
+  let h = (location.hash || '').replace(/^#/, ''); try { h = decodeURIComponent(h); } catch (e) {}
+  const i = h.indexOf('/'); const r = i < 0 ? h : h.slice(0, i); const arg = i < 0 ? null : (h.slice(i + 1) || null);
+  return RUTAS[r] ? { r, arg } : { r: 'inicio', arg: null };
+}
+function ir(r) { if (location.hash !== '#' + r) location.hash = r; else router(); }
+let rutaAnterior = '';
+window.addEventListener('hashchange', () => { if (S.inicio) router(); });
+async function router() {
+  if (!S.inicio) return;
+  const vez = ++S.vez; const { r, arg } = ruta(); pintarNav(r);
+  const clave = r + '/' + (arg || ''); if (clave !== rutaAnterior) { rutaAnterior = clave; arriba(); }
+  try { await RUTAS[r](arg, vez); }
+  catch (e) { if (vez !== S.vez || (e && e.obsoleto)) return; errorEnVista(e); }
+}
+function errorEnVista(e) {
+  if (e.sesion) { ss.del('lem_tok'); S.token = null; Conexion.salir(); vLogin(e.message); return; }
+  console.error(e);
+  const titulo = e.codigo === 'solo_sql_connect' ? 'Solo por SQL Connect' : e.codigo === 'sin_acceso' ? 'Sin acceso' : e.codigo === 'faltan_datos' ? 'Datos incompletos' : 'No se pudo cargar';
+  pon(topbar(titulo) + '<div class="p-8"><div class="card" style="max-width:640px"><div class="card-head"><div><h3 style="color:var(--rojo)">' + titulo + '</h3><p>' + esc(e.message || 'Error desconocido') + '</p>' +
+    (e.red ? '<p>Contabilidad solo usa SQL Connect: no hay respaldo por otro camino.</p>' : '') + '</div></div><div class="card-body flex gap-2 flex-wrap"><button class="btn btn-primary" data-act="reintentar">Reintentar</button><a class="btn btn-secondary" href="#inicio">Volver al inicio</a></div></div></div>');
+}
+
+/* ════════════════ C0 · Inicio: frescura de las fuentes, excepciones y adopción ════════════════ */
+const ESTADO_FUENTE = { al_dia: ['Al día', 'b-verde'], atrasado: ['Atrasado', 'b-rojo'], sin_datos: ['Sin datos', 'b-gris'] };
+const ROBOT_ST = { ok: 'b-verde', parcial: 'b-ambar', error: 'b-rojo', fallo: 'b-rojo', fallido: 'b-rojo' };
+const TIPO_EXC = { corte_cero: 'Corte en cero', cfdi_mes_cerrado: 'Factura de mes cerrado' };
+const SEV = { alta: 'b-rojo', media: 'b-ambar', baja: 'b-gris' };
+const RESULTADO_NEG = { sin_acceso: 'Sin acceso', solo_sql_connect: 'Otro canal (no SQL Connect)', error: 'Error' };
+async function vInicio(arg, vez) {
+  const p = S.inicio; const F = p.fuentes || []; const n = e => F.filter(f => f.estado === e).length; const ex = p.excepciones || {}; const ad = p.adopcion || {};
+  let h = topbar('Inicio', esc(p.empresa || '') + ' · hoy ' + fecha(p.hoy), btnActualizar()) + '<div class="p-8">';
+  h += '<div class="banner banner-lem"><b>Contabilidad · F0, solo lectura.</b> Aquí todavía no se captura ni se firma nada. Cada cifra sale de la base y dice su confianza: ' + CONF_AUTO + ' (directo de la base) o ' + CONF_EST + ' (no es un saldo verificado). CONTPAQi sigue siendo lo fiscal.</div>';
+  h += '<div class="grid grid-4 mb-6">' + stat('Fuentes al día', n('al_dia') + ' de ' + F.length, 'dentro de su umbral de días', 'var(--verde)') +
+    stat('Fuentes atrasadas', n('atrasado'), 'más días que su umbral', n('atrasado') ? 'var(--rojo)' : null) +
+    stat('Fuentes sin datos', n('sin_datos'), 'todavía no llegan a la base') +
+    stat('Excepciones abiertas', entero(ex.abiertas), (ex.por_tipo || []).map(t => esc(TIPO_EXC[t.tipo] || t.tipo) + ': ' + entero(t.n)).join(' · ') || 'ninguna', N(ex.abiertas) ? 'var(--ambar)' : null) + '</div>';
+  // Frescura
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:880px"><thead><tr>' + th('Fuente', false, ' class="fija"') + th('Estado') + th('Dato más reciente') + th('Atraso') + th('Robot') + th('Registros', true) + '</tr></thead><tbody>';
+  t += F.map(f => { const [et, ec] = ESTADO_FUENTE[f.estado] || [f.estado || '—', 'b-gris'];
+    return '<tr><td class="fija" style="max-width:340px;white-space:normal"><div class="font-medium">' + esc(f.nombre) + '</div><div class="text-11 text-gray-500 mt-1" style="line-height:1.35">' + esc(f.nota || '') + '</div></td>' +
+      '<td><span class="badge ' + ec + '">' + esc(et) + '</span></td>' +
+      '<td class="num nowrap">' + fecha(f.dato_hasta) + (f.cargado_el ? '<div class="text-11 text-gray-500">cargado ' + instante(f.cargado_el) + '</div>' : '') + '</td>' +
+      '<td class="nowrap">' + (esNum(f.dias_atraso) ? '<span class="' + (f.estado === 'atrasado' ? 'neg font-medium' : '') + '">' + dias(f.dias_atraso) + '</span>' : '—') + '<div class="text-11 text-gray-500">umbral ' + dias(f.umbral_dias) + '</div></td>' +
+      '<td class="nowrap">' + (f.robot ? '<span class="num text-xs">' + esc(f.robot) + '</span>' + (f.robot_status ? ' <span class="badge ' + (ROBOT_ST[f.robot_status] || 'b-gris') + '">' + esc(f.robot_status) + '</span>' : '') + '<div class="text-11 text-gray-500">última corrida ' + horaChih(f.robot_ultima_corrida) + '</div>' : '<span class="text-gray-400 text-xs">sin robot</span>') + '</td>' +
+      tdN(f.registros) + '</tr>'; }).join('');
+  t += '</tbody></table></div>';
+  h += card('Frescura de las fuentes', '"Dato más reciente" es la fecha del último registro de cada fuente; el atraso se cuenta contra hoy (hora de Chihuahua). La nómina solo da fechas: aquí no se ven montos ni nombres.', t);
+  // Excepciones + adopción
+  const lista = ex.lista || []; const ver = S.ui.excTodas ? lista : lista.slice(0, 8);
+  let e = '<div class="card-body">';
+  e += lista.length ? ver.map(x => '<div class="exc"><div class="flex items-center gap-2 flex-wrap mb-1"><span class="badge b-lem">' + esc(TIPO_EXC[x.tipo] || x.tipo) + '</span>' + (x.severidad ? '<span class="badge ' + (SEV[x.severidad] || 'b-gris') + '">' + esc(x.severidad) + '</span>' : '') + (x.sin_empresa ? '<span class="chip" title="Esta excepción no trae empresa">sin empresa</span>' : '') + '<span class="text-11 text-gray-500">' + instante(x.creada) + '</span></div><div class="text-13">' + esc(x.motivo) + '</div></div>').join('')
+    : '<p class="text-sm text-gray-500">No hay excepciones abiertas.</p>';
+  if (lista.length > 8) e += '<button class="btn btn-ghost sm mt-2" data-act="excTodas">' + (S.ui.excTodas ? 'Ver menos' : 'Ver las ' + lista.length) + '</button>';
+  if (N(ex.abiertas) > lista.length) e += '<p class="text-11 text-gray-400 mt-2">La lista muestra las ' + lista.length + ' más recientes de ' + entero(ex.abiertas) + '.</p>';
+  e += '</div>';
+  const kv = (k, v, sub) => '<div class="kv"><div class="k">' + k + (sub ? '<div class="text-11 text-gray-400">' + sub + '</div>' : '') + '</div><div class="v num">' + v + '</div></div>';
+  let a = '<div class="card-body">';
+  a += kv('Cortes de este mes conciliados', entero(ad.cortes_mes_conciliados) + ' de ' + entero(ad.cortes_mes) + (esNum(ad.pct_conciliados_mes) ? ' · ' + porc(ad.pct_conciliados_mes) : ''), 'la conciliación en el portal llega con F3');
+  a += kv('Cortes del mes anterior conciliados', entero(ad.cortes_mes_anterior_conciliados) + ' de ' + entero(ad.cortes_mes_anterior));
+  a += kv('Monto de CFDI clasificado', porc(ad.pct_cfdi_clasificado), 'facturas recibidas con clasificación aceptada');
+  a += kv('Capturas pendientes de firma', esNum(ad.capturas_pendientes_firma) ? entero(ad.capturas_pendientes_firma) : '—', esc(ad.nota_capturas || ''));
+  a += kv('Intentos negados (30 días)', entero(ad.intentos_negados_30d), 'llamadas sin acceso o por un canal que no es SQL Connect; un intento igual repetido cuenta una vez cada 10 min');
+  const vis = ad.visitas || [];
+  a += '<div class="text-xs uppercase text-gray-500 font-medium mt-4 mb-2" style="letter-spacing:.05em">Quién lo usa (consultas en 30 días)</div>';
+  a += vis.length ? '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Usuario') + th('Última') + th('Consultas', true) + '</tr></thead><tbody>' + vis.map(v => '<tr><td>' + esc(v.usuario) + '</td><td class="num nowrap">' + instante(v.ultima) + '</td>' + tdN(v.visitas_30d) + '</tr>').join('') + '</tbody></table></div>' : '<p class="text-sm text-gray-500">Todavía nadie.</p>';
+  const neg = ad.intentos_negados || [];
+  if (neg.length) a += '<div class="text-xs uppercase text-gray-500 font-medium mt-4 mb-2" style="letter-spacing:.05em">Últimos intentos negados (uno por usuario)</div><div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Usuario') + th('Último intento') + th('Canal · cuándo') + th('Veces', true) + '</tr></thead><tbody>' +
+    neg.map(x => '<tr><td style="word-break:break-all">' + esc(x.usuario) + '</td><td><span class="num text-xs">' + esc(x.accion) + '</span><div><span class="badge b-rojo">' + esc(RESULTADO_NEG[x.resultado] || x.resultado) + '</span></div></td><td class="text-xs">' + esc(x.canal) + '<div class="num text-11 text-gray-500 nowrap">' + instante(x.cuando) + '</div></td>' + tdN(esNum(x.veces) ? x.veces : 1) + '</tr>').join('') + '</tbody></table></div>';
+  a += '</div>';
+  h += '<div class="grid grid-2">' + card('Excepciones abiertas', esc(ex.nota || ''), e) + card('Adopción del módulo', 'Qué tanto se usa Contabilidad y qué tanto está conciliado en el portal.', a) + '</div>';
+  pon(h + '</div>');
+}
+
+/* ════════════════ C1 · Cuánto debemos (estimado) ════════════════ */
+const TRAMOS = [['0_30', '0 a 30 días', '#86C9A4'], ['31_60', '31 a 60 días', '#EAB308'], ['61_90', '61 a 90 días', '#F97316'], ['mas_90', 'Más de 90 días', '#DC2626']];
+const MOTIVO_REP = { saldo_anterior_mayor_que_factura: 'Saldo anterior mayor que el total de la factura', saldo_no_cuadra: 'Saldo anterior − pagado no da el insoluto' };
+function datosDebemos(extra) { return Object.assign({}, extra || {}, S.ui.base ? { cargados_antes: S.ui.base } : {}); }
+function bannerEstimado(d, corto) {
+  let h = '<div class="banner banner-amber"><div class="flex items-center gap-2 flex-wrap mb-1">' + CONF_EST + '<b>No es un saldo verificado</b></div><div>' + esc(d.leyenda || '') + '</div>';
+  if (!corto) h += '<details><summary>Cómo se calcula</summary><ul>' + (d.regla_rep || []).map(x => '<li>' + esc(x) + '</li>').join('') +
+    '<li>Lo abierto de una factura PPD es su total si no tiene REP, o el saldo insoluto del REP que manda. Pagado = total − abierto.</li>' +
+    '<li>Un saldo menor a 1 peso (redondeo del REP) suma al abierto, pero no cuenta como factura abierta ni vencida.</li>' +
+    '<li>Vence = fecha de la factura + plazo de CondicionesDePago del XML; sin número de días, "sin plazo". La antigüedad se cuenta desde la fecha de la factura.</li>' +
+    '<li>Las PUE (de contado) se suponen pagadas y no suman. Las notas de crédito son informativas: no se restan todavía (F4).</li></ul></details>';
+  return h + '</div>';
+}
+function bannerBase(d) {
+  if (!S.ui.base) return '';
+  return '<div class="banner banner-lem flex items-center justify-between gap-3 flex-wrap"><div><b>Base reproducida:</b> solo lo cargado antes del ' + fecha(d.corte && d.corte.cargados_antes || S.ui.base) + ' (00:00, hora de Chihuahua).</div><button class="btn btn-secondary sm" data-act="baseHoy">Volver a la base de hoy</button></div>';
+}
+function lineaCorte(d) {
+  const c = d.corte || {};
+  return '<p class="text-xs text-gray-500 mb-4">Facturas hasta el <b>' + fecha(c.cfdi_hasta) + '</b> · última carga de CFDI ' + instante(c.cfdi_cargado_el) + ' · último pago con REP ' + fecha(c.ultimo_pago_rep) + '</p>';
+}
+function barraAntiguedad(ant, abierto) {
+  const tot = TRAMOS.reduce((s, [k]) => s + Math.max(0, N(ant[k])), 0);
+  let h = '<div class="stack" role="img" aria-label="Antigüedad de lo abierto">' + (tot > 0 ? TRAMOS.map(([k, t, c]) => N(ant[k]) > 0 ? '<span style="width:' + (100 * N(ant[k]) / tot) + '%;background:' + c + '" title="' + esc(t + ': ' + pesos(ant[k])) + '"></span>' : '').join('') : '') + '</div>';
+  h += '<div class="leyendas">' + TRAMOS.map(([k, t, c]) => '<div class="ley"><i style="background:' + c + '"></i><div><div class="t">' + t + '</div><div class="v num">' + pesos(ant[k]) + '</div></div></div>').join('') + '</div>';
+  return h;
+}
+async function vDebemos(arg, vez) {
+  if (arg) return vProveedor(arg, vez);
+  cargando('Cuánto debemos', 'Estimado');
+  const d = await traer('conta_debemos', datosDebemos()); if (vez !== S.vez) return;
+  S.deb = d; const t = d.totales || {};
+  let h = topbar('Cuánto debemos', esc(S.inicio.empresa || '') + ' · facturas a crédito (PPD) y sus complementos de pago', btnActualizar()) + '<div class="p-8">';
+  h += bannerEstimado(d) + bannerBase(d) + lineaCorte(d);
+  h += '<div class="grid grid-4 mb-4">' +
+    stat('Abierto', pesos(t.ppd_abierto), entero(t.facturas_abiertas) + ' facturas abiertas' + (N(t.facturas_con_centavos) ? ' · ' + entero(t.facturas_con_centavos) + ' más con centavos' : ''), 'var(--text)', CONF_EST) +
+    stat('Vencido', pesos(t.vencido), 'ya pasó el plazo del XML', N(t.vencido) > 0 ? 'var(--rojo)' : null) +
+    stat('Por vencer', pesos(t.por_vencer), 'con plazo que no se cumple aún') +
+    stat('Sin plazo en el XML', pesos(t.sin_plazo), entero(t.facturas_con_plazo_en_xml) + ' de ' + entero(t.ppd_facturas) + ' facturas traen plazo') + '</div>';
+  h += '<div class="grid grid-4 mb-6">' +
+    stat('Facturado a crédito (PPD)', pesos(t.ppd_facturado), entero(t.ppd_facturas) + ' facturas · ' + entero(t.ppd_con_rep) + ' con REP') +
+    stat('Total − abierto', pesos(t.ppd_pagado), 'REP declaran ' + pesos(t.ppd_pagado_rep) + (N(t.ppd_no_declarado_rep) >= 1 ? ' · ' + pesos(t.ppd_no_declarado_rep) + ' bajó sin pago en REP (notas aplicadas)' : '')) +
+    stat('Facturas sin REP', pesos(t.ppd_sin_rep_monto), entero(t.ppd_sin_rep) + ' facturas sin complemento de pago') +
+    stat('De contado (PUE)', pesos(t.pue_monto), entero(t.pue_facturas) + ' facturas · supuesto: ' + esc(t.pue_supuesto || 'pagada')) + '</div>';
+  const otros = '<div class="kv"><div class="k">Notas de crédito<div class="text-11 text-gray-400">' + esc(t.notas_credito_nota || '') + '</div></div><div class="v num">' + entero(t.notas_credito) + ' · ' + pesos(t.notas_credito_monto) + '</div></div>' +
+    '<div class="kv"><div class="k">Notas ligadas a facturas abiertas<div class="text-11 text-gray-400">' + esc(t.notas_ligadas_nota || '') + '</div></div><div class="v num">' + entero(t.notas_ligadas_a_abiertas) + ' · ' + pesos(t.notas_ligadas_a_abiertas_monto) + '</div></div>' +
+    '<div class="kv"><div class="k">Abierto neto de esas notas</div><div class="v num">' + pesos(t.abierto_neto_de_notas_ligadas) + '</div></div>' +
+    '<div class="kv"><div class="k">Deuda financiera</div><div class="v num">' + pesos(t.deuda_financiera) + '</div></div><div class="kv"><div class="k">Otras obligaciones sin CFDI</div><div class="v num">' + pesos(t.otras_obligaciones) + '</div></div>';
+  h += '<div class="grid grid-2">' + card('Antigüedad de lo abierto', 'Por fecha de la factura. Suma ' + pesos(t.ppd_abierto) + '.', '<div class="card-body">' + barraAntiguedad(t.antiguedad || {}) + '</div>') +
+    card('Fuera del abierto', 'No suman a lo abierto: se muestran para tenerlos a la vista.', '<div class="card-body">' + otros + '</div>') + '</div>';
+  // Proveedores
+  const ctrl = '<div class="flex items-center gap-2 flex-wrap"><label class="flex items-center gap-2 inp" style="padding:5px 10px">' + icon('search', 14) + '<input id="fQ" data-inp="q" type="search" placeholder="Buscar proveedor o RFC" value="' + esc(S.ui.q) + '" style="border:none;outline:none;font-size:13px;min-width:0;width:170px"></label>' +
+    '<label class="flex items-center gap-1 text-13"><input type="checkbox" data-chg="soloSaldo"' + (S.ui.soloSaldo ? ' checked' : '') + '> Solo con saldo</label>' +
+    '<select class="sel" data-chg="orden" aria-label="Ordenar">' + [['abierto', 'Mayor abierto'], ['vencido', 'Mayor vencido'], ['facturado', 'Mayor facturado'], ['dias', 'Más días vencido'], ['nombre', 'Nombre']].map(([k, tx]) => '<option value="' + k + '"' + (S.ui.orden === k ? ' selected' : '') + '>' + tx + '</option>').join('') + '</select></div>';
+  h += card('Por proveedor', 'Clic en un proveedor para ver sus facturas. Las personas físicas van marcadas y sin RFC; si coinciden con un colaborador, su nombre no se muestra. Devengado: sin fuente todavía (F1–F4).', '<div id="provs">' + tablaProveedores(d) + '</div>', ctrl);
+  h += seccionRep(d) + seccionControles(d) + seccionTardias(d) + seccionObligaciones(d);
+  h += card('Reproducir la base de un día', 'Muestra lo que la base tenía cargado antes de las 00:00 (hora de Chihuahua) de ese día. Sirve para comparar contra un corte anterior.',
+    '<div class="card-body flex items-center gap-2 flex-wrap"><input type="date" id="fBase" class="inp" max="' + esc(S.inicio.hoy || '') + '" value="' + esc(S.ui.base || '') + '"><button class="btn btn-secondary" data-act="baseVer">Ver esa base</button>' + (S.ui.base ? '<button class="btn btn-ghost" data-act="baseHoy">Volver a hoy</button>' : '') + '</div>');
+  pon(h + '</div>');
+}
+function filtrarProveedores(d) {
+  const q = sinAcentos(S.ui.q.trim());
+  let l = (d.proveedores || []).filter(p => (!S.ui.soloSaldo || N(p.abierto) > 0) && (!q || sinAcentos(p.nombre).includes(q) || sinAcentos(p.rfc || '').includes(q)));
+  const o = S.ui.orden;
+  if (o === 'vencido') l = l.slice().sort((a, b) => N(b.vencido) - N(a.vencido) || N(b.abierto) - N(a.abierto));
+  else if (o === 'facturado') l = l.slice().sort((a, b) => N(b.facturado) - N(a.facturado));
+  else if (o === 'dias') l = l.slice().sort((a, b) => N(b.max_dias_vencido) - N(a.max_dias_vencido) || N(b.vencido) - N(a.vencido));
+  else if (o === 'nombre') l = l.slice().sort((a, b) => sinAcentos(a.nombre).localeCompare(sinAcentos(b.nombre)));
+  return l;
+}
+function quienProv(p) {
+  return '<div class="nombre-prov"><a class="lnk" href="#debemos/' + esc(encodeURIComponent(p.clave)) + '">' + esc(p.nombre) + '</a></div><div class="text-11 text-gray-500 mt-1 flex items-center gap-1 flex-wrap">' +
+    (p.persona_fisica ? '<span class="chip chip-pf">Persona física</span>' : '<span class="num">' + esc(p.rfc || '') + '</span>') + (N(p.rep_inconsistentes) ? '<span class="badge b-rojo">REP inconsistente</span>' : '') + '</div>';
+}
+function tablaProveedores(d) {
+  const todos = d.proveedores || []; const l = filtrarProveedores(d);
+  let h = '<div class="tabla"><table class="lem-table densa" style="min-width:1360px"><thead><tr>' + th('Proveedor', false, ' class="fija"') + th('Abierto', true) + th('Vencido', true) + th('Por vencer', true) + th('Sin plazo', true) + th('PPD', true) + th('Facturado', true) + th('Pagado', true) +
+    th('0–30', true) + th('31–60', true) + th('61–90', true) + th('+90', true) + th('Próximo vence') + th('Máx. días vencido', true) + '</tr></thead><tbody>';
+  h += l.length ? l.map(p => { const a = p.antiguedad || {};
+    return '<tr class="link" data-ir="debemos/' + esc(encodeURIComponent(p.clave)) + '"><td class="fija">' + quienProv(p) + '</td>' + tdP(p.abierto, 'font-semibold') + tdP(p.vencido, N(p.vencido) > 0 ? 'neg' : '') + tdP(p.por_vencer) + tdP(p.sin_plazo) + tdN(p.ppd_facturas) + tdP(p.facturado) + tdP(p.pagado) +
+      tdP(a['0_30']) + tdP(a['31_60']) + tdP(a['61_90']) + tdP(a.mas_90, N(a.mas_90) > 0 ? 'neg' : '') + '<td class="num nowrap">' + fecha(p.proximo_vencimiento) + '</td>' + '<td class="text-right num">' + (esNum(p.max_dias_vencido) ? '<span class="neg">' + entero(p.max_dias_vencido) + '</span>' : '—') + '</td></tr>'; }).join('')
+    : '<tr><td colspan="14" class="text-center text-gray-500" style="padding:24px">Ningún proveedor con ese filtro.</td></tr>';
+  h += '</tbody></table></div><div class="card-foot">Mostrando ' + l.length + ' de ' + todos.length + ' proveedores' + (S.ui.soloSaldo ? ' (solo los que tienen saldo abierto)' : '') + '. Los totales de arriba son de todos.</div>';
+  return h;
+}
+function seccionRep(d) {
+  const l = d.rep_inconsistentes || [];
+  const cuerpo = l.length ? '<div class="tabla"><table class="lem-table densa" style="min-width:1200px"><thead><tr>' + th('Proveedor', false, ' class="fija"') + th('REP') + th('Factura') + th('Parcialidad', true) + th('Saldo anterior', true) + th('Pagado', true) + th('Insoluto', true) + th('Total de la factura', true) + th('Fecha de pago') + th('¿Manda?') + th('Motivo') + '</tr></thead><tbody>' +
+    l.map(x => '<tr><td class="fija"><div class="nombre-prov">' + (x.clave ? '<a class="lnk" href="#debemos/' + esc(encodeURIComponent(x.clave)) + '">' + esc(x.proveedor || '—') + '</a>' : esc(x.proveedor || '—')) + '</div>' + (x.persona_fisica ? '<span class="chip chip-pf mt-1">Persona física</span>' : '') + '</td>' +
+      '<td class="num text-xs nowrap" title="' + esc(x.uuid_rep) + '">' + esc(x.folio_rep || '—') + '</td><td class="num text-xs nowrap" title="' + esc(x.uuid_factura) + '">' + esc(x.folio_factura || '—') + '</td>' + tdN(x.parcialidad) + tdP(x.saldo_anterior, 'neg') + tdP(x.pagado) + tdP(x.insoluto) + tdP(x.total_factura) +
+      '<td class="num nowrap">' + fecha(x.fecha_pago) + '</td><td>' + (x.vigente ? '<span class="badge b-ambar">Sí</span>' : '<span class="badge b-gris">No</span>') + '</td><td class="text-13" style="min-width:220px;white-space:normal">' + esc(MOTIVO_REP[x.motivo] || x.motivo || '') + '</td></tr>').join('') + '</tbody></table></div>'
+    : '<div class="card-body"><p class="text-sm text-gray-500">Ninguno.</p></div>';
+  return card('REP inconsistentes (' + l.length + ')', 'Complementos de pago que no cuadran con su factura. "¿Manda?" dice si es el REP vigente de la factura (el que fija su saldo).', cuerpo);
+}
+function seccionControles(d) {
+  const rs = d.rep_sustituidos || {}; const sf = d.rep_sin_factura_en_base || {};
+  const kv = (k, v, sub) => '<div class="kv"><div class="k">' + k + (sub ? '<div class="text-11 text-gray-400">' + sub + '</div>' : '') + '</div><div class="v num">' + v + '</div></div>';
+  let h = '<div class="card-body">' + kv('REP que sustituyen a otro (relación 04)', entero(rs.rep_que_sustituyen), entero(rs.sustituidos_en_base) + ' de los sustituidos están en la base y se excluyen') +
+    kv('Facturas sustituidas excluidas', entero(d.facturas_sustituidas_excluidas)) + kv('REP ilegibles', entero(d.rep_ilegibles)) + kv('REP en otra moneda', entero(d.rep_otra_moneda)) +
+    kv('REP de facturas que no están en la base', entero(sf.facturas) + ' facturas · ' + entero(sf.con_saldo) + ' con saldo · ' + pesos(sf.saldo), esc(sf.nota || ''));
+  const l = sf.lista || [];
+  if (l.length) h += '<div class="tabla mt-3"><table class="lem-table densa" style="min-width:640px"><thead><tr>' + th('Proveedor') + th('Factura') + th('Parcialidad', true) + th('Insoluto', true) + th('Fecha de pago') + '</tr></thead><tbody>' +
+    l.map(x => '<tr><td><div class="nombre-prov">' + esc(x.proveedor || '—') + '</div></td><td class="num text-xs nowrap" title="' + esc(x.uuid_factura) + '">' + esc(x.folio_factura || '—') + '</td>' + tdN(x.parcialidad) + tdP(x.insoluto) + '<td class="num nowrap">' + fecha(x.fecha_pago) + '</td></tr>').join('') + '</tbody></table></div>';
+  return card('Controles de la regla', 'Para revisar que la regla del REP se aplicó bien.', h + '</div>');
+}
+function seccionTardias(d) {
+  const t = d.tardias_mes_cerrado || {}; const l = t.lista || [];
+  const cuerpo = '<div class="card-body"><p class="text-sm mb-2"><b class="num">' + entero(t.n) + '</b> factura(s) · sin monto en la base.</p>' +
+    (l.length ? '<div class="tabla"><table class="lem-table densa" style="min-width:640px"><thead><tr>' + th('UUID') + th('Motivo') + th('Estado') + th('Creada') + '</tr></thead><tbody>' + l.map(x => '<tr><td class="num text-xs">' + esc(x.uuid) + '</td><td class="text-13" style="white-space:normal">' + esc(x.motivo) + '</td><td><span class="badge b-ambar">' + esc(x.estado) + '</span></td><td class="num nowrap">' + instante(x.creada) + '</td></tr>').join('') + '</tbody></table></div>' : '') + '</div>';
+  return card('Facturas tardías de un mes cerrado', esc(t.nota || ''), cuerpo);
+}
+function seccionObligaciones(d) {
+  const df = d.deuda_financiera || [], ob = d.otras_obligaciones || [], co = d.contingencias || [];
+  let h = '<div class="card-body">';
+  if (!df.length && !ob.length && !co.length) h += '<p class="text-sm text-gray-500">' + esc(d.nota_obligaciones || 'Sin registros.') + '</p>';
+  if (df.length) h += '<div class="text-xs uppercase text-gray-500 font-medium mb-2">Deuda financiera</div><div class="tabla mb-4"><table class="lem-table densa" style="min-width:820px"><thead><tr>' + th('Acreedor') + th('Tipo') + th('Saldo', true) + th('Saldo al') + th('Próximo vencimiento') + th('Pago periódico', true) + th('Fuente') + '</tr></thead><tbody>' +
+    df.map(x => '<tr><td>' + esc(x.acreedor) + '<div class="text-11 text-gray-500">' + esc(x.descripcion || '') + '</div></td><td>' + esc(x.tipo || '') + '</td>' + tdP(x.saldo) + '<td class="num">' + fecha(x.saldo_al) + '</td><td class="num">' + fecha(x.proximo_vencimiento) + '</td>' + tdP(x.pago_periodico) + '<td class="text-xs">' + esc(x.fuente || '') + ' · ' + esc(x.confianza || '') + '</td></tr>').join('') + '</tbody></table></div>';
+  if (ob.length) h += '<div class="text-xs uppercase text-gray-500 font-medium mb-2">Obligaciones sin CFDI</div><div class="tabla mb-4"><table class="lem-table densa" style="min-width:720px"><thead><tr>' + th('Acreedor') + th('Concepto') + th('Monto', true) + th('Vence') + th('Fuente') + '</tr></thead><tbody>' +
+    ob.map(x => '<tr><td>' + esc(x.acreedor) + '</td><td>' + esc(x.concepto || '') + '</td>' + tdP(x.monto) + '<td class="num">' + fecha(x.vence) + '</td><td class="text-xs">' + esc(x.fuente || '') + ' · ' + esc(x.confianza || '') + '</td></tr>').join('') + '</tbody></table></div>';
+  if (co.length) h += '<div class="text-xs uppercase text-gray-500 font-medium mb-2">Contingencias (memo: no suman)</div><div class="tabla"><table class="lem-table densa" style="min-width:600px"><thead><tr>' + th('Acreedor') + th('Concepto') + th('Monto', true) + th('Fuente') + '</tr></thead><tbody>' +
+    co.map(x => '<tr><td>' + esc(x.acreedor) + '</td><td>' + esc(x.concepto || '') + '</td>' + tdP(x.monto) + '<td class="text-xs">' + esc(x.fuente || '') + '</td></tr>').join('') + '</tbody></table></div>';
+  return card('Deuda financiera, obligaciones sin CFDI y contingencias', 'Solo con documento verificable (contrato, estado de cuenta o auxiliar de CONTPAQi).', h + '</div>');
+}
+async function vProveedor(clave, vez) {
+  cargando('Proveedor', 'Cargando sus facturas…');
+  const d = await traer('conta_debemos', datosDebemos({ proveedor: clave })); if (vez !== S.vez) return;
+  const p = (d.proveedores || []).find(x => x.clave === clave);
+  const volver = '<a class="btn btn-secondary" href="#debemos">' + icon('chevronL', 14) + 'Todos los proveedores</a>';
+  if (!p) { pon(topbar('Proveedor', 'Estimado', volver) + '<div class="p-8"><div class="msg-card shadow-card">No se encontró ese proveedor en esta empresa' + (S.ui.base ? ' con la base reproducida' : '') + '.</div></div>'); return; }
+  const fs = d.facturas || []; const ver = S.ui.factSolo ? fs.filter(f => N(f.abierto) > 0) : fs;
+  const a = p.antiguedad || {};
+  let h = topbar(esc(p.nombre), (p.persona_fisica ? 'Persona física' : '<span class="num">' + esc(p.rfc || '') + '</span>') + ' · ' + entero(p.ppd_facturas) + ' facturas a crédito', volver + btnActualizar()) + '<div class="p-8">';
+  h += bannerEstimado(d, true) + bannerBase(d);
+  h += '<div class="grid grid-4 mb-4">' + stat('Abierto', pesos(p.abierto), entero(p.facturas_abiertas) + ' facturas abiertas · ' + entero(p.facturas_sin_rep) + ' sin REP', null, CONF_EST) +
+    stat('Vencido', pesos(p.vencido), esNum(p.max_dias_vencido) ? 'hasta ' + dias(p.max_dias_vencido) + ' vencida' : 'nada vencido', N(p.vencido) > 0 ? 'var(--rojo)' : null) +
+    stat('Por vencer', pesos(p.por_vencer), p.proximo_vencimiento ? 'próximo el ' + fecha(p.proximo_vencimiento) : '') +
+    stat('Sin plazo en el XML', pesos(p.sin_plazo), (p.condiciones || []).length ? esc(p.condiciones.join(' · ')) : 'sin CondicionesDePago') + '</div>';
+  h += '<div class="grid grid-4 mb-6">' + stat('Facturado (PPD)', pesos(p.facturado), entero(p.ppd_facturas) + ' facturas') + stat('Total − abierto', pesos(p.pagado), 'REP declaran ' + pesos(p.pagado_rep) + (N(p.no_declarado_rep) >= 1 ? ' · ' + pesos(p.no_declarado_rep) + ' sin pago en REP' : '')) +
+    stat('De contado (PUE)', pesos(p.pue && p.pue.monto), entero(p.pue && p.pue.facturas) + ' facturas · supuesto: pagadas') +
+    stat('Notas de crédito', pesos(p.notas_credito && p.notas_credito.monto), entero(p.notas_credito && p.notas_credito.n) + ' · informativo, no se restan' + (p.notas_ligadas_a_abiertas && N(p.notas_ligadas_a_abiertas.n) ? ' · ' + entero(p.notas_ligadas_a_abiertas.n) + ' ligadas a abiertas por ' + pesos(p.notas_ligadas_a_abiertas.monto) + ' (neto ' + pesos(p.abierto_neto_de_notas_ligadas) + ')' : '')) + '</div>';
+  h += card('Antigüedad de lo abierto', 'La factura abierta más vieja es del ' + fecha(p.abierta_mas_vieja) + '. Devengado: sin fuente todavía.', '<div class="card-body">' + barraAntiguedad(a) + '</div>');
+  const ctrl = '<label class="flex items-center gap-1 text-13"><input type="checkbox" data-chg="factSolo"' + (S.ui.factSolo ? ' checked' : '') + '> Solo con saldo</label>';
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:1320px"><thead><tr>' + th('Factura', false, ' class="fija"') + th('Fecha') + th('Total', true) + th('Pagado', true) + th('Abierto', true) + th('Estado') + th('REP') + th('Condiciones') + th('Vence') + th('Días vencida', true) + th('Antigüedad', true) + th('UUID') + '</tr></thead><tbody>';
+  t += ver.length ? ver.map(f => { const est = f.rep_inconsistente ? '<span class="badge b-rojo">REP inconsistente</span> ' : '';
+    const st = f.abierta ? (esNum(f.dias_vencida) ? '<span class="badge b-rojo">Vencida</span>' : '<span class="badge b-ambar">Abierta</span>') : N(f.abierto) > 0 ? '<span class="badge b-gris" title="Saldo menor a 1 peso: redondeo del REP">Centavos</span>' : '<span class="badge b-verde">Pagada</span>';
+    return '<tr><td class="fija num nowrap">' + esc([f.serie, f.folio].filter(Boolean).join('-') || '—') + '</td><td class="num nowrap">' + fecha(f.fecha) + '</td>' + tdP(f.total) + tdP(f.pagado).replace('<td', () => '<td title="' + esc('REP declaran ' + pesos(f.pagado_rep) + (N(f.no_declarado_rep) >= 1 ? ' · ' + pesos(f.no_declarado_rep) + ' sin pago en REP' : '') + (f.notas_ligadas && N(f.notas_ligadas.n) ? ' · ' + entero(f.notas_ligadas.n) + ' notas ligadas por ' + pesos(f.notas_ligadas.monto) : '')) + '"') + tdP(f.abierto, 'font-semibold') + '<td class="nowrap">' + est + st + '</td>' +
+      '<td class="text-xs nowrap">' + (f.con_rep ? 'parcialidad ' + entero(f.parcialidad) + '<div class="text-11 text-gray-500">pago ' + fecha(f.ultimo_pago) + '</div>' : '<span class="text-gray-400">sin REP</span>') + '</td>' +
+      '<td class="text-xs">' + esc(f.condiciones || '—') + (esNum(f.plazo_dias) ? '<div class="text-11 text-gray-500">' + dias(f.plazo_dias) + '</div>' : '') + '</td><td class="num nowrap">' + fecha(f.vence) + '</td>' +
+      '<td class="text-right num">' + (esNum(f.dias_vencida) ? '<span class="neg">' + entero(f.dias_vencida) + '</span>' : '—') + '</td><td class="text-right num nowrap">' + dias(f.antiguedad_dias) + '</td>' +
+      '<td class="num text-11 text-gray-500 nowrap" title="' + esc(f.uuid) + '">' + esc(String(f.uuid || '').slice(0, 8)) + '…</td></tr>'; }).join('')
+    : '<tr><td colspan="12" class="text-center text-gray-500" style="padding:24px">Sin facturas con ese filtro.</td></tr>';
+  t += '</tbody></table></div>';
+  h += card('Facturas a crédito (' + entero(fs.length) + ')', 'Cada factura PPD con el REP que fija su saldo. Pasa el cursor sobre el UUID para verlo completo.', t, ctrl, 'Mostrando ' + ver.length + ' de ' + fs.length + '.');
+  pon(h + '</div>');
+}
+
+/* ════════════════ C2 · Ingresos por tienda y canal (solo ingresos en F0) ════════════════ */
+const CANALES = [['efectivo', 'Efectivo', '#0E5A42'], ['tdc', 'Tarjeta', '#534AB7'], ['uber', 'Uber Eats', '#1A1A1A'], ['didi', 'DiDi Food', '#D85A30'], ['rappi', 'Rappi', '#B4547A'], ['vales', 'Vales', '#9B9A92'], ['otros', 'Otros', '#C5C2B5']];
+async function vIngresos(arg, vez) {
+  cargando('Ingresos por tienda y canal', S.ui.mesIng ? mesLargo(S.ui.mesIng) : 'último mes completo');
+  const datos = S.ui.mesIng ? { anio: Number(S.ui.mesIng.slice(0, 4)), mes: Number(S.ui.mesIng.slice(5, 7)) } : {};
+  const d = await traer('conta_ingresos', datos); if (vez !== S.vez) return;
+  if (!S.ui.mesIng && d.mes) { S.ui.mesIng = d.mes; guardarEnMemoria('conta_ingresos', { anio: Number(d.mes.slice(0, 4)), mes: Number(d.mes.slice(5, 7)) }, d); }
+  const meses = (d.meses || []).map(m => m.mes); const i = meses.indexOf(d.mes);
+  const prev = i > 0 ? meses[i - 1] : (i < 0 ? meses.filter(m => m < d.mes).pop() : null); const sig = i >= 0 && i < meses.length - 1 ? meses[i + 1] : (i < 0 ? meses.find(m => m > d.mes) : null);
+  const sel = '<span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="mesIng" data-arg="' + esc(prev || '') + '"' + (prev ? '' : ' disabled') + ' aria-label="Mes anterior">' + icon('chevronL', 14) + '</button><b class="text-sm text-center" style="min-width:128px">' + mesLargo(d.mes) + '</b><button class="btn btn-ghost p-15" data-act="mesIng" data-arg="' + esc(sig || '') + '"' + (sig ? '' : ' disabled') + ' aria-label="Mes siguiente">' + icon('chevronR', 14) + '</button></span>';
+  const tm = d.total_mes || {}; const ant = (d.meses || []).find(m => m.mes === d.mes_anterior);
+  let h = topbar('Ingresos por tienda y canal', esc(S.inicio.empresa || '') + ' · ' + mesLargo(d.mes) + ' · sin IVA', sel + btnActualizar()) + '<div class="p-8">';
+  h += '<div class="banner banner-gris"><div class="flex items-center gap-2 flex-wrap mb-1">' + CONF_AUTO + '<span class="text-13">' + esc(d.fuente || '') + '</span></div><div class="text-13">' + esc(d.nota || '') + '</div></div>';
+  if (d.mes_en_curso) h += '<div class="banner banner-amber">' + mesLargo(d.mes) + ' es el mes en curso: las cifras son parciales.</div>';
+  h += '<div class="grid grid-4 mb-6">' + stat('Ingresos del mes', pesos(tm.total), 'sin IVA', 'var(--text)', CONF_AUTO) + stat('Con IVA', pesos(tm.con_iva)) +
+    stat('Mes anterior', ant ? pesos(ant.total) : '—', ant ? mesLargo(ant.mes) + ', sin IVA' : 'sin datos de ' + mesLargo(d.mes_anterior)) + stat('Tiendas con venta', entero(tm.tiendas)) + '</div>';
+  if (!N(tm.tiendas)) h += '<div class="banner banner-gris">No hay ventas cargadas para ' + mesLargo(d.mes) + '.</div>';
+  // Por canal (las barras solo dibujan los montos del servidor)
+  const totC = CANALES.reduce((s, [k]) => s + Math.max(0, N(tm[k])), 0);
+  let c = '<div class="card-body"><div class="stack" role="img" aria-label="Ingresos por canal">' + (totC > 0 ? CANALES.map(([k, t, col]) => N(tm[k]) > 0 ? '<span style="width:' + (100 * N(tm[k]) / totC) + '%;background:' + col + '" title="' + esc(t + ': ' + pesos(tm[k])) + '"></span>' : '').join('') : '') + '</div>';
+  c += '<div class="leyendas">' + CANALES.map(([k, t, col]) => '<div class="ley"><i style="background:' + col + '"></i><div><div class="t">' + t + '</div><div class="v num">' + pesos(tm[k]) + '</div></div></div>').join('') + '</div></div>';
+  h += card('Por canal · ' + mesLargo(d.mes), 'Efectivo y tarjeta del POS; plataformas según el R26. Vales = "Vale de cortesía" del R26.', c);
+  // Por tienda
+  const ts = d.tiendas || [];
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:1300px"><thead><tr>' + th('Tienda', false, ' class="fija"') + th('Total', true) + th('Mes anterior', true) + th('Variación', true) + CANALES.map(([k, tx]) => th(tx, true)).join('') + th('Con IVA', true) + th('Pagos', true, ' title="Número de pagos registrados en el R26"') + '</tr></thead><tbody>';
+  t += ts.map(x => '<tr><td class="fija"><div class="font-medium nowrap">' + esc(x.corto || x.tienda) + '</div><div class="text-11 text-gray-500 nowrap">' + esc(x.tienda) + '</div></td>' + tdP(x.total, 'font-semibold') + tdP(x.total_mes_anterior) +
+    '<td class="text-right num ' + (N(x.variacion_pct) < 0 ? 'neg' : N(x.variacion_pct) > 0 ? 'pos' : '') + '">' + variacion(x.variacion_pct) + '</td>' + CANALES.map(([k]) => tdP(x[k])).join('') + tdP(x.con_iva) + tdN(x.pagos) + '</tr>').join('');
+  if (ts.length) t += '<tr class="total"><td class="fija">Total del mes</td>' + tdP(tm.total) + '<td class="text-right num">' + (ant ? pesos(ant.total) : '—') + '</td><td></td>' + CANALES.map(([k]) => tdP(tm[k])).join('') + tdP(tm.con_iva) + '<td></td></tr>';
+  else t += '<tr><td colspan="13" class="text-center text-gray-500" style="padding:24px">Sin tiendas con venta este mes.</td></tr>';
+  t += '</tbody></table></div>';
+  h += card('Por tienda · ' + mesLargo(d.mes), 'Ordenadas por ingreso. La variación es contra el mes anterior de la misma tienda.', t);
+  // Mes por mes
+  let m = '<div class="tabla"><table class="lem-table densa" style="min-width:1160px"><thead><tr>' + th('Mes', false, ' class="fija"') + th('Total', true) + CANALES.map(([k, tx]) => th(tx, true)).join('') + th('Con IVA', true) + th('Tiendas', true) + '</tr></thead><tbody>';
+  m += (d.meses || []).map(x => '<tr class="link' + (x.mes === d.mes ? ' sel' : '') + '" data-act="mesIng" data-arg="' + esc(x.mes) + '"><td class="fija nowrap font-medium">' + mesLargo(x.mes) + '</td>' + tdP(x.total, 'font-semibold') + CANALES.map(([k]) => tdP(x[k])).join('') + tdP(x.con_iva) + tdN(x.tiendas) + '</tr>').join('');
+  m += '</tbody></table></div>';
+  h += card('Mes por mes', 'Todos los meses con ventas en la base. Clic en un mes para verlo por tienda.', m);
+  pon(h + '</div>');
+}
+
+/* ════════════════ C3 · Cortes de caja (lectura) ════════════════ */
+function claseEstadoDia(e) { e = String(e || ''); return e === 'ok' ? 'b-verde' : e.startsWith('corte en cero') ? 'b-rojo' : e.startsWith('revisar') ? 'b-ambar' : 'b-gris'; }
+function difTd(n) { if (!esNum(n)) return '<td class="text-right num">—</td>'; const v = Number(n); return '<td class="text-right num' + (Math.abs(v) >= 1 ? ' warn font-medium' : '') + '">' + (v === 0 ? '<span class="dim">' + pesos(0) + '</span>' : pesos(v)) + '</td>'; }
+async function vCortes(arg, vez) {
+  const hoyMes = String(S.inicio.hoy || '').slice(0, 7);
+  let branch = null;
+  if (arg != null) { if (!/^\d{1,5}$/.test(arg)) { location.hash = 'cortes'; return; } branch = Number(arg); }
+  cargando('Cortes de caja', S.ui.mesCor ? mesLargo(S.ui.mesCor) : 'mes en curso');
+  const datos = {}; if (S.ui.mesCor) { datos.anio = Number(S.ui.mesCor.slice(0, 4)); datos.mes = Number(S.ui.mesCor.slice(5, 7)); } if (branch != null) datos.branch_id = branch;
+  const d = await traer('conta_cortes', datos); if (vez !== S.vez) return;
+  if (!S.ui.mesCor && d.mes) { S.ui.mesCor = d.mes; guardarEnMemoria('conta_cortes', Object.assign({ anio: Number(d.mes.slice(0, 4)), mes: Number(d.mes.slice(5, 7)) }, branch != null ? { branch_id: branch } : {}), d); }
+  if (branch == null) { const nuevas = (d.resumen || []).map(r => ({ branch_id: r.branch_id, tienda: r.tienda })); nuevas.forEach(x => { if (!S.tiendas.some(y => y.branch_id === x.branch_id)) S.tiendas.push(x); }); S.tiendas.sort((a, b) => sinAcentos(a.tienda).localeCompare(sinAcentos(b.tienda))); }
+  const res = d.resumen || []; const tienda = branch != null ? ((res[0] && res[0].tienda) || ((S.tiendas.find(x => x.branch_id === branch) || {}).tienda) || ('Sucursal ' + branch)) : null;
+  if (branch != null && !S.tiendas.some(x => x.branch_id === branch) && tienda) S.tiendas.push({ branch_id: branch, tienda });
+  const sig = mesMas(d.mes, 1); const puedeSig = sig <= hoyMes;
+  let acts = '<span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="mesCor" data-arg="' + esc(mesMas(d.mes, -1)) + '" aria-label="Mes anterior">' + icon('chevronL', 14) + '</button><b class="text-sm text-center" style="min-width:128px">' + mesLargo(d.mes) + '</b><button class="btn btn-ghost p-15" data-act="mesCor" data-arg="' + esc(sig) + '"' + (puedeSig ? '' : ' disabled') + ' aria-label="Mes siguiente">' + icon('chevronR', 14) + '</button></span>';
+  acts += '<select class="sel" data-chg="tienda" aria-label="Tienda"><option value="">Todas las tiendas</option>' + S.tiendas.map(x => '<option value="' + esc(x.branch_id) + '"' + (x.branch_id === branch ? ' selected' : '') + '>' + esc(x.tienda) + '</option>').join('') + '</select>' + btnActualizar();
+  let h = topbar(branch != null ? 'Cortes · ' + esc(tienda) : 'Cortes de caja', esc(S.inicio.empresa || '') + ' · ' + mesLargo(d.mes) + ' · solo lectura (la conciliación llega en F3)', acts) + '<div class="p-8">';
+  h += '<div class="banner banner-gris"><div class="flex items-center gap-2 flex-wrap mb-1">' + CONF_AUTO + '<span class="text-13">' + esc(d.fuente || '') + '</span></div><ul style="margin:4px 0 0 18px">' + (d.notas || []).map(x => '<li class="text-13">' + esc(x) + '</li>').join('') + '</ul></div>';
+  const est = d.estados || {}; const sumaEst = f => Object.keys(est).filter(f).reduce((s, k) => s + N(est[k]), 0);
+  h += '<div class="grid grid-4 mb-6">' + stat('Días que cuadran', entero(sumaEst(k => k === 'ok')), 'R26 contra corte, estado "ok"', 'var(--verde)') +
+    stat('Días para revisar', entero(sumaEst(k => k.startsWith('revisar'))), 'posible corte de medianoche o faltante', sumaEst(k => k.startsWith('revisar')) ? 'var(--ambar)' : null) +
+    stat('Días con corte en cero', entero(sumaEst(k => k.startsWith('corte en cero'))), 'usar el R26', sumaEst(k => k.startsWith('corte en cero')) ? 'var(--rojo)' : null) +
+    stat('Otros estados', entero(sumaEst(k => k !== 'ok' && !k.startsWith('revisar') && !k.startsWith('corte en cero'))), Object.keys(est).filter(k => k !== 'ok' && !k.startsWith('revisar') && !k.startsWith('corte en cero')).map(k => esc(k)).join(' · ') || 'ninguno') + '</div>';
+  if (!res.length) h += '<div class="banner banner-gris">No hay cortes cargados para ' + mesLargo(d.mes) + (branch != null ? ' en esta tienda' : '') + '.</div>';
+  // Resumen por tienda
+  if (res.length) {
+    let t = '<div class="tabla"><table class="lem-table densa" style="min-width:2050px"><thead><tr>' + th('Tienda', false, ' class="fija"') + th('Cortes', true) + th('Venta', true) + th('Efectivo', true) + th('Tarjeta', true, ' title="Incluye Amex"') + th('Uber', true) + th('DiDi', true) + th('Rappi', true) + th('Pide Directo', true) + th('Spin', true) + th('Vales', true) + th('Otras', true) +
+      th('Fondo', true, ' title="Campo faltante del R22: es el fondo de caja"') + th('Sobrante', true) + th('Cortes en cero', true) + th('Días', true) + th('Ok', true) + th('Revisar', true) + th('Corte en cero', true) + th('Sin corte', true) + th('Sin R26', true) + th('Dif. mostrador', true) + th('Conciliados', true) + '</tr></thead><tbody>';
+    t += res.map(r => '<tr' + (branch == null ? ' class="link" data-ir="cortes/' + esc(r.branch_id) + '"' : '') + '><td class="fija nowrap">' + (branch == null ? '<a class="lnk" href="#cortes/' + esc(r.branch_id) + '">' + esc(r.tienda) + '</a>' : '<b>' + esc(r.tienda) + '</b>') + '</td>' +
+      tdN(r.cortes) + tdP(r.venta, 'font-semibold') + tdP(r.efectivo) + tdP(r.tarjeta) + tdP(r.uber) + tdP(r.didi) + tdP(r.rappi) + tdP(r.pide_directo) + tdP(r.spin) + tdP(r.vales) + tdP(r.otras) + tdP(r.fondo) + tdP(r.sobrante) +
+      '<td class="text-right num' + (N(r.cortes_en_cero) ? ' neg' : '') + '">' + entero(r.cortes_en_cero) + '</td>' + tdN(r.dias) + tdN(r.dias_ok) + '<td class="text-right num' + (N(r.dias_revisar) ? ' warn' : '') + '">' + entero(r.dias_revisar) + '</td>' + '<td class="text-right num' + (N(r.dias_corte_en_cero) ? ' neg' : '') + '">' + entero(r.dias_corte_en_cero) + '</td>' + tdN(r.dias_sin_corte) + tdN(r.dias_sin_r26) + difTd(r.dif_mostrador) + tdN(r.conciliados) + '</tr>').join('');
+    t += '</tbody></table></div>';
+    h += card(branch != null ? 'Resumen del mes' : 'Por tienda', 'Del R22 (cortes de Drizline). La tarjeta incluye Amex. Fondo = el campo "faltante" del R22 (es el fondo de caja, no un faltante).' + (branch == null ? ' Clic en una tienda para ver sus cortes.' : ''), t);
+  }
+  // Cortes de la tienda
+  if (branch != null) {
+    const cs = d.cortes || [];
+    let t = '<div class="tabla"><table class="lem-table densa" style="min-width:2100px"><thead><tr>' + th('Fecha', false, ' class="fija"') + th('Caja') + th('Horario') + th('Venta', true) + th('Impuestos', true) + th('Efectivo', true) + th('Tarjeta', true) + th('Amex', true) + th('Uber', true) + th('DiDi', true) + th('Rappi', true) + th('Pide Directo', true) + th('Spin', true) + th('Vales', true) + th('Otras', true) +
+      th('IVA comisión', true) + th('Fondo', true) + th('Sobrante', true) + th('Efectivo llegado', true) + th('TDC real', true) + th('Compras de caja', true) + th('Conciliado') + '</tr></thead><tbody>';
+    t += cs.length ? cs.map(c => '<tr class="' + (c.en_cero ? 'cero' : '') + '"><td class="fija num nowrap">' + fechaCorta(c.fecha) + (c.en_cero ? ' <span class="badge b-rojo">en cero</span>' : '') + '</td><td class="num">' + esc(c.caja || '—') + '</td><td class="num nowrap">' + hhmm(c.hora_inicio) + '–' + hhmm(c.hora_fin) + '</td>' +
+      tdP(c.venta, 'font-semibold') + tdP(c.impuestos) + tdP(c.efectivo) + tdP(c.tarjeta) + tdP(c.amex) + tdP(c.uber) + tdP(c.didi) + tdP(c.rappi) + tdP(c.pide_directo) + tdP(c.spin) + tdP(c.vales) + tdP(c.otras) + tdP(c.iva_comision) + tdP(c.fondo) + tdP(c.sobrante) +
+      tdP(c.efectivo_llegado) + tdP(c.tdc_real) + tdP(c.compras_caja) + '<td>' + (c.conciliado ? '<span class="badge b-verde">Sí</span>' : '<span class="badge b-gris">No</span>') + '</td></tr>').join('')
+      : '<tr><td colspan="22" class="text-center text-gray-500" style="padding:24px">Sin cortes en el mes.</td></tr>';
+    t += '</tbody></table></div>';
+    h += card('Cortes (' + entero(cs.length) + ')', 'Uno por renglón, en el orden del día. Sin nombre del cajero ni comentario del POS. Efectivo llegado, TDC real y compras de caja son la conciliación de F3: "—" quiere decir que todavía no se captura.', t);
+  }
+  // R26 contra corte, por día
+  const ds = d.dias || []; const f = S.ui.diasFiltro;
+  const verD = f === 'todos' ? ds : f === 'revisar' ? ds.filter(x => x.estado !== 'ok') : ds.filter(x => x.estado === f);
+  const nNoOk = Object.keys(est).filter(k => k !== 'ok').reduce((s, k) => s + N(est[k]), 0);
+  const seg = '<div class="seg" role="group" aria-label="Filtrar días"><button class="' + (f === 'revisar' ? 'on' : '') + '" data-act="diasFiltro" data-arg="revisar">Distintos de ok (' + entero(nNoOk) + ')</button><button class="' + (f === 'todos' ? 'on' : '') + '" data-act="diasFiltro" data-arg="todos">Todos (' + entero(ds.length) + ')</button></div>';
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:1240px"><thead><tr>' + th('Fecha', false, ' class="fija"') + (branch == null ? th('Tienda') : '') + th('R26 mostrador', true) + th('Corte mostrador', true) + th('Dif. mostrador', true) + th('Dif. Uber', true) + th('Dif. DiDi', true) + th('Dif. Rappi', true) + th('Cortes', true) + th('En cero', true) + th('Estado') + '</tr></thead><tbody>';
+  t += verD.length ? verD.map(x => '<tr><td class="fija num nowrap">' + fechaCorta(x.fecha) + '</td>' + (branch == null ? '<td class="nowrap"><a class="lnk" href="#cortes/' + esc(x.branch_id) + '">' + esc(x.tienda) + '</a></td>' : '') + tdP(x.r26_mostrador) + tdP(x.corte_mostrador) + difTd(x.dif_mostrador) + difTd(x.dif_uber) + difTd(x.dif_didi) + difTd(x.dif_rappi) + tdN(x.n_cortes) +
+    '<td class="text-right num' + (N(x.cortes_en_cero) ? ' neg' : '') + '">' + entero(x.cortes_en_cero) + '</td><td style="min-width:190px"><span class="badge largo ' + claseEstadoDia(x.estado) + '">' + esc(x.estado) + '</span></td></tr>').join('')
+    : '<tr><td colspan="11" class="text-center text-gray-500" style="padding:24px">' + (ds.length ? 'Todos los días de este filtro cuadran.' : 'Sin días en el mes.') + '</td></tr>';
+  t += '</tbody></table></div>';
+  h += card('R26 contra corte, por día', 'Ventas del POS (R26) contra lo que dicen los cortes (R22), con IVA. "Dif." distinta de cero se marca.', t, seg, 'Mostrando ' + verD.length + ' de ' + ds.length + ' días.');
+  pon(h + '</div>');
+}
+
+/* ── Eventos (delegados: no hay funciones globales en window) ── */
+document.addEventListener('click', ev => {
+  const a = ev.target.closest('[data-act]');
+  if (a) { if (a.disabled) return; ev.preventDefault(); accion(a.getAttribute('data-act'), a.getAttribute('data-arg'), a); return; }
+  const f = ev.target.closest('[data-ir]');
+  if (f && !ev.target.closest('a,button,input,select,label')) ir(f.getAttribute('data-ir'));
+});
+document.addEventListener('change', ev => {
+  const el = ev.target.closest('[data-chg]'); if (!el) return; const k = el.getAttribute('data-chg');
+  if (k === 'empresa') cambiarEmpresa(el.value);
+  else if (k === 'soloSaldo') { S.ui.soloSaldo = !!el.checked; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
+  else if (k === 'orden') { S.ui.orden = el.value; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
+  else if (k === 'factSolo') { S.ui.factSolo = !!el.checked; router(); }
+  else if (k === 'tienda') ir(el.value ? 'cortes/' + el.value : 'cortes');
+});
+document.addEventListener('input', ev => {
+  const el = ev.target.closest('[data-inp]'); if (!el) return;
+  if (el.getAttribute('data-inp') === 'q') { S.ui.q = el.value || ''; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
+});
+function accion(k, arg) {
+  if (k === 'salir') salir();
+  else if (k === 'arrancar') arrancar();
+  else if (k === 'actualizar') actualizar();
+  else if (k === 'reintentar') router();
+  else if (k === 'excTodas') { S.ui.excTodas = !S.ui.excTodas; router(); }
+  else if (k === 'mesIng') { if (arg) { S.ui.mesIng = arg; router(); } }
+  else if (k === 'mesCor') { if (arg && /^\d{4}-\d{2}$/.test(arg)) { S.ui.mesCor = arg; router(); } }
+  else if (k === 'diasFiltro') { S.ui.diasFiltro = arg || 'revisar'; router(); }
+  else if (k === 'baseVer') { const v = ($('fBase') || {}).value || ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Elige una fecha.'); return; } S.ui.base = v; router(); }
+  else if (k === 'baseHoy') { S.ui.base = null; router(); }
+}
+async function actualizar() {
+  const ep = S.epoca; S.cache.clear();
+  try { const r = await api('conta_inicio', {}); if (ep !== S.epoca) return; S.inicio = r; S.empresa = r.empresa_id; }
+  catch (e) { if (ep !== S.epoca || e.obsoleto) return; if (e.sesion || e.codigo === 'sin_acceso') { if (e.sesion) errorEnVista(e); else vSinAcceso(e.message); return; } errorEnVista(e); return; }
+  pintarShell(); await router(); toast('Actualizado.');
+}
+function cambiarEmpresa(v) { const n = Number(v); if (!Number.isInteger(n)) return; S.empresa = n; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial(); arrancar(); }
+
+/* ── Arranque ── */
+if (S.token) arrancar(); else { Conexion.salir(); vLogin(S.motivo); }
+</script>
+</body>
+</html>
