@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="/punto-de-vista.js?v=097"></script>
 <style>
   /* ── Mismo sistema visual que Ventas y Nóminas (app de pre-nómina) ── */
   :root { --font-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif; --font-serif: 'Instrument Serif', Georgia, serif; --font-mono: 'JetBrains Mono', monospace;
@@ -192,7 +193,7 @@ document.documentElement.setAttribute('data-conta', 'ok');
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const INACTIVIDAD_MIN = 15;
 const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
-const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas', 'conta_espejo_cortes', 'conta_espejo_efectivo']);
+const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas', 'conta_espejo_cortes', 'conta_espejo_efectivo', 'ver_como_opciones']);   // ver_como_opciones: barra "Punto de vista" (mig. 097)
 const ss = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }, del(k) { try { sessionStorage.removeItem(k); } catch (e) {} } };
 const uiInicial = () => ({ excTodas: false, q: '', soloSaldo: true, orden: 'abierto', base: null, factSolo: false, mesIng: null, mesCor: null, diasFiltro: 'revisar',
                            concBranch: null, concEstado: null, concTec: false, concDias: 14, concTiendas: [], efeOrden: 'semana' });
@@ -267,7 +268,7 @@ setInterval(revisarInactividad, 15000);
 })();
 function cerrarSesion(msj, soloAqui) {
   S.epoca++; S.vez++; S.inicio = null; S.empresa = null; S.usuario = ''; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial(); S.sub = subInicial();   // los XML en memoria se borran
-  if (soloAqui && S.token) ss.set('lem_conta_cerrado', huella(S.token)); else ss.del('lem_tok');
+  if (soloAqui && S.token) ss.set('lem_conta_cerrado', huella(S.token)); else { ss.del('lem_tok'); if (window.LEM_PV) LEM_PV.salir(); }
   ss.del('lem_conta_ultima'); S.token = null;
   Conexion.salir();   // solo la sesión de Firebase de esta página (browserSessionPersistence)
   try { if (location.hash) history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
@@ -294,8 +295,9 @@ async function sesion() {
 }
 async function api(accion, datos) {
   if (!ACCIONES.has(accion)) throw new Error('Acción no permitida en Contabilidad: ' + accion);
-  const d = Object.assign({}, datos || {});
-  if (S.empresa != null && d.empresa_id == null) d.empresa_id = S.empresa;
+  const d0 = Object.assign({}, datos || {});
+  if (S.empresa != null && d0.empresa_id == null && accion !== 'ver_como_opciones') d0.empresa_id = S.empresa;
+  const d = window.LEM_PV ? LEM_PV.datos(accion, d0) : d0;   // punto de vista (mig. 097): la vista elegida viaja en datos.ver_como
   const ep = S.epoca;
   await sesion();
   if (ep !== S.epoca) throw errObsoleto();
@@ -309,6 +311,7 @@ async function api(accion, datos) {
   }
   if (ep !== S.epoca) throw errObsoleto();
   if (!j || typeof j !== 'object' || Array.isArray(j) || !Object.keys(j).length) { const x = new Error('SQL Connect respondió vacío. Reintenta en un momento.'); x.red = true; throw x; }
+  if (window.LEM_PV && LEM_PV.rechazo(j)) return LEM_PV.pendiente();   // el servidor rechazó la vista: vuelve a la propia sin cerrar sesión
   if (j.error) { const x = new Error(j.detalle || j.error); x.negocio = true; x.codigo = j.error; throw x; }
   return j;
 }
@@ -360,27 +363,39 @@ function vErrorArranque(e) {
     '<p class="text-sm text-gray-600">' + esc(e.message || 'Error desconocido') + '</p>' + (e.red ? '<p class="text-xs text-gray-500 mt-2">Contabilidad solo usa SQL Connect: no hay respaldo por otro camino.</p>' : '') +
     '<div class="flex justify-center gap-2 mt-5 flex-wrap"><button class="btn btn-primary" data-act="arrancar">Reintentar</button><a class="btn btn-secondary" href="/">Volver a los módulos</a><button class="btn btn-ghost" data-act="salir">Salir</button></div></div></div>';
 }
+/* La empresa con la que abre: la preferencia que ya usan los otros módulos (localStorage lem_empresa; con "Ver como", la de la vista),
+   solo si esta cuenta la tiene en Contabilidad. Es una preferencia, no una respuesta: no rompe la regla de no guardar respuestas. */
+let preferenciaUsada = false;
+function empresaPreferida() {
+  if (preferenciaUsada) return null; preferenciaUsada = true;
+  try { const n = Number(localStorage.getItem('lem_empresa')); return Number.isInteger(n) && n > 0 ? n : null; } catch (e) { return null; }
+}
 async function arrancar() {
   const ep = S.epoca;
   $('root').innerHTML = '<div class="login-wrap grain"><div class="msg-card shadow-card">Abriendo Contabilidad…</div></div>';
   let r;
-  try { r = await api('conta_inicio', S.empresa != null ? { empresa_id: S.empresa } : {}); }
-  catch (e) {
-    if (ep !== S.epoca || e.obsoleto) return;
-    if (e.sesion) { ss.del('lem_tok'); S.token = null; Conexion.salir(); vLogin(e.message); return; }
-    if (e.codigo === 'sin_acceso') { vSinAcceso(e.message); return; }
-    vErrorArranque(e); return;
-  }
-  if (ep !== S.epoca) return;
-  S.inicio = r; S.empresa = r.empresa_id; S.ultima = Date.now(); guardarActividad();
-  pintarShell(); router();
+  try {
+    try { r = await api('conta_inicio', S.empresa != null ? { empresa_id: S.empresa } : {}); }
+    catch (e) {
+      if (ep !== S.epoca || e.obsoleto) return;
+      if (e.sesion) { ss.del('lem_tok'); S.token = null; Conexion.salir(); vLogin(e.message); return; }
+      if (e.codigo === 'sin_acceso') { vSinAcceso(e.message); return; }
+      vErrorArranque(e); return;
+    }
+    if (ep !== S.epoca) return;
+    const pref = S.empresa == null ? empresaPreferida() : null;
+    if (pref != null && pref !== r.empresa_id && (r.empresas || []).some(x => x.empresa_id === pref)) { S.empresa = pref; arrancar(); return; }
+    S.inicio = r; S.empresa = r.empresa_id; S.ultima = Date.now(); guardarActividad();
+    pintarShell(); router();
+  } finally { if (window.LEM_PV && S.token && ep === S.epoca) LEM_PV.iniciar({ api, sinGuardar: () => { const s = S.sub;   // XML en memoria: se pierden al recargar
+    return !!(s.enviando || s.leyendo || s.items.some(i => i.previa === 'listo' && i.texto != null && (!i.res || i.res.resultado === 'no_enviado'))); } }); }   // barra "Punto de vista" (solo si el servidor lo permite)
 }
 
 /* ── Armazón ── */
 const ROLES = { admin: { label: 'Administrador', color: '#534AB7' }, contabilidad: { label: 'Contabilidad', color: '#0E5A42' } };
 function pintarShell() {
   const p = S.inicio; const rol = ROLES[p.rol] || { label: p.rol || '—', color: '#6B6B66' };
-  const quien = S.usuario || '—'; const ini = (quien.split('@')[0] || '?').slice(0, 2).toUpperCase();
+  const quien = (p.ver_como_aplicado && p.ver_como_aplicado.cuenta) || S.usuario || '—'; const ini = (quien.split('@')[0] || '?').slice(0, 2).toUpperCase();   // viendo como (mig. 097): la cuenta vista
   const emps = p.empresas || [];
   let extra = emps.length > 1
     ? '<div><label for="selEmp">Empresa</label><select id="selEmp" class="sel w-full" data-chg="empresa">' + emps.map(e => '<option value="' + esc(e.empresa_id) + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></div>'
