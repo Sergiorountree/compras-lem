@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventarios · Grupo LEM</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="/punto-de-vista.js?v=097"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
 <style>
@@ -250,12 +251,11 @@ function aviso(m) { let b = $('avisoErr'); if (!b) { b = document.createElement(
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
 const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], tab: null, empresa: null,
-  vista: (function(){ try { return localStorage.getItem('lem_vista_inv') || 'admin'; } catch(e){ return 'admin'; } })(), gerenteElegido: false,
   cache: {}, filtroMes: '', kpis: null, gen: { branch: null, fecha: '', data: null, abierto: null, busca: '', vals: {} }, val: { fecha: '', data: null }, diario: { branch: null, fecha: '' }, perd: { branch: null, lunes: null } };
 
 /* ── API: SQL Connect (window.LEMDC) con respaldo n8n solo para lecturas (auditoría 12-sep, S04) ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['perfil','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','inv_general','inv_general_valor','inv_hoy','inv_perdidas','inv_perdidas_todas']);
+const LECTURAS = new Set(['ver_como_opciones','perfil','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','inv_general','inv_general_valor','inv_hoy','inv_perdidas','inv_perdidas_todas']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -263,7 +263,8 @@ async function esperarLEMDC() {
   if (window.LEMDC) await Promise.race([LEMDC.listo, new Promise(r => setTimeout(r, 4000))]);
 }
 async function api(accion, datos) {
-  const d = conEmpresa(datos);
+  // Punto de vista (mig. 097): la vista elegida viaja en datos.ver_como (punto-de-vista.js); sin vista, d es lo de siempre
+  const d = window.LEM_PV ? LEM_PV.datos(accion, conEmpresa(datos)) : conEmpresa(datos);
   if (!SOLO_N8N.has(accion) && apiForzada() !== 'n8n') {
     let listo = false;
     try {
@@ -274,6 +275,8 @@ async function api(accion, datos) {
     if (listo) {
       try {
         const j = await LEMDC.llamar(accion, d);
+        if (window.LEM_PV && LEM_PV.rechazo(j)) return LEM_PV.pendiente();   // el servidor rechazó la vista: vuelve a la propia sin cerrar sesión
+        if (accion === 'ver_como_opciones') return j;                       // la barra decide en silencio (sin la 097: accion_desconocida = sin barra)
         if (j.error && j.error !== 'no_existe') { toast('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; e.detalle = j.detalle; throw e; }
         return j;
       } catch (e) {
@@ -291,6 +294,8 @@ async function apiN8n(accion, datos) {
   catch (err) { aviso('Sin conexión con la API (' + err.message + '). Revisa tu internet y reintenta.'); throw err; }
   if (r.status === 401) { store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); throw new Error('401'); }
   const j = await r.json();
+  if (window.LEM_PV && LEM_PV.rechazo(j)) return LEM_PV.pendiente();
+  if (accion === 'ver_como_opciones') return j;
   if (j.error && j.error !== 'no_existe') { toast('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
   return j;
 }
@@ -315,21 +320,25 @@ async function arrancar() {
     if (!S.branch && S.sucursales.length) S.branch = S.sucursales[0].branch_id;
     pintar();
   } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
+  finally { if (window.LEM_PV && S.token) LEM_PV.iniciar({ api }); }   // barra "Punto de vista": solo si el servidor lo permite (hoy, Sergio)
 }
-function vista() { return S.rol === 'admin' ? S.vista : 'propia'; }
-function esGerente() { return vista() === 'gerente' || (vista() === 'propia' && S.rol === 'gerente'); }
-function esAdmin() { return vista() === 'admin' || (vista() === 'propia' && S.rol === 'admin'); }
-function cambiarVista(v) { S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista_inv', v); } catch (e) {} if (v !== 'gerente' && S.sucursales.length) S.branch = S.sucursales[0].branch_id; S.tab = null; S.kpis = null; cerrarModal(); pintar(); }
+/* Vista = el rol REAL del perfil (mig. 097). "Ver como" lo elige solo Sergio en la barra "Punto de vista" (punto-de-vista.js) y el
+   SERVIDOR contesta como esa cuenta: el perfil ya trae sus roles. */
+function vista() { return S.rol === 'admin' ? 'admin' : 'propia'; }
+function esGerente() { return S.rol === 'gerente'; }
+function esAdmin() { return S.rol === 'admin'; }
 function fijarEmpresa() {
   const p = S.perfil || {}; const emps = p.empresas || [];
   if (emps.length <= 1) { S.empresa = null; S.sucursales = p.sucursales || []; return; }
-  let e = null; try { e = Number(localStorage.getItem('lem_empresa')) || null; } catch (x) {}
+  let e = (window.LEM_PV && LEM_PV.empresa && LEM_PV.empresa()) || null;   // viendo como: la empresa de la vista
+  if (!e) try { e = Number(localStorage.getItem('lem_empresa')) || null; } catch (x) {}
   if (!emps.some(x => x.empresa_id === e)) e = emps[0].empresa_id;
   S.empresa = e; S.sucursales = (p.sucursales || []).filter(s => s.empresa_id === S.empresa);
   if (!S.sucursales.some(s => s.branch_id === S.branch)) S.branch = (S.sucursales[0] || {}).branch_id || null;
 }
 function conEmpresa(datos) { const d = Object.assign({}, datos || {}); if (S.empresa && d.empresa_id == null) d.empresa_id = S.empresa; return d; }
-function cambiarEmpresa(v) { try { localStorage.setItem('lem_empresa', String(Number(v))); } catch (e) {} S.branch = null; S.gerenteElegido = false; S.gen.branch = null; S.diario.branch = null; S.perd.branch = null; S.perd.lunes = null; S.cache = {}; S.kpis = null; fijarEmpresa(); cerrarModal(); pintar(); }
+function cambiarEmpresa(v, el) { if (window.LEM_PV && LEM_PV.cambiarEmpresa && LEM_PV.cambiarEmpresa(v)) { if (el) el.value = String(S.empresa); return; }   // viendo como: cambia la vista
+  try { localStorage.setItem('lem_empresa', String(Number(v))); } catch (e) {} S.branch = null; S.gen.branch = null; S.diario.branch = null; S.perd.branch = null; S.perd.lunes = null; S.cache = {}; S.kpis = null; fijarEmpresa(); cerrarModal(); pintar(); }
 function sucNombre(b) { const s = S.sucursales.find(x => x.branch_id === Number(b)); return s ? s.nombre : ''; }
 function empresaNombre() { const e = ((S.perfil || {}).empresas || []).find(x => x.empresa_id === S.empresa); return e ? e.nombre : (((S.perfil || {}).empresas || [])[0] || {}).nombre || ''; }
 function selSuc(id, valor, onchange, todas) { return '<select class="inp" id="' + id + '" onchange="' + onchange + '">' + (todas ? '<option value="">Todas las tiendas</option>' : '<option value="">Elige la tienda</option>') + S.sucursales.map(s => '<option value="' + s.branch_id + '"' + (String(valor) === String(s.branch_id) ? ' selected' : '') + '>' + esc(corto(s.nombre)) + '</option>').join('') + '</select>'; }
@@ -341,13 +350,10 @@ function tabsDe() {
   return [['panel', '📊 Panel'], ['perdidas', '📉 Pérdidas'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
 }
 function cuentaHtml(enModal) {
-  const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
   const emps = (S.perfil && S.perfil.empresas) || [];
   let h = '<span class="pill rol">' + (esGerente() ? 'Gerente' : esAdmin() ? 'Administración' : 'Asesor') + '</span>';
-  if (S.rol === 'admin') h += '<span class="pill">Ver como <select onchange="cambiarVista(this.value)">' + op('admin', 'Administrador') + op('gerente', 'Gerente de tienda') + op('aprobador', 'Asesor') + '</select></span>';
-  if (emps.length > 1) h += '<span class="pill">Empresa <select onchange="cambiarEmpresa(this.value)">' + emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></span>';
+  if (emps.length > 1) h += '<span class="pill">Empresa <select onchange="cambiarEmpresa(this.value, this)">' + emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></span>';
   else if (emps.length === 1) h += '<span class="pill">' + esc(emps[0].nombre) + '</span>';
-  if (vista() === 'gerente' && S.gerenteElegido) h += '<button class="btn btn-sm" onclick="S.gerenteElegido=false;S.tab=null;cerrarModal();pintar()">↔ Otro gerente</button>';
   h += '<span class="pill">' + esc(S.perfil.usuario) + '</span><a class="btn" href="/">Portal</a>';
   return enModal ? '<h3>Tu cuenta</h3><div style="display:grid;gap:10px;margin-top:10px">' + h.replace(/<span class="pill/g, '<span style="justify-content:space-between" class="pill') + '</div>' : h;
 }
@@ -356,15 +362,10 @@ function pintar() {
   const tabs = tabsDe(); if (!S.tab || !tabs.some(t => t[0] === S.tab)) S.tab = tabs[0][0];
   let h = '<header class="topbar"><h1><a href="/" title="Volver a los módulos">⌂</a> 📦 Inventarios <em>· ' + esc(esGerente() && S.branch ? corto(sucNombre(S.branch)) : empresaNombre() || 'Grupo LEM') + '</em></h1>' +
     '<div class="der solo-pc">' + cuentaHtml(false) + '</div><button class="btn btn-sm solo-tel" onclick="abrirCuenta()">Cuenta</button></header>';
-  if (vista() === 'gerente' && !S.gerenteElegido) {
-    h += '<main class="main"><div class="card" style="margin-top:16px"><h3>¿Qué gerente quieres ser?</h3><p class="hint" style="margin-bottom:10px">Verás exactamente lo que ve ese gerente: solo su tienda.</p><div class="lista">' + S.sucursales.map(s => '<button class="btn" style="justify-content:flex-start" onclick="elegirGerente(' + s.branch_id + ')">🏪 ' + esc(corto(s.nombre)) + '</button>').join('') + '</div></div></main>';
-    app().innerHTML = h; return;
-  }
   h += '<div class="tabs-wrap"><div class="tabs-row"><nav class="tabs">' + tabs.map(t => '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" onclick="irTab(\'' + t[0] + '\')">' + t[1] + '</button>').join('') + '' + '</nav>' + (esGerente() ? '<div class="kpis" id="kpis"></div>' : '') + '</div></div>' +
     '<main class="main" id="main"><div class="loading">Cargando…</div></main>';
   app().innerHTML = h; if (esGerente()) cargarKpis(); router();
 }
-function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.tab = 'registro'; S.cache = {}; S.kpis = null; S.diario.fecha = ''; pintar(); }
 function irTab(t) { S.tab = t; pintar(); }
 function router() { ({ registro: vRegistro, contar: vContar, diario: vDiario, hist: vHistorial, ef: vEficiencia, perdidas: vPerdidas, panel: vPanel, valor: vValor }[S.tab] || vRegistro)(); }
 const M = () => $('main');
