@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Compras · Grupo LEM</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="/punto-de-vista.js?v=097"></script>
 <style>
   :root { --rojo:#B3282D; --rojo2:#8f1f23; --gris:#f4f4f5; --borde:#e4e4e7; --txt:#18181b; --txt2:#71717a; --verde:#15803d; --ambar:#b45309; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -179,7 +180,7 @@ const app = () => $('app');
 function aviso(m) { let b = document.getElementById('avisoErr'); if (!b) { b = document.createElement('div'); b.id = 'avisoErr'; b.className = 'aviso'; b.style.cssText = 'position:sticky;top:52px;z-index:20;margin:8px'; document.body.insertBefore(b, document.querySelector('main')); } b.textContent = '⚠️ ' + m; }
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
-const S = { token: store.get() || null, branch: null, prov: null, vista: (function(){ try { return localStorage.getItem('lem_vista') || 'admin'; } catch(e){ return 'admin'; } })(), perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
+const S = { token: store.get() || null, branch: null, prov: null, perfil: null, cat: null, carrito: {}, reqId: null, folio: null, t0: null };
 const UNIDADES = { PZA: ['pieza', 'piezas'], PZ: ['pieza', 'piezas'], KG: ['kilo', 'kilos'], K: ['kilo', 'kilos'], PQ: ['paquete', 'paquetes'], PKT: ['paquete', 'paquetes'], ROL: ['rollo', 'rollos'], BOL: ['bolsa', 'bolsas'], L: ['litro', 'litros'], LT: ['litro', 'litros'], U: ['unidad', 'unidades'] };
 function uDet(u, q) { const k = String(u || 'PZA').toUpperCase(); const p = UNIDADES[k] || [String(u || 'unidad').toLowerCase(), String(u || 'unidades').toLowerCase()]; return Number(q) === 1 ? p[0] : p[1]; }
 function presInfo(i) {
@@ -204,7 +205,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&
    además es la ÚNICA ruta para correo_oc (n8n manda el correo). Forzar n8n para diagnóstico:
    localStorage.setItem('lem_api', 'n8n'). ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['bandeja_calc','admin_calc_inventarios','perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config']);
+const LECTURAS = new Set(['bandeja_calc','admin_calc_inventarios','perfil','catalogo','mis_requisiciones','bandeja','historial_asesor','detalle','ocs_por_recibir','por_pagar','calculadora','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','admin_catalogo','admin_presupuestos','admin_calc_params','admin_calc_config','ver_como_opciones']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -212,7 +213,8 @@ async function esperarLEMDC() {
   if (window.LEMDC) await Promise.race([LEMDC.listo, new Promise(r => setTimeout(r, 4000))]);
 }
 async function api(accion, datos) {
-  const d = conEmpresa(datos);
+  // Punto de vista (mig. 097): la vista elegida viaja en datos.ver_como (punto-de-vista.js); sin vista, d es lo de siempre
+  const d = window.LEM_PV ? LEM_PV.datos(accion, conEmpresa(datos)) : conEmpresa(datos);
   if (!SOLO_N8N.has(accion) && apiForzada() !== 'n8n') {
     // 1) ¿Está lista la sesión de SQL Connect? Si no, se usa n8n (todavía no se mandó nada).
     let listo = false;
@@ -229,6 +231,8 @@ async function api(accion, datos) {
     if (listo) {
       try {
         const j = await LEMDC.llamar(accion, d);
+        if (window.LEM_PV && LEM_PV.rechazo(j)) return LEM_PV.pendiente();   // el servidor rechazó la vista: vuelve a la propia sin cerrar sesión
+        if (accion === 'ver_como_opciones') return j;                       // la barra decide en silencio (sin la 097: accion_desconocida = sin barra)
         if (j.error) { alert('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
         return j;
       } catch (e) {
@@ -263,6 +267,8 @@ async function apiN8n(accion, datos, reintento) {
   const sinConfirmar = (det) => { aviso(LECTURAS.has(accion) ? 'La API no contestó bien (' + det + '). Reintenta en un momento.' : 'No se pudo confirmar "' + accion + '" (' + det + '). Revisa el estado antes de volver a intentarlo.'); return new Error(det); };
   let j;
   try { j = await r.json(); } catch (err) { throw sinConfirmar('HTTP ' + r.status); }
+  if (window.LEM_PV && LEM_PV.rechazo(j)) return LEM_PV.pendiente();
+  if (accion === 'ver_como_opciones') return j;
   if (j && j.error) { alert('⚠️ ' + (j.detalle || j.error)); const e = new Error(j.error); e.negocio = true; throw e; }
   if (!r.ok) throw sinConfirmar('HTTP ' + r.status);
   return j;
@@ -334,26 +340,24 @@ async function arrancar() {
     S.perfil = p;
     fijarEmpresa();
     if (S.branch == null && sucs().length) S.branch = sucs()[0].branch_id;
-    $('hUser').innerHTML = esc(p.usuario) + selectorEmpresa() + (p.roles.includes('admin') ? '<br>' + selectorVista() : '');
+    $('hUser').innerHTML = esc(p.usuario) + selectorEmpresa();
     router();
   } catch (e) { if (e.message !== '401') aviso('No se pudo cargar tu perfil: ' + e.message); }
+  if (window.LEM_PV && S.token) LEM_PV.iniciar({ api, sinGuardar: compraSinGuardar });   // barra "Punto de vista": solo si el servidor lo permite (hoy, Sergio); un pedido a medias pide confirmar
 }
 
-/* ── Vista (solo admin): ver como gerente / aprobador / admin ─ */
+/* ── Vista = el rol REAL del perfil (mig. 097). "Ver como" ya no vive aquí: lo elige solo Sergio en la barra "Punto de vista"
+   (punto-de-vista.js) y el SERVIDOR contesta como esa cuenta, así que el perfil ya trae sus roles: un admin queda en 'admin' y
+   cualquier otro en 'propia' (gerente o aprobador según su perfil). ── */
 function esAdmin() { return S.perfil && S.perfil.roles.includes('admin'); }
-function vista() { return esAdmin() ? S.vista : 'propia'; }
-function cambiarVista(v) {
-  S.vista = v; S.gerenteElegido = false; try { localStorage.setItem('lem_vista', v); } catch (e) {}
-  S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null;
-  location.hash = (v === 'aprobador') ? 'bandeja' : 'captura';
-  router();
-}
+function vista() { return esAdmin() ? 'admin' : 'propia'; }
 /* ── Multiempresa (11-sep-2026): el usuario elige empresa solo si tiene más de una; cada
    empresa está aislada en la base (041/042), aquí solo se filtra lo que ya viene permitido ── */
 function fijarEmpresa() {
   const emps = (S.perfil && S.perfil.empresas) || [];
   if (emps.length <= 1) { S.empresa = null; return; }
-  let e = null; try { e = Number(localStorage.getItem('lem_empresa')) || null; } catch (x) {}
+  let e = (window.LEM_PV && LEM_PV.empresa && LEM_PV.empresa()) || null;   // viendo como: la empresa de la vista
+  if (!e) try { e = Number(localStorage.getItem('lem_empresa')) || null; } catch (x) {}
   if (!emps.some(x => x.empresa_id === e)) e = emps[0].empresa_id;
   S.empresa = e;
   if (!sucs().some(s => s.branch_id === S.branch)) S.branch = (sucs()[0] || {}).branch_id || null;
@@ -363,41 +367,35 @@ function conEmpresa(datos) { const d = Object.assign({}, datos || {}); if (S.emp
 function selectorEmpresa() {
   const emps = (S.perfil && S.perfil.empresas) || [];
   if (emps.length <= 1) return '';
-  return '<br><label style="font-size:12px;opacity:.9">Empresa <select onchange="cambiarEmpresa(this.value)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
+  return '<br><label style="font-size:12px;opacity:.9">Empresa <select onchange="cambiarEmpresa(this.value, this)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
     emps.map(e => '<option value="' + e.empresa_id + '"' + (e.empresa_id === S.empresa ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('') + '</select></label>';
 }
-function cambiarEmpresa(v) {
+function cambiarEmpresa(v, el) {
+  if (window.LEM_PV && LEM_PV.cambiarEmpresa && LEM_PV.cambiarEmpresa(v)) { if (el) el.value = String(S.empresa); return; }   // viendo como: cambia la vista
   S.empresa = Number(v); try { localStorage.setItem('lem_empresa', String(S.empresa)); } catch (e) {}
-  S.branch = (sucs()[0] || {}).branch_id || null; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.gerenteElegido = false;
+  S.branch = (sucs()[0] || {}).branch_id || null; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null;
   if (typeof CADM !== 'undefined') { CADM.branch = null; CADM.prov = null; CADM.provNombre = null; CADM.data = null; CADM.cons = null; CADM.pend = {}; CADM.inv = null; CADM.invPend = {}; }
   if (typeof CSUG !== 'undefined') { CSUG.data = null; CSUG.abiertas = {}; }
-  $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + (S.perfil.roles.includes('admin') ? '<br>' + selectorVista() : '');
+  $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa();
   router();
-}
-function selectorVista() {
-  if (!esAdmin()) return '';
-  const op = (v, t) => '<option value="' + v + '"' + (S.vista === v ? ' selected' : '') + '>' + t + '</option>';
-  return '<label style="font-size:12px;opacity:.9">Ver como <select onchange="cambiarVista(this.value)" style="font-size:13px;border-radius:6px;padding:3px 6px;border:none">' +
-    op('admin', 'Administrador') + op('gerente', 'Gerente de sucursal') + op('aprobador', 'Asesor') + '</select></label>';
 }
 
 /* ── Router ────────────────────────────────────────────── */
 function nav() {
   const p = S.perfil; const vw = vista();
-  const esG = (vw === 'propia') ? (p.roles.includes('gerente')) : (vw !== 'aprobador');
-  const esA = (vw === 'propia') ? (p.aprueba_proveedores.length > 0) : (vw !== 'gerente');
+  const esG = (vw === 'propia') ? (p.roles.includes('gerente')) : true;
+  const esA = (vw === 'propia') ? (p.aprueba_proveedores.length > 0) : true;
   let h = '<div class="nav no-print">';
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button><button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button>';
   if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button><button class="btn mini sec" onclick="location.hash=\'calcadmin\'">🧮 Calculadora</button>';
-  if (vw === 'gerente' && S.gerenteElegido) h += '<button class="btn mini sec" onclick="S.gerenteElegido=false;S.cat=null;S.carrito={};location.hash=\'captura\';router()">↔ Otro gerente</button>';
   return h + '</div>';
 }
 function router() {
   document.body.classList.remove('ancha');
-  const h = location.hash.slice(1) || ((vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length)) ? 'bandeja' : 'captura');
+  const h = location.hash.slice(1) || ((vista() === 'propia' && S.perfil.aprueba_proveedores.length) ? 'bandeja' : 'captura');
   if (h === 'captura') vCaptura();
   else if (h === 'pedidos') vPedidos();
   else if (h === 'bandeja') vBandeja();
@@ -417,24 +415,15 @@ window.addEventListener('hashchange', () => S.perfil && router());
 
 /* ── Captura del gerente ───────────────────────────────── */
 function cambiarSuc(v) { S.branch = Number(v); S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
-function vElegirGerente() {
-  let h = nav() + '<div class="card"><b>¿Qué gerente quieres ser?</b><div class="presu" style="margin-bottom:8px">Verás exactamente lo que ve ese gerente: solo su sucursal.</div>';
-  sucs().forEach(s => {
-    h += '<button class="btn sec" style="display:block;width:100%;text-align:left;margin:6px 0" onclick="elegirGerente(' + s.branch_id + ')">' + esc(s.nombre) + '</button>';
-  });
-  app().innerHTML = h + '</div>';
-}
-function elegirGerente(b) { S.branch = Number(b); S.gerenteElegido = true; S.prov = null; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; vCaptura(); }
 async function vCaptura() {
   document.body.classList.remove('ancha');
-  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   const suc = sucs().find(s => s.branch_id === S.branch) || sucs()[0];
   if (!suc) { app().innerHTML = nav() + '<div class="msg">Tu usuario no tiene sucursal asignada para pedir.</div>'; return; }
   if (!S.cat) {
     app().innerHTML = nav() + '<div class="msg">Cargando catálogo…</div>';
     S.cat = await api('catalogo', { branch_id: S.branch });
   }
-  const selector = (sucs().length > 1 && vista() !== 'gerente')
+  const selector = (sucs().length > 1)
     ? '<select onchange="cambiarSuc(this.value)" style="font-size:16px;font-weight:700;border:1px solid var(--borde);border-radius:8px;padding:6px 8px;max-width:100%">' +
       sucs().map(s => '<option value="' + s.branch_id + '"' + (s.branch_id === S.branch ? ' selected' : '') + '>' + esc(s.nombre) + '</option>').join('') + '</select>'
     : '<b>' + esc(suc.nombre) + '</b>';
@@ -595,14 +584,16 @@ async function enviar() {
    Mig. 085 (Sergio, 6-oct-2026): el Inventario Final sale del INVENTARIO GENERAL que administración eligió para la tienda
    (Ajustes → Fechas y días); el gerente ya no lo captura, solo Modificador y Pedido de Gerente. Sin elección (o sin
    inventario general) la calculadora no calcula. Lo no contado en ese general cuenta como 0. */
-const CALC = { data: null, vals: {} };
+const CALC = { data: null, vals: {}, sucio: false };
+// Lo tecleado en Modificador / Pedido de Gerente vive solo en memoria hasta "Pasar al pedido": CALC.sucio lo marca para el aviso
+// de cambios sin guardar del punto de vista (cambiar de vista recarga la página).
+document.addEventListener('input', (e) => { if (CALC.data && /^(mod|ped)\d+$/.test((e.target && e.target.id) || '')) CALC.sucio = true; });
 const num = (x, d) => Number(x || 0).toLocaleString('es-MX', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d });
 const fMx = (iso) => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : ''; };
 const difDias = (a, b) => Math.round((new Date(String(b).slice(0, 10) + 'T12:00:00') - new Date(String(a).slice(0, 10) + 'T12:00:00')) / 86400000);
 const diasTxt = (n) => n + (Number(n) === 1 ? ' día' : ' días');
 const guisosSinTxt = (n) => n + (Number(n) === 1 ? ' guiso sin contar cuenta' : ' guisos sin contar cuentan') + ' como 0';
 async function vCalculadora() {
-  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   if (!S.cat) S.cat = await api('catalogo', { branch_id: S.branch });
   const prov = (S.cat.proveedores || []).find(p => p.proveedor_id === S.prov && p.calculadora);
   if (!prov) { vCaptura(); return; }
@@ -618,7 +609,7 @@ async function vCalculadora() {
   // en Pedido de Gerente (no depende del inventario) y solo se reinician los modificadores de los guisos
   const invId = (d.config.inventario || {}).inventario_dia_id;
   const mismaTienda = CALC.data && CALC.data.branch_id === d.branch_id && CALC.data.proveedor_id === d.proveedor_id;
-  if (!mismaTienda) CALC.vals = {};
+  if (!mismaTienda) { CALC.vals = {}; CALC.sucio = false; }
   else if (((CALC.data.config || {}).inventario || {}).inventario_dia_id !== invId) d.lineas.forEach(l => { const x = CALC.vals[l.proveedor_insumo_id]; if (l.promedio != null && x) x.mod = ''; });
   CALC.data = d; pintarCalculadora();
 }
@@ -633,9 +624,7 @@ function pintarBloqueoCalc(d, prov) {
     (b.motivo === 'sin_general' ? '<button class="btn sec" onclick="location.href=\'/inventarios/\'">Ir a Inventarios</button>' : '') +
     (esAdmin() && b.motivo !== 'sin_general' ? '<button class="btn sec" onclick="irAjustesCalc()">Elegirlo en ⚙️ Ajustes de la calculadora</button>' : '') + '</div>';
 }
-function irAjustesCalc() {
-  S.vista = 'admin'; S.gerenteElegido = false; try { localStorage.setItem('lem_vista', 'admin'); } catch (e) {}
-  $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + '<br>' + selectorVista();
+function irAjustesCalc() {   // mig. 097: ya no cambia ni guarda la vista (el botón solo sale a un administrador)
   if (location.hash === '#calcadmin') router(); else location.hash = 'calcadmin';
 }
 function leerCalc() {
@@ -784,6 +773,7 @@ async function pasarAlPedido(btn) {
     if (rechazoDelServidor(e)) { if (document.body.contains(btn)) { leerCalc(); vCalculadora(); } else btn.disabled = false; }
     return; }
   r.lineas.forEach(l => { if (l.final > 0) S.carrito[l.proveedor_insumo_id] = l.final; else delete S.carrito[l.proveedor_insumo_id]; });
+  CALC.sucio = false;   // ya quedó en el pedido (el carrito lo cubre)
   S.corridaId = r.corrida_id; await tocarPrimera(); leerCalc();
   S.calcNota = 'Calculadora aplicada: ' + r.insumos + ' insumo' + (r.insumos === 1 ? '' : 's') + ' en el pedido por ' + money(r.total) + ' sin IVA. Revisa y envía.';
   vCaptura();
@@ -986,10 +976,8 @@ function detalleSugHTML(t) {
   if (ex.length) h += '<div class="presu" style="margin-top:8px"><b>Existencias del conteo sin sugerido</b> (sin consumo en el POS; el pedido se captura a mano): ' + ex.map(e => esc(e.insumo) + ' ' + num(e.existencia, 0) + ' ' + esc(e.unidad_conteo || '')).join(' · ') + '</div>';
   return h;
 }
-function abrirCalcTienda(b) {
-  S.vista = 'gerente'; try { localStorage.setItem('lem_vista', 'gerente'); } catch (e) {}
-  S.branch = Number(b); S.gerenteElegido = true; S.prov = CADM.prov; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.corridaId = null; CALC.data = null;
-  $('hUser').innerHTML = esc(S.perfil.usuario) + selectorEmpresa() + (S.perfil.roles.includes('admin') ? '<br>' + selectorVista() : '');
+function abrirCalcTienda(b) {   // mig. 097: abre la calculadora de esa tienda SIN cambiar ni guardar la vista (antes dejaba "gerente" pegado)
+  S.branch = Number(b); S.prov = CADM.prov; S.cat = null; S.carrito = {}; S.reqId = null; S.folio = null; S.t0 = null; S.corridaId = null; CALC.data = null;
   try { history.replaceState(null, '', '#captura'); } catch (e) {}
   vCalculadora();   // mig. 085: la calculadora usa el mismo inventario general elegido (y los mismos días) que el sugerido
 }
@@ -1066,6 +1054,19 @@ async function guardarConsumosTodas(btn) {
   CALC.data = null; await vCalcAdmin();
   if ($('c_msg')) $('c_msg').textContent = '✔ Consumos guardados en ' + r.guardadas + ' sucursal' + (r.guardadas === 1 ? '' : 'es') + (r.sin_cambio ? ' (' + r.sin_cambio + ' sin cambio)' : '') + '; los gerentes ya los ven.';
 }
+/* Punto de vista: ¿hay algo capturado que se perdería al recargar? (carrito, calculadora, ajustes del admin) */
+function presuPendiente() {
+  const ts = (CADM.data && CADM.data.tiendas) || [];
+  return Object.keys(CADM.pend || {}).some(b => { const t = ts.find(x => String(x.branch_id) === String(b)), o = t && t.presupuesto != null ? String(Number(t.presupuesto)) : '';
+    const v = String(CADM.pend[b] == null ? '' : CADM.pend[b]).trim(); return !(v === o || (v === '0' && o === '') || (v === '' && o === '0')); });
+}
+function compraSinGuardar() {
+  if (Object.keys(S.carrito || {}).length > 0) return true;
+  if (CALC.data && CALC.sucio) return true;
+  if (presuPendiente() || ((CADM.inv && CADM.inv.tiendas) || []).some(invPendiente)) return true;
+  if (document.querySelector('input[id^="m_"][data-tocado="1"]')) return true;   // matriz de consumos tocada (solo en pantalla)
+  return ['a_llega', 'a_factor', 'a_cubrir'].some(id => { const i = $(id); return !!i && i.value !== i.defaultValue; });   // Fechas y días
+}
 function presuCambio(b, inp) { CADM.pend[b] = inp.value; inp.style.borderColor = inp.value === inp.dataset.orig ? 'var(--borde)' : 'var(--ambar)'; }
 function presupuestosCambiados(tiendas) {
   const items = [], lineas = [];
@@ -1116,7 +1117,6 @@ async function guardarCalcParams(pid, btn) {
 
 /* ── Mis pedidos ───────────────────────────────────────── */
 async function vPedidos() {
-  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   app().innerHTML = nav() + '<div class="msg">Cargando…</div>';
   const r = await api('mis_requisiciones', { branch_id: S.branch });
   let h = nav();
@@ -1515,7 +1515,7 @@ async function vOC(id) {
   h += '<div class="no-print" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
     '<button class="btn" onclick="imprimirOC(' + id + ')">🖨 Imprimir / PDF</button>';
   const CORREO_PROVEEDOR = false; // 5-sep: por ahora Pablo reenvía la OC; activar cuando los proveedores tengan correo en Catálogo
-  const puedeMandar = d.puede_mandar != null ? !!d.puede_mandar && vista() !== 'gerente' : (vista() === 'admin' || vista() === 'aprobador' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length));
+  const puedeMandar = d.puede_mandar != null ? !!d.puede_mandar : (vista() === 'admin' || (vista() === 'propia' && S.perfil.aprueba_proveedores.length));
   if (CORREO_PROVEEDOR && puedeMandar && (d.estado === 'autorizada' || d.estado === 'enviada_proveedor')) h += '<button class="btn" id="btnCorreo" onclick="correoProveedor(' + id + ', this)">📧 ' + (d.estado === 'autorizada' ? 'Enviar al proveedor por correo' : 'Reenviar al proveedor') + '</button>';
   if (puedeMandar && d.estado === 'autorizada') h += '<button class="btn" onclick="reenviarAviso(' + id + ', this)">📧 Avisar a Pablo y poner en tránsito</button>';
   if (puedeMandar && d.estado === 'autorizada') h += '<button class="btn sec" onclick="marcarOC(' + id + ',\'enviada_proveedor\')">📤 Ya la envié por otro medio</button>';
@@ -1596,7 +1596,6 @@ function htmlOCGepp(d) {
 
 /* ── Recepción del gerente ─────────────────────────────── */
 async function vRecibir() {
-  if (vista() === 'gerente' && !S.gerenteElegido) { vElegirGerente(); return; }
   app().innerHTML = nav() + '<div class="msg">Buscando pedidos en camino…</div>';
   const r = await api('ocs_por_recibir', { branch_id: S.branch });
   S.porRecibir = r.ocs || [];
