@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grupo LEM · Módulos</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="/punto-de-vista.js?v=097"></script>
 <style>
   :root { --rojo:#B3282D; --gris:#f4f4f5; --borde:#e4e4e7; --txt:#18181b; --txt2:#71717a; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -35,6 +36,7 @@
   .msg { text-align:center; color:var(--txt2); padding:60px 0; }
   .aviso { background:#fff3cd; border:1px solid #ffe08a; color:#664d03; border-radius:10px; padding:12px 14px; margin:14px auto; max-width:560px; font-size:14px; }
   footer { text-align:center; color:var(--txt2); font-size:12px; padding:18px; }
+  #pvPortal:empty { display:none; }
 </style>
 </head>
 <body>
@@ -82,7 +84,15 @@ async function apiN8n(accion, datos) {
   if (r.status === 401) { const e = new Error('401'); e.expirada = true; throw e; }
   return await r.json();
 }
+/* Punto de vista (mig. 097): la vista elegida viaja en datos.ver_como; si el servidor la rechaza, la página vuelve a la vista
+   propia sin cerrar la sesión (punto-de-vista.js). Sin ese archivo, todo funciona igual en la vista propia. */
 async function api(accion, datos) {
+  const d = window.LEM_PV ? LEM_PV.datos(accion, datos) : datos;
+  const j = await apiCruda(accion, d);
+  if (window.LEM_PV && LEM_PV.rechazo(j)) return LEM_PV.pendiente();
+  return j;
+}
+async function apiCruda(accion, datos) {
   try {
     await esperarLEMDC();
     if (window.LEMDC && S.token) {
@@ -113,17 +123,19 @@ function vLogin(msj) {
   } else { setTimeout(() => vLogin(msj), 400); }
 }
 function aviso(t) { const d = document.createElement('div'); d.className = 'aviso'; d.textContent = t; $('app').prepend(d); }
-function salir() { store.del(); S.token = null; S.perfil = null; if (window.LEMDC) LEMDC.salir(); vLogin('Sesión cerrada.'); }
+function salir() { store.del(); S.token = null; S.perfil = null; if (window.LEM_PV) LEM_PV.salir(); if (window.LEMDC) LEMDC.salir(); vLogin('Sesión cerrada.'); }
 function pintar(p) {
   const mods = (p.modulos || []).filter(m => MODULOS[m]);
   $('hUser').innerHTML = esc(p.usuario) + '<button onclick="salir()">Salir</button>';
-  if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; return; }
-  let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div class="grid">';
+  if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; if (window.LEM_PV) LEM_PV.iniciar({ api }); return; }
+  /* #pvPortal: la barra "Punto de vista" (mig. 097). Solo aparece si el servidor dice que esta cuenta puede elegirlo (hoy, Sergio). */
+  let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div id="pvPortal" style="margin:-6px 0 20px"></div><div class="grid">';
   for (const k of ['compras', 'nominas', 'inventarios', 'ventas', 'contabilidad']) {
     if (!mods.includes(k)) continue; const m = MODULOS[k];
     h += '<div class="mod ' + m.clase + '">' + (m.etiqueta ? '<span class="etq">' + m.etiqueta + '</span>' : '') + '<div class="ico">' + m.ico + '</div><h3>' + m.titulo + '</h3><p>' + m.texto + '</p><a href="' + m.href + '">' + m.boton + '</a></div>';
   }
   $('app').innerHTML = h + '</div>';
+  if (window.LEM_PV) LEM_PV.iniciar({ api, contenedor: 'pvPortal' });
 }
 async function arrancar() {
   $('app').innerHTML = '<div class="msg">Cargando tus módulos…</div>';
