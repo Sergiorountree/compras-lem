@@ -351,10 +351,10 @@ async function arrancar() {
    cualquier otro en 'propia' (gerente o aprobador según su perfil). ── */
 function esAdmin() { return S.perfil && S.perfil.roles.includes('admin'); }
 function vista() { return esAdmin() ? 'admin' : 'propia'; }
-/* Bandeja, historial y cuentas por pagar (lo que debe la empresa) son de aprobadores y administración, nunca del gerente */
+/* Bandeja e historial son de aprobadores y administración; las cuentas por pagar (lo que debe la empresa), solo de administración */
 function esAprobador() { return vista() !== 'propia' || ((S.perfil && S.perfil.aprueba_proveedores) || []).length > 0; }
-function vSinAcceso() {
-  app().innerHTML = nav() + '<div class="card"><b>Sin acceso</b><div class="presu">Esta pantalla es solo para aprobadores y administración.</div>' +
+function vSinAcceso(quien) {
+  app().innerHTML = nav() + '<div class="card"><b>Sin acceso</b><div class="presu">Esta pantalla es solo para ' + quien + '.</div>' +
     '<p style="margin-top:12px"><a class="btn sec" href="#captura">Ir a Pedir</a></p></div>';
 }
 /* ── Multiempresa (11-sep-2026): el usuario elige empresa solo si tiene más de una; cada
@@ -395,14 +395,15 @@ function nav() {
   if (esG && p.sucursales.length) h += '<button class="btn mini sec" onclick="location.hash=\'captura\'">🛒 Pedir</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>';
-  if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button><button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button>';
-  if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button><button class="btn mini sec" onclick="location.hash=\'calcadmin\'">🧮 Calculadora</button>';
+  if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button>';
+  if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button><button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button><button class="btn mini sec" onclick="location.hash=\'calcadmin\'">🧮 Calculadora</button>';
   return h + '</div>';
 }
 function router() {
   document.body.classList.remove('ancha');
   const h = location.hash.slice(1) || ((vista() === 'propia' && S.perfil.aprueba_proveedores.length) ? 'bandeja' : 'captura');
-  if ((h === 'bandeja' || h === 'historial' || h === 'porpagar') && !esAprobador()) vSinAcceso();
+  if (h === 'porpagar' && vista() !== 'admin') vSinAcceso('administración');
+  else if ((h === 'bandeja' || h === 'historial') && !esAprobador()) vSinAcceso('aprobadores y administración');
   else if (h === 'captura') vCaptura();
   else if (h === 'pedidos') vPedidos();
   else if (h === 'bandeja') vBandeja();
@@ -1650,7 +1651,7 @@ async function guardarRecepcion(id, btn) {
   catch (e) { if (rechazoDelServidor(e)) btn.disabled = false; return; }
   S.porRecibir = null;
   app().innerHTML = nav() + '<div class="card ok-big">' + (r.completa ? '✅<p><b>Pedido recibido completo.</b></p>' : '📦<p><b>Recepción parcial guardada.</b></p><p>Lo que falte lo recibes después desde 📥 Recibir.</p>') +
-    (esAprobador() && r.cxp ? '<p style="margin-top:8px;color:var(--txt2)">Se generó la cuenta por pagar <b>' + esc(r.cxp.folio) + '</b> por ' + money(r.cxp.total) + ' (con IVA) para contabilidad.</p>' : '') +
+    (esAdmin() && r.cxp ? '<p style="margin-top:8px;color:var(--txt2)">Se generó la cuenta por pagar <b>' + esc(r.cxp.folio) + '</b> por ' + money(r.cxp.total) + ' (con IVA) para contabilidad.</p>' : '') +
     '<p style="margin-top:14px"><a class="btn sec" href="#recibir">Volver a pedidos en camino</a></p></div>';
 }
 
