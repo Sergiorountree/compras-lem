@@ -37,6 +37,18 @@
   .aviso { background:#fff3cd; border:1px solid #ffe08a; color:#664d03; border-radius:10px; padding:12px 14px; margin:14px auto; max-width:560px; font-size:14px; }
   footer { text-align:center; color:var(--txt2); font-size:12px; padding:18px; }
   #pvPortal:empty { display:none; }
+  .tabs { display:flex; gap:6px; margin:0 0 18px; border-bottom:1px solid var(--borde); }
+  .tab { background:none; border:none; border-bottom:2px solid transparent; padding:8px 12px; font-size:15px; font-weight:700; color:var(--txt2); cursor:pointer; margin-bottom:-1px; }
+  .tab.on { color:var(--txt); border-bottom-color:var(--rojo); }
+  .tab .n { display:inline-block; min-width:20px; padding:1px 6px; margin-left:6px; border-radius:99px; background:var(--rojo); color:#fff; font-size:12px; }
+  .sem { font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:18px 0 8px; }
+  .av { background:#fff; border:1px solid var(--borde); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+  .av .top { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:4px; }
+  .av .suc { font-weight:800; }
+  .chip { font-size:11.5px; font-weight:700; border-radius:99px; padding:2px 8px; }
+  .chip.finde { background:#FFF4ED; color:#9A3412; } .chip.horas { background:#FCE7E5; color:#8C1F1B; } .chip.est { background:var(--gris); color:var(--txt2); }
+  .av .txt { font-size:14.5px; } .av .det { font-size:13px; color:var(--txt2); margin-top:4px; }
+  .av a { font-size:13px; font-weight:700; color:var(--rojo); text-decoration:none; }
 </style>
 </head>
 <body>
@@ -129,13 +141,46 @@ function pintar(p) {
   $('hUser').innerHTML = esc(p.usuario) + '<button onclick="salir()">Salir</button>';
   if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; if (window.LEM_PV) LEM_PV.iniciar({ api }); return; }
   /* #pvPortal: la barra "Punto de vista" (mig. 097). Solo aparece si el servidor dice que esta cuenta puede elegirlo (hoy, Sergio). */
-  let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div id="pvPortal" style="margin:-6px 0 20px"></div><div class="grid">';
+  let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div id="pvPortal" style="margin:-6px 0 20px"></div>' +
+          '<div class="tabs" id="tabs" style="display:none"><button class="tab on" data-t="mods" onclick="verTab(\'mods\')">Módulos</button><button class="tab" data-t="avisos" onclick="verTab(\'avisos\')">Avisos<span class="n" id="nAvisos">0</span></button></div>' +
+          '<div id="tabMods"><div class="grid">';
   for (const k of ['compras', 'nominas', 'inventarios', 'ventas', 'contabilidad']) {
     if (!mods.includes(k)) continue; const m = MODULOS[k];
     h += '<div class="mod ' + m.clase + '">' + (m.etiqueta ? '<span class="etq">' + m.etiqueta + '</span>' : '') + '<div class="ico">' + m.ico + '</div><h3>' + m.titulo + '</h3><p>' + m.texto + '</p><a href="' + m.href + '">' + m.boton + '</a></div>';
   }
-  $('app').innerHTML = h + '</div>';
+  $('app').innerHTML = h + '</div></div><div id="tabAvisos" hidden></div>';
   if (window.LEM_PV) LEM_PV.iniciar({ api, contenedor: 'pvPortal' });
+  if (mods.includes('nominas')) cargarAvisos();
+}
+/* Avisos (mig. 102): solo admin o asesor de Nóminas, de sus sucursales habilitadas (hoy Doña Tota). Si el servidor no los da, no hay pestaña. */
+const DIAS_AV = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+function verTab(t) {
+  document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $('tabMods').hidden = t !== 'mods'; $('tabAvisos').hidden = t !== 'avisos';
+}
+function fechaCorta(iso) { const p = String(iso || '').slice(0, 10).split('-'); const M = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']; return p.length === 3 ? Number(p[2]) + ' ' + M[Number(p[1]) - 1] : ''; }
+function sumaDias(iso, n) { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+async function cargarAvisos() {
+  let r; try { r = await api('nom_avisos', {}); } catch (e) { return; }
+  if (!r || r.error || !Array.isArray(r.avisos) || !$('tabs')) return;
+  const avs = r.avisos;
+  $('nAvisos').textContent = avs.length; $('nAvisos').style.display = avs.length ? '' : 'none'; $('tabs').style.display = 'flex';
+  let h = '<p style="color:var(--txt2);font-size:14px">Avisos de horario de tus sucursales: gerentes que descansan en fin de semana y horarios definidos con horas a las que les faltan 2 o más personas según la venta.</p>';
+  for (const s of (r.semanas || [])) {
+    const del = avs.filter(a => String(a.lunes).slice(0, 10) === String(s.lunes).slice(0, 10));
+    h += '<div class="sem">' + esc(s.etiqueta) + ' · ' + fechaCorta(s.lunes) + ' – ' + fechaCorta(sumaDias(s.lunes, 6)) + '</div>';
+    if (!del.length) { h += '<div class="av" style="color:var(--txt2)">Sin avisos.</div>'; continue; }
+    for (const a of del) {
+      const horas = (a.detalle && a.detalle.horas) || [];
+      const det = a.tipo === 'horas_sin_cubrir' ? horas.slice(0, 8).map(x => DIAS_AV[x.dia] + ' ' + x.hora + ' h: ' + x.programadas + ' de ' + x.recomendadas).join(' · ') + (horas.length > 8 ? ' · y ' + (horas.length - 8) + ' más' : '') : '';
+      h += '<div class="av"><div class="top"><span class="suc">' + esc(a.sucursal) + '</span>' +
+           '<span class="chip ' + (a.tipo === 'gerente_descansa_finde' ? 'finde">Gerente descansa en fin de semana' : 'horas">Horas sin cubrir') + '</span>' +
+           '<span class="chip est">' + (a.estado === 'definido' ? 'Horario definido' : 'Horario en borrador') + '</span></div>' +
+           '<div class="txt">' + esc(a.texto) + '</div>' + (det ? '<div class="det">' + esc(det) + '</div>' : '') +
+           '<div style="margin-top:8px"><a href="/nominas/#horario">Ver horarios →</a></div></div>';
+    }
+  }
+  $('tabAvisos').innerHTML = h;
 }
 async function arrancar() {
   $('app').innerHTML = '<div class="msg">Cargando tus módulos…</div>';

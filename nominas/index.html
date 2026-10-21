@@ -226,7 +226,7 @@ const PRONTO = {
 
 /* ── API: SQL Connect con respaldo n8n (misma lógica que los otros módulos) ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['ver_como_opciones', 'perfil', 'nom_inicio', 'nom_semanas', 'nom_semana', 'nom_bandeja', 'nom_he_semana']);
+const LECTURAS = new Set(['ver_como_opciones', 'perfil', 'nom_inicio', 'nom_semanas', 'nom_semana', 'nom_bandeja', 'nom_he_semana', 'nom_horario_demanda']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -881,7 +881,9 @@ async function vHorario() {
   const sucs = sucsCaptura(); if (!S.horBranch || !sucs.some(s => s.branch_id === S.horBranch)) S.horBranch = (sucs[0] || {}).branch_id || null;
   if (!S.horBranch) { pon(topbar('Horario', 'Planeación de turnos') + '<div class="p-8"><div class="bg-white rounded-xl p-8 text-center shadow-card"><div class="font-serif text-xl mb-2">Sin sucursal asignada</div><p class="text-sm text-gray-500">No tienes sucursales para planear horario.</p></div></div>'); return; }
   const lunes = addDays(S.perfil.semana_actual.lunes, 7 * S.horOffset); cargando('Horarios', 'Cargando…');
-  const d = await api('nom_horario', { branch_id: S.horBranch, week_id: weekDe(lunes) }); S.horario = d; S.horDirty = false; pintarHorario();
+  const pd = { branch_id: S.horBranch, week_id: weekDe(lunes) };
+  const [d, dem] = await Promise.all([api('nom_horario', pd), api('nom_horario_demanda', pd).catch(() => null)]);   // sin la mig. 102, o sucursal no habilitada: sin panel por hora
+  S.horario = d; S.horDem = dem && dem.habilitada ? dem : null; S.horDirty = false; pintarHorario();
 }
 function pintarHorario() {
   const d = S.horario; const v = vista(); const sucs = sucsCaptura(); const off = S.horOffset; const ed = d.editable && v === 'gerente';
@@ -894,13 +896,53 @@ function pintarHorario() {
   h += '<div class="bg-white rounded-xl shadow-card overflow-hidden"><div class="overflow-auto" style="max-height:calc(100vh - 380px)"><table class="lem-table" style="min-width:1000px"><thead><tr><th style="min-width:200px">Colaborador</th>' + DIAS.map((x, i) => '<th style="width:120px;text-align:center"><div>' + x + '</div><div class="text-10 font-normal text-gray-400 num normal-case mt-05">' + Number(addDays(d.lunes, i).slice(8, 10)) + '</div></th>').join('') + '</tr></thead><tbody>';
   d.lineas.forEach((l, i) => { h += '<tr><td><div class="flex items-center gap-25">' + avatar(l.nombre, empColor(d.empresa_id), 28, 11) + '<div><div class="font-medium text-sm">' + esc(partesNombre(l.nombre)[0]) + '</div><div class="text-11 text-gray-500">' + esc(l.puesto || '') + '</div></div></div></td>' + [0, 1, 2, 3, 4, 5, 6].map(k => '<td style="padding:6px 4px;text-align:center" id="h' + i + '_' + k + '">' + hcell(l.dias && l.dias[k], k, ed, i) + '</td>').join('') + '</tr>'; });
   if (!d.lineas.length) h += '<tr><td colspan="8" class="text-center text-sm text-gray-500" style="padding:32px">Esta sucursal no tiene colaboradores activos.</td></tr>';
-  h += '</tbody></table></div></div><div class="mt-4 bg-white rounded-xl shadow-card p-4"><div class="text-xs uppercase tracking-wider text-gray-500 font-medium mb-2">Cobertura por día (cuántos trabajan)</div><div class="flex gap-2 flex-wrap" id="cobertura">' + coberturaHtml() + '</div></div>';
+  h += '</tbody></table></div></div><div class="mt-4 bg-white rounded-xl shadow-card p-4"><div class="text-xs uppercase tracking-wider text-gray-500 font-medium mb-2">Cobertura por día (cuántos trabajan)</div><div class="flex gap-2 flex-wrap" id="cobertura">' + coberturaHtml() + '</div></div><div id="porhora">' + porHoraHtml() + '</div>';
   if (ed) h += '<div class="mt-4 flex justify-end gap-2 items-center"><span class="text-xs text-gray-400" id="horSave"></span><button class="btn btn-secondary" onclick="guardarHorario(\'borrador\',true)">Guardar borrador</button><button class="btn btn-primary" onclick="guardarHorario(\'definido\',true)">' + icon('check', 14) + 'Definir horario</button></div>';
   h += '<div class="mt-4 flex flex-wrap gap-2 text-xs">' + [['cell-A', 'Trabaja (con horario)'], ['cell-D', 'Descanso'], ['cell-VAC', 'Vacaciones'], ['cell-PCGS', 'Permiso c/goce'], ['cell-PSGS', 'Permiso s/goce'], ['cell-empty', 'Sin asignar']].map(([c, t]) => '<div class="' + c + '" style="padding:4px 10px;border-radius:6px;font-weight:500;border:1px solid">' + t + '</div>').join('') + '</div><div id="findes">' + findesHtml() + '</div>';
   pon(h + '</div>');
 }
 function hcell(val, dia, ed, i) { let cls = 'cell-empty', txt = '—'; const t = val && val.tipo; if (t === 'trabaja') { cls = 'cell-A'; txt = (val.entrada || '?') + '–' + (val.salida || '?'); } else if (t === 'descanso') { cls = 'cell-D'; txt = 'Descanso'; } else if (t === 'vacaciones') { cls = 'cell-VAC'; txt = 'VAC'; } else if (t === 'pcgs') { cls = 'cell-PCGS'; txt = 'PCGS'; } else if (t === 'psgs') { cls = 'cell-PSGS'; txt = 'PSGS'; }
   const finde = t === 'descanso' && dia >= 4; return '<button class="hcell ' + cls + (finde ? ' finde' : '') + '" ' + (ed ? 'onclick="abrirHcell(' + i + ',' + dia + ')"' : 'disabled') + (finde ? ' title="Descanso en fin de semana (día pico) — visible para asesor y administración"' : '') + '>' + (finde ? '<span style="font-size:10px">⚠</span>' : '') + txt + '</button>'; }
+/* Gente por hora (mig. 102, solo sucursales habilitadas): programadas contra recomendadas. Misma regla que lem.fn_horario_programadas:
+   un turno de 9:00 a 17:00 cuenta en las horas 9 a 16; de 9:30 a 17:30, en 9 a 17; uno que cruza la medianoche, hasta las 23 h. */
+function progPorHora() {
+  const m = {}; const reE = /^([01]?\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/, reS = /^(([01]?\d|2[0-3]):([0-5]\d)(:[0-5]\d)?|24:00(:00)?)$/;
+  const seg = t => { const p = String(t).split(':'); return Number(p[0]) * 3600 + Number(p[1]) * 60 + Number(p[2] || 0); };
+  (S.horario.lineas || []).forEach(l => {
+    for (let k = 0; k < 7; k++) {
+      const v = l.dias && l.dias[k]; if (!v || v.tipo !== 'trabaja' || !reE.test(v.entrada || '') || !reS.test(v.salida || '')) continue;
+      const ini = seg(v.entrada), fin = seg(v.salida); if (fin === ini) continue;
+      const ultima = fin > ini ? Math.ceil(fin / 3600) - 1 : 23;
+      for (let h = Math.floor(ini / 3600); h <= ultima; h++) m[k + '-' + h] = (m[k + '-' + h] || 0) + 1;
+    }
+  });
+  return m;
+}
+function porHoraHtml() {
+  const dm = S.horDem; if (!dm || !(dm.horas || []).length) return '';
+  const prog = progPorHora(), idx = {}; dm.horas.forEach(x => { idx[x.dia + '-' + x.hora] = x; });
+  const hs = dm.horas.map(x => Number(x.hora)), h0 = Math.min(...hs), h1 = Math.max(...hs); let faltan2 = 0;
+  let t = '<table class="lem-table" style="min-width:' + (90 + (h1 - h0 + 1) * 46) + 'px"><thead><tr><th style="min-width:60px">Día</th>';
+  for (let h = h0; h <= h1; h++) t += '<th style="text-align:center;width:46px">' + h + '</th>';
+  t += '</tr></thead><tbody>';
+  for (let k = 0; k < 7; k++) {
+    t += '<tr><td class="font-medium text-sm">' + DIAS[k] + '</td>';
+    for (let h = h0; h <= h1; h++) {
+      const x = idx[k + '-' + h]; if (!x) { t += '<td style="background:var(--bg)"></td>'; continue; }
+      const p = prog[k + '-' + h] || 0, r = Number(x.recomendadas), dif = p - r; if (dif <= -2) faltan2++;
+      const c = dif <= -2 ? ['#FCE7E5', '#8C1F1B'] : dif === -1 ? ['#FFF4ED', '#9A3412'] : dif >= 2 ? ['#EFF6FF', '#0F4471'] : ['#ECF7E8', '#2A5A0E'];
+      t += '<td style="text-align:center;padding:4px 2px;background:' + c[0] + ';color:' + c[1] + '" title="' + DIAS[k] + ' ' + h + ':00 · ' + esc(String(x.tickets)) + ' tickets en promedio · ' + p + ' programadas · ' + r + ' recomendadas' + (x.apertura ? ' (apertura)' : '') + '"><div class="num" style="font-size:12px;font-weight:600">' + p + '/' + r + '</div><div class="num" style="font-size:9.5px;opacity:.75">' + esc(String(x.tickets)) + '</div></td>';
+    }
+    t += '</tr>';
+  }
+  t += '</tbody></table>';
+  return '<div class="mt-4 bg-white rounded-xl shadow-card p-4"><div class="flex items-center justify-between flex-wrap gap-2 mb-2"><div class="text-xs uppercase tracking-wider text-gray-500 font-medium">Gente por hora: programada / recomendada</div>' +
+    (faltan2 ? '<span class="badge" style="background:#FCE7E5;color:#8C1F1B">' + faltan2 + ' hora' + (faltan2 === 1 ? '' : 's') + ' con 2 o más personas de menos</span>' : '<span class="badge badge-aprobada">Sin horas con 2 o más personas de menos</span>') + '</div>' +
+    '<p class="text-xs text-gray-500 mb-3">Recomendado con la venta promedio de esta sucursal del ' + fmtCorta(dm.desde) + ' al ' + fmtCorta(dm.hasta) + ': ' + Number(dm.capacidad) + ' tickets por persona por hora, mínimo ' + Number(dm.minimo_apertura) + ' en la hora de apertura y ' + Number(dm.minimo_resto) + ' el resto del día. El número chico es el promedio de tickets de esa hora.</p>' +
+    '<div class="overflow-auto">' + t + '</div><div class="mt-3 flex flex-wrap gap-2 text-xs">' +
+    [['#ECF7E8', '#2A5A0E', 'Completo'], ['#FFF4ED', '#9A3412', 'Falta 1'], ['#FCE7E5', '#8C1F1B', 'Faltan 2 o más (aviso a administración al definir)'], ['#EFF6FF', '#0F4471', 'Sobran 2 o más']]
+      .map(([b, f, tx]) => '<span style="padding:3px 8px;border-radius:6px;background:' + b + ';color:' + f + '">' + tx + '</span>').join('') + '</div></div>';
+}
 function coberturaHtml() { const d = S.horario; return DIAS.map((x, k) => { const n = d.lineas.filter(l => l.dias && l.dias[k] && l.dias[k].tipo === 'trabaja').length; return '<div class="rounded-lg text-sm" style="padding:6px 12px;background:' + (n === 0 ? '#FCE7E5' : 'var(--bg)') + ';border:1px solid var(--border)"><span class="text-gray-500">' + x + '</span> <span class="num font-medium" style="color:' + (n === 0 ? '#8C1F1B' : 'var(--text)') + '">' + n + '</span></div>'; }).join(''); }
 function findesHtml() { const d = S.horario; const f = []; d.lineas.forEach(l => { const ds = [4, 5, 6].filter(k => l.dias && l.dias[k] && l.dias[k].tipo === 'descanso').map(k => ['viernes', 'sábado', 'domingo'][k - 4]); if (ds.length) f.push({ n: partesNombre(l.nombre)[0], ds }); }); if (!f.length) return '';
   return '<div class="mt-4 rounded-lg p-3" style="background:#FFF4ED;border:1px solid #FDBA8C"><div class="flex items-center gap-15 text-sm font-medium mb-1" style="color:#9A3412">' + icon('alert', 14) + 'Descansos en fin de semana (' + f.length + ')</div><p class="text-xs mb-2" style="color:#9A3412">Viernes, sábado y domingo son días pico. Estos descansos quedarán visibles para el asesor y la administración:</p>' + f.map(x => '<div class="text-xs" style="color:#7C2D12">• <strong>' + esc(x.n) + '</strong> descansa ' + x.ds.join(' y ') + '</div>').join('') + '</div>'; }
@@ -910,7 +952,7 @@ function abrirHcell(i, k) { const l = S.horario.lineas[i]; const val = (l.dias &
     '<p class="text-sm text-gray-500 mt-3" id="hnota">' + ({ trabaja: '', descanso: 'Este colaborador descansa ese día.', vacaciones: 'Este colaborador estará de vacaciones ese día.', pcgs: 'Permiso <strong>con</strong> goce de sueldo. En la pre-nómina aparecerá como PCGS.', psgs: 'Permiso <strong>sin</strong> goce de sueldo. En la pre-nómina aparecerá como PSGS.' }[t]) + '</p><div class="flex justify-between gap-2 mt-5 pt-4" style="border-top:1px solid var(--border)"><button class="btn btn-ghost text-gray-500" onclick="setHcell(' + i + ',' + k + ',null)">Limpiar</button><div class="flex gap-2"><button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button><button class="btn btn-primary" onclick="guardarHcell(' + i + ',' + k + ')">Guardar</button></div></div>', 420); }
 function elegirHtipo(b) { [...document.querySelectorAll('#htipos .tipo-btn')].forEach(x => x.classList.remove('on')); b.classList.add('on'); const v = b.dataset.v; $('hhoras').hidden = v !== 'trabaja'; $('hnota').innerHTML = { trabaja: '', descanso: 'Este colaborador descansa ese día.', vacaciones: 'Este colaborador estará de vacaciones ese día.', pcgs: 'Permiso <strong>con</strong> goce de sueldo. En la pre-nómina aparecerá como PCGS.', psgs: 'Permiso <strong>sin</strong> goce de sueldo. En la pre-nómina aparecerá como PSGS.' }[v]; }
 function guardarHcell(i, k) { const v = (document.querySelector('#htipos .tipo-btn.on') || { dataset: {} }).dataset.v || 'trabaja'; setHcell(i, k, v === 'trabaja' ? { tipo: v, entrada: $('hent').value, salida: $('hsal').value } : { tipo: v }); }
-function setHcell(i, k, val) { const l = S.horario.lineas[i]; l.dias = l.dias || {}; if (val) l.dias[k] = val; else delete l.dias[k]; cerrarModal(); const td = $('h' + i + '_' + k); if (td) td.innerHTML = hcell(val, k, true, i); if ($('cobertura')) $('cobertura').innerHTML = coberturaHtml(); if ($('findes')) $('findes').innerHTML = findesHtml(); S.horDirty = true; if ($('horSave')) $('horSave').textContent = 'Cambios sin guardar…'; clearTimeout(S.horT); S.horT = setTimeout(() => guardarHorario(S.horario.estado === 'definido' ? 'definido' : 'borrador', false), 2000); }
+function setHcell(i, k, val) { const l = S.horario.lineas[i]; l.dias = l.dias || {}; if (val) l.dias[k] = val; else delete l.dias[k]; cerrarModal(); const td = $('h' + i + '_' + k); if (td) td.innerHTML = hcell(val, k, true, i); if ($('cobertura')) $('cobertura').innerHTML = coberturaHtml(); if ($('porhora')) $('porhora').innerHTML = porHoraHtml(); if ($('findes')) $('findes').innerHTML = findesHtml(); S.horDirty = true; if ($('horSave')) $('horSave').textContent = 'Cambios sin guardar…'; clearTimeout(S.horT); S.horT = setTimeout(() => guardarHorario(S.horario.estado === 'definido' ? 'definido' : 'borrador', false), 2000); }
 async function guardarHorario(estado, avisar) { const d = S.horario; if (!d) return; clearTimeout(S.horT); const dias = {}; d.lineas.forEach(l => { if (l.dias && Object.keys(l.dias).length) dias[l.colaborador_id] = l.dias; });
   try { const r = await api('nom_horario_guardar', { branch_id: d.branch_id, week_id: d.week_id, estado, dias }); S.horDirty = false; d.existe = true; d.estado = r.estado; if ($('horSave')) $('horSave').textContent = 'Guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); if (avisar) { toast(estado === 'definido' ? 'Horario definido.' : 'Borrador guardado.'); pintarHorario(); } } catch (e) { errorUI(e); } }
 /* Copiar semana anterior: solo turnos y descansos; vacaciones y permisos son de una sola semana y no se copian ni se pisan */
