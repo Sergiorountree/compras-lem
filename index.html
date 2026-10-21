@@ -41,12 +41,15 @@
   .tab { background:none; border:none; border-bottom:2px solid transparent; padding:8px 12px; font-size:15px; font-weight:700; color:var(--txt2); cursor:pointer; margin-bottom:-1px; }
   .tab.on { color:var(--txt); border-bottom-color:var(--rojo); }
   .tab .n { display:inline-block; min-width:20px; padding:1px 6px; margin-left:6px; border-radius:99px; background:var(--rojo); color:#fff; font-size:12px; }
+  .secc { font-size:18px; font-weight:800; margin:8px 0 4px; } .secc ~ .secc { margin-top:30px; }
   .sem { font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin:18px 0 8px; }
   .av { background:#fff; border:1px solid var(--borde); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
   .av .top { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:4px; }
   .av .suc { font-weight:800; }
   .chip { font-size:11.5px; font-weight:700; border-radius:99px; padding:2px 8px; }
   .chip.finde { background:#FFF4ED; color:#9A3412; } .chip.horas { background:#FCE7E5; color:#8C1F1B; } .chip.est { background:var(--gris); color:var(--txt2); }
+  .chip.acab { background:#FFF4ED; color:#9A3412; } .chip.atr { background:#FCE7E5; color:#8C1F1B; } .chip.gen { background:#FEF9C3; color:#713F12; }
+  .av .prods { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; } .av .prods span { font-size:12.5px; background:var(--gris); border-radius:8px; padding:3px 8px; }
   .av .txt { font-size:14.5px; } .av .det { font-size:13px; color:var(--txt2); margin-top:4px; }
   .av a { font-size:13px; font-weight:700; color:var(--rojo); text-decoration:none; }
 </style>
@@ -135,8 +138,9 @@ function vLogin(msj) {
   } else { setTimeout(() => vLogin(msj), 400); }
 }
 function aviso(t) { const d = document.createElement('div'); d.className = 'aviso'; d.textContent = t; $('app').prepend(d); }
-function salir() { store.del(); S.token = null; S.perfil = null; if (window.LEM_PV) LEM_PV.salir(); if (window.LEMDC) LEMDC.salir(); vLogin('Sesión cerrada.'); }
+function salir() { S.avGen = (S.avGen || 0) + 1; store.del(); S.token = null; S.perfil = null; if (window.LEM_PV) LEM_PV.salir(); if (window.LEMDC) LEMDC.salir(); vLogin('Sesión cerrada.'); }
 function pintar(p) {
+  S.avGen = (S.avGen || 0) + 1;   // descarta los avisos que venían en camino para la vista anterior
   const mods = (p.modulos || []).filter(m => MODULOS[m]);
   $('hUser').innerHTML = esc(p.usuario) + '<button onclick="salir()">Salir</button>';
   if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; if (window.LEM_PV) LEM_PV.iniciar({ api }); return; }
@@ -150,9 +154,12 @@ function pintar(p) {
   }
   $('app').innerHTML = h + '</div></div><div id="tabAvisos" hidden></div>';
   if (window.LEM_PV) LEM_PV.iniciar({ api, contenedor: 'pvPortal' });
-  if (mods.includes('nominas')) cargarAvisos();
+  if (mods.includes('nominas') || mods.includes('inventarios')) cargarAvisos();
 }
-/* Avisos (mig. 102): solo admin o asesor de Nóminas, de sus sucursales habilitadas (hoy Doña Tota). Si el servidor no los da, no hay pestaña. */
+/* Avisos (mig. 113, Sergio 21-oct): cada quien lo suyo. Inventarios (guisos por acabarse, inventario diario atrasado, días sin captura)
+   de las tiendas donde la cuenta tiene Inventarios, y Horario (102: gerente que descansa en fin de semana, horas sin cubrir) para admin,
+   asesor y el gerente de la sucursal. Sin la 113 se usan los avisos de horario de la 102 (solo admin y asesor). Si el servidor no da
+   avisos a esta cuenta, no hay pestaña. */
 const DIAS_AV = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 function verTab(t) {
   document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
@@ -160,14 +167,48 @@ function verTab(t) {
 }
 function fechaCorta(iso) { const p = String(iso || '').slice(0, 10).split('-'); const M = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']; return p.length === 3 ? Number(p[2]) + ' ' + M[Number(p[1]) - 1] : ''; }
 function sumaDias(iso, n) { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function numTxt(n) { const x = Math.round(Number(n) * 10) / 10; return x.toLocaleString('es-MX'); }
+function avisoInventario(suc, lista) {
+  const chips = [], cuerpo = [];
+  for (const a of lista) {
+    const det = a.detalle || {};
+    if (a.tipo === 'guisos_por_acabarse') {
+      const ps = det.productos || [];
+      chips.push('<span class="chip acab">Guisos por acabarse</span>');
+      cuerpo.push('<div class="txt">' + ps.length + ' guiso' + (ps.length === 1 ? '' : 's') + ' con ' + numTxt(det.umbral_dias || 3.5) + ' días o menos de inventario al cierre del ' + fechaCorta(det.fecha) + '. Pide a tiempo.</div>' +
+        '<div class="prods">' + ps.map(p => '<span title="' + esc('Quedan ' + numTxt(p.existencia) + ' ' + (p.unidad || '') + ' · consumo promedio ' + numTxt(p.consumo_prom) + ' ' + (p.unidad || '') + ' al día') + '">' + esc(p.producto) + ' · <b>' + numTxt(p.dias) + (Number(p.dias) === 1 ? ' día' : ' días') + '</b></span>').join('') + '</div>');
+    } else if (a.tipo === 'inventario_atrasado') {
+      chips.push('<span class="chip atr">Inventario atrasado</span>');
+      cuerpo.push('<div class="txt">Falta el inventario diario del ' + fechaCorta(det.esperado) + '. El último registrado es del ' + fechaCorta(det.ultimo) + '.</div>');
+    } else if (a.tipo === 'dias_sin_captura') {
+      const fs = det.fechas || [];
+      chips.push('<span class="chip gen">Días sin captura</span>');
+      cuerpo.push('<div class="txt">' + fs.length + (fs.length === 1 ? ' día' : ' días') + ' de la última semana sin captura del gerente (se generaron en ceros): ' + fs.map(fechaCorta).join(', ') + '.</div>');
+    }
+  }
+  return '<div class="av"><div class="top"><span class="suc">' + esc(suc) + '</span>' + chips.join('') + '</div>' + cuerpo.join('<div style="height:8px"></div>') +
+         '<div style="margin-top:8px"><a href="/inventarios/">Ver inventario →</a></div></div>';
+}
 async function cargarAvisos() {
-  let r; try { r = await api('nom_avisos', {}); } catch (e) { return; }
-  if (!r || r.error || !Array.isArray(r.avisos) || !$('tabs')) return;
+  const gen = S.avGen = (S.avGen || 0) + 1;   // si mientras tanto salió o entró otra cuenta, esta respuesta ya no se pinta
+  let r; try { r = await api('portal_avisos', {}); } catch (e) { r = null; }
+  if (r && (r.error === 'accion_desconocida' || r.error === 'sin_clasificar')) { try { r = await api('nom_avisos', {}); } catch (e) { return; } }   // sin la mig. 113
+  if (gen !== S.avGen || !r || r.error || !Array.isArray(r.avisos) || !$('tabs')) return;
   const avs = r.avisos;
   $('nAvisos').textContent = avs.length; $('nAvisos').style.display = avs.length ? '' : 'none'; $('tabs').style.display = 'flex';
-  let h = '<p style="color:var(--txt2);font-size:14px">Avisos de horario de tus sucursales: gerentes que descansan en fin de semana y horarios definidos con horas a las que les faltan 2 o más personas según la venta.</p>';
-  for (const s of (r.semanas || [])) {
-    const del = avs.filter(a => String(a.lunes).slice(0, 10) === String(s.lunes).slice(0, 10));
+  const conInv = r.inventarios === true, conHor = r.horario === undefined ? true : r.horario === true;   // la respuesta de la 102 solo trae horario
+  let h = '';
+  if (conInv) {
+    const inv = avs.filter(a => a.modulo === 'inventarios');
+    h += '<div class="secc">Inventarios</div>';
+    if (!inv.length) h += '<div class="av" style="color:var(--txt2)">Sin avisos de inventario.</div>';
+    const porSuc = []; inv.forEach(a => { let g = porSuc.find(x => x.b === a.branch_id); if (!g) porSuc.push(g = { b: a.branch_id, suc: a.sucursal, l: [] }); g.l.push(a); });
+    porSuc.forEach(g => { h += avisoInventario(g.suc, g.l); });
+  }
+  const hor = avs.filter(a => a.modulo !== 'inventarios');   // los de la 102 no traen módulo: son de horario
+  if (conHor) h += '<div class="secc">Horario</div><p style="color:var(--txt2);font-size:14px;margin:0 0 4px">Gerentes que descansan en fin de semana y horarios definidos con horas a las que les faltan 2 o más personas según la venta.</p>';
+  for (const s of (conHor ? (r.semanas || []) : [])) {
+    const del = hor.filter(a => String(a.lunes).slice(0, 10) === String(s.lunes).slice(0, 10));
     h += '<div class="sem">' + esc(s.etiqueta) + ' · ' + fechaCorta(s.lunes) + ' – ' + fechaCorta(sumaDias(s.lunes, 6)) + '</div>';
     if (!del.length) { h += '<div class="av" style="color:var(--txt2)">Sin avisos.</div>'; continue; }
     for (const a of del) {
