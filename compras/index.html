@@ -351,6 +351,8 @@ async function arrancar() {
    cualquier otro en 'propia' (gerente o aprobador según su perfil). ── */
 function esAdmin() { return S.perfil && S.perfil.roles.includes('admin'); }
 function vista() { return esAdmin() ? 'admin' : 'propia'; }
+/* Administrativo (perfil "Administrativo nivel 1", mig. 109): consulta Por pagar y amarra facturas; no pide, no autoriza y no recibe */
+function esAdministrativo() { return !esAdmin() && !!S.perfil && S.perfil.roles.includes('administrativo'); }
 /* Bandeja e historial son de aprobadores y administración; las cuentas por pagar (lo que debe la empresa), solo de administración */
 function esAprobador() { return vista() !== 'propia' || ((S.perfil && S.perfil.aprueba_proveedores) || []).length > 0; }
 function vSinAcceso(quien) {
@@ -396,13 +398,14 @@ function nav() {
                                         '<button class="btn mini sec" onclick="location.hash=\'pedidos\'">📋 Mis pedidos</button>' +
                                         '<button class="btn mini sec" onclick="location.hash=\'recibir\'">📥 Recibir</button>';
   if (esA) h += '<button class="btn mini sec" onclick="location.hash=\'bandeja\'">✅ Bandeja</button><button class="btn mini sec" onclick="location.hash=\'historial\'">🕘 Historial</button>';
+  if (vw !== 'admin' && esAdministrativo()) h += '<button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button>';
   if (vw === 'admin') h += '<button class="btn mini sec" onclick="location.hash=\'porpagar\'">💵 Por pagar</button><button class="btn mini sec" onclick="location.hash=\'catalogo\'">📦 Catálogo</button><button class="btn mini sec" onclick="location.hash=\'presupuestos\'">💰 Presupuestos</button><button class="btn mini sec" onclick="location.hash=\'calcadmin\'">🧮 Calculadora</button>';
   return h + '</div>';
 }
 function router() {
   document.body.classList.remove('ancha');
-  const h = location.hash.slice(1) || ((vista() === 'propia' && S.perfil.aprueba_proveedores.length) ? 'bandeja' : 'captura');
-  if (h === 'porpagar' && vista() !== 'admin') vSinAcceso('administración');
+  const h = location.hash.slice(1) || (esAdministrativo() ? 'porpagar' : (vista() === 'propia' && S.perfil.aprueba_proveedores.length) ? 'bandeja' : 'captura');
+  if (h === 'porpagar' && vista() !== 'admin' && !esAdministrativo()) vSinAcceso('administración');
   else if ((h === 'bandeja' || h === 'historial') && !esAprobador()) vSinAcceso('aprobadores y administración');
   else if (h === 'captura') vCaptura();
   else if (h === 'pedidos') vPedidos();
