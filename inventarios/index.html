@@ -174,6 +174,13 @@ td.n, th.n { text-align: right; }
 /* pérdidas semanales de guisos (mig. 083) */
 .perd-card { border-top: 4px solid var(--alert-line); margin-bottom: 14px; }
 .acab-card { border-top: 4px solid #E0A23A; margin-bottom: 14px; }
+/* captura diaria en el portal (mig. 106) */
+.registro td.c-captura input.cap { width: 112px; min-height: 40px; padding: 7px 9px; }
+.cap-hdr { border-radius: 12px; padding: 13px 15px; margin-bottom: 12px; background: var(--captura); border: 1px solid #E7DCB4; }
+.cap-hdr b { font-size: 18px; } .cap-hdr p { font-size: 15px; color: #6B5310; margin-top: 3px; }
+.cap-hdr.ayer { background: var(--alert-bg); border-color: #F3C4C1; } .cap-hdr.ayer p { color: #7F2E2B; }
+table.adm-cap input.cap { width: 120px; min-height: 38px; padding: 6px 9px; }
+.tag-robot { font-size: 12px; font-weight: 600; color: var(--lem-dark); background: var(--lem-light); border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
 .prob.acab { background: var(--warn-bg); border-color: #EFD3A0; } .prob.acab .det, .prob.acab .cifra small { color: var(--warn); } .prob.acab .cifra b { color: var(--warn); }
 .acab-tienda { padding: 10px 0; border-bottom: 1px solid var(--divider); } .acab-tienda:last-child { border-bottom: 0; }
 .acab-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -255,11 +262,11 @@ function aviso(m) { let b = $('avisoErr'); if (!b) { b = document.createElement(
 window.addEventListener('error', (e) => aviso('Error en la página: ' + e.message));
 const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
 const S = { token: store.get() || null, perfil: null, rol: null, branch: null, sucursales: [], tab: null, empresa: null,
-  cache: {}, filtroMes: '', kpis: null, gen: { branch: null, fecha: '', data: null, abierto: null, busca: '', vals: {} }, val: { fecha: '', data: null }, diario: { branch: null, fecha: '' }, perd: { branch: null, lunes: null } };
+  cache: {}, filtroMes: '', kpis: null, cap: { branch: null, fecha: '', r: null, verRegistro: false }, gen: { branch: null, fecha: '', data: null, abierto: null, busca: '', vals: {} }, val: { fecha: '', data: null }, diario: { branch: null, fecha: '' }, perd: { branch: null, lunes: null } };
 
 /* ── API: SQL Connect (window.LEMDC) con respaldo n8n solo para lecturas (auditoría 12-sep, S04) ── */
 const SOLO_N8N = new Set(['correo_oc']);
-const LECTURAS = new Set(['ver_como_opciones','perfil','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','inv_general','inv_general_valor','inv_hoy','inv_perdidas','inv_perdidas_todas']);
+const LECTURAS = new Set(['ver_como_opciones','perfil','inv_dias','inv_dia','inv_resumen','inv_panel','inv_export','inv_config','inv_general','inv_general_valor','inv_hoy','inv_perdidas','inv_perdidas_todas','inv_diario']);
 function apiForzada() { try { return localStorage.getItem('lem_api') || ''; } catch (e) { return ''; } }
 function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
 async function esperarLEMDC() {
@@ -350,7 +357,7 @@ function selSuc(id, valor, onchange, todas) { return '<select class="inp" id="' 
 /* ── Cabecera, pestañas y ruteo ── */
 function tabsDe() {
   if (esGerente()) return [['registro', '📋 Registro'], ['hist', '📅 Historial'], ['ef', '📊 Eficiencias'], ['perdidas', '📉 Pérdidas'], ['contar', '📦 Inventario general']];
-  if (esAdmin()) return [['panel', '📊 Panel'], ['perdidas', '📉 Pérdidas'], ['contar', '📦 Inventario general'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
+  if (esAdmin()) return [['panel', '📊 Panel'], ['capturar', '✏️ Capturar diario'], ['perdidas', '📉 Pérdidas'], ['contar', '📦 Inventario general'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
   return [['panel', '📊 Panel'], ['perdidas', '📉 Pérdidas'], ['valor', '💰 Valor del inventario'], ['diario', '📋 Diario']];
 }
 function cuentaHtml(enModal) {
@@ -371,7 +378,7 @@ function pintar() {
   app().innerHTML = h; if (esGerente()) cargarKpis(); router();
 }
 function irTab(t) { S.tab = t; pintar(); }
-function router() { ({ registro: vRegistro, contar: vContar, diario: vDiario, hist: vHistorial, ef: vEficiencia, perdidas: vPerdidas, panel: vPanel, valor: vValor }[S.tab] || vRegistro)(); }
+function router() { ({ registro: vRegistro, capturar: vCapturarAdmin, contar: vContar, diario: vDiario, hist: vHistorial, ef: vEficiencia, perdidas: vPerdidas, panel: vPanel, valor: vValor }[S.tab] || vRegistro)(); }
 const M = () => $('main');
 
 /* ── Datos con caché ── */
@@ -413,7 +420,7 @@ function efCardsHTML(lineas) {
   return '<div class="card ef"><h3>Eficiencia del día</h3><div class="ef-grid">' + CATS.map(k => { const div = k === 'guiso' ? 1000 : 1, un = k === 'guiso' ? 'kg' : 'pzas';
     return '<div class="ef-col"><h4>' + CAT_LABEL[k] + '</h4><div class="ef-row"><span>Vendidos</span><b>' + fmt(c[k].vend / div) + ' ' + un + '</b></div><div class="ef-row"><span>Consumo</span><b>' + fmt(c[k].cons / div) + ' ' + un + '</b></div><div class="ef-row"><span>Diferencia</span><b>' + fmt((c[k].vend - c[k].cons) / div) + ' ' + un + '</b></div><div class="ef-pct" style="' + estilo(e[k]) + '">' + (e[k] == null ? '—' : e[k] + '%') + '</div></div>'; }).join('') + '</div></div>';
 }
-function leyendaHTML() { return '<div class="leyenda"><span><i style="background:#F1F5F9"></i>Solo consulta: lo pone administración</span><span><i style="background:#FFF8DB;border-color:#967015"></i>Captura del gerente (en la app)</span><span><i style="background:#FFFFFF"></i>Automático: lo calcula el sistema</span><span><i style="background:#FEE2E2;border-color:#DC2626"></i>Diferencia teórica fuera de ±10 gorditas</span></div>'; }
+function leyendaHTML(portal) { return '<div class="leyenda"><span><i style="background:#F1F5F9"></i>Solo consulta: lo pone administración</span><span><i style="background:#FFF8DB;border-color:#967015"></i>Captura del gerente' + (portal ? '' : ' (en la app)') + '</span><span><i style="background:#FFFFFF"></i>Automático: lo calcula el sistema</span><span><i style="background:#FEE2E2;border-color:#DC2626"></i>Diferencia teórica fuera de ±10 gorditas</span></div>'; }
 function chipsDia(d, fuera) { return '<span class="badge ' + (d.estado === 'autogenerado' ? 'b-warn' : 'b-ok') + '">' + (d.estado === 'autogenerado' ? '⚠︎ Generado sin captura' : '✓ Capturado por ' + esc(d.capturado_por || 'la app')) + '</span>' + '<span class="badge ' + (fuera ? 'b-alert' : 'b-ok') + '">' + (fuera ? fuera + (fuera === 1 ? ' producto fuera' : ' productos fuera') + ' de ±10 gorditas' : 'Todo dentro de ±10 gorditas') + '</span>'; }
 
 /* ── Racha y productos problema (tarjetas del Registro) ── */
@@ -468,9 +475,11 @@ function toggleProb(b) { const abierto = b.dataset.abierto === '1'; b.dataset.ab
 /* ── REGISTRO DEL DÍA (gerente): espejo de la app, sin captura ── */
 async function vRegistro() {
   M().className = 'main'; M().innerHTML = '<div class="loading">Cargando…</div>';
+  let cap = null; try { cap = await api('inv_diario', { branch_id: S.branch }); } catch (x) {}   // sin la mig. 106: Registro como antes
+  if (cap && cap.habilitada && cap.puede_guardar && !S.diario.fecha && !S.cap.verRegistro) return vCapturaGerente(cap);
   const dias = await diasDe(S.branch, null, 10); const ult = dias[0];
   const fecha = S.diario.fecha || (ult ? ult.fecha : '');
-  let h = '<div class="vista-hdr"><div><h2>📋 Registro del Día</h2><p>' + esc(corto(sucNombre(S.branch))) + (fecha ? ' · ' + fmtLargo(fecha) : '') + '</p></div><div class="acciones"><input class="inp" type="date" id="regFecha" value="' + esc(fecha) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vRegistro()"><a class="btn btn-primary" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✏️ Capturar hoy en la app</a></div></div>';
+  let h = '<div class="vista-hdr"><div><h2>📋 Registro del Día</h2><p>' + esc(corto(sucNombre(S.branch))) + (fecha ? ' · ' + fmtLargo(fecha) : '') + '</p></div><div class="acciones"><input class="inp" type="date" id="regFecha" value="' + esc(fecha) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vRegistro()">' + (cap && cap.habilitada ? (cap.puede_guardar ? '<button class="btn btn-primary" onclick="S.diario.fecha=\'\';S.cap.verRegistro=false;vRegistro()">✏️ Capturar ' + (cap.es_ayer ? 'ayer' : 'hoy') + '</button>' : '') : '<a class="btn btn-primary" href="' + APP_CAPTURA + '" target="_blank" rel="noopener">✏️ Capturar hoy en la app</a>') + '</div></div>';
   if (!ult) { M().innerHTML = h + '<div class="vacio">Esta tienda no tiene registros del diario.</div>'; return; }
   const d = await diaDe(S.branch, fecha);
   if (d.error) { M().innerHTML = h + '<div class="vacio">No hay registro del ' + fmtDia(fecha) + '. El último es del ' + fmtDia(ult.fecha) + '.</div>'; return; }
@@ -479,9 +488,124 @@ async function vRegistro() {
   let pw = null; try { pw = await perdidasDe(S.branch, null); } catch (x) { S.cache['perd|' + S.branch + '|cerrada'] = { error: 'fallo' }; }   // la tarjeta es opcional: si falla, el Registro sigue y no se reintenta en cada visita
   const t = tablaRegistroHTML(d, true);
   h += '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '</div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vRegistro()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vRegistro()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' +
-    '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + (e && e.por_acabarse ? acabarseHTML(e.por_acabarse) : '') + perdidasCardHTML(pw) + leyendaHTML() + t.html + efCardsHTML(d.lineas) +
-    '<p class="hint">Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.</p>';
+    '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + (e && e.por_acabarse ? acabarseHTML(e.por_acabarse) : '') + perdidasCardHTML(pw) + leyendaHTML(cap && cap.habilitada) + t.html + efCardsHTML(d.lineas) +
+    '<p class="hint">' + (cap && cap.habilitada ? 'Lo que guardas aquí se ve al momento. Si algo quedó mal, pide a administración que lo corrija.' : 'Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.') + '</p>';
   M().innerHTML = h;
+}
+
+/* ── CAPTURA DIARIA EN EL PORTAL (mig. 106) ──
+   Reglas de la app en vivo (199b391): el gerente captura Baño María, Refrigerador y Congelador; saldo final = la suma, consumo =
+   saldo inicial + entrada − saldo final, diferencia = consumo − Dritzline (solo con Dritzline). Le toca AYER si no está guardado y
+   no ha pasado la 1 pm (gracia hasta 1:30); si no, HOY. Una sola vez: después solo corrige administración. El servidor valida todo. */
+const UBI = [['bano', 'Baño María'], ['refri', 'Refrigerador'], ['congelador', 'Congelador']];
+function capNum(v) { if (v === '' || v == null) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+function capBorradorKey(r) { return 'inv_cap|' + r.branch_id + '|' + r.fecha; }
+function capBorrador(r) { try { return JSON.parse(localStorage.getItem(capBorradorKey(r)) || 'null'); } catch (e) { return null; } }
+function capGuardarBorrador() { const r = S.cap.r; if (!r || r.existe) return; const v = {}; r.productos.forEach(p => UBI.forEach(u => { const el = $('c' + u[0] + '_' + p.inventario_producto_id); if (el && el.value !== '') v[u[0] + '_' + p.inventario_producto_id] = el.value; })); try { localStorage.setItem(capBorradorKey(r), JSON.stringify(v)); } catch (e) {} }
+function capBorrarBorrador(r) { try { localStorage.removeItem(capBorradorKey(r)); } catch (e) {} }
+function capTablaHTML(r, editable) {
+  const bor = (!r.existe && capBorrador(r)) || {};
+  let rows = '';
+  CATS.forEach(k => { const ls = (r.productos || []).filter(l => l.categoria === k); if (!ls.length) return;
+    rows += '<tr class="cat"><td class="prod" colspan="11">' + CAT_LABEL[k] + '</td></tr>';
+    ls.forEach(l => { const id = l.inventario_producto_id;
+      const celda = (u) => { const v = bor[u + '_' + id] != null ? bor[u + '_' + id] : (l[u] == null ? '' : num(l[u]));
+        return '<td class="c-captura">' + (editable ? '<input class="cap" type="number" inputmode="decimal" step="any" id="c' + u + '_' + id + '" value="' + esc(v) + '" placeholder="0" oninput="recalcCap()">' : '<span class="cap-box">' + fmt(l[u]) + '</span>') + '</td>'; };
+      rows += '<tr><td class="prod" id="cn_' + id + '"><span class="nombre">' + esc(l.producto) + '<span class="unidad">' + esc(unidadTxt(l.unidad)) + '</span></span></td>' +
+        '<td class="c-consulta">' + fmt(l.saldo_inicial) + '</td><td class="c-consulta">' + fmt(l.entradas) + '</td>' + UBI.map(u => celda(u[0])).join('') +
+        '<td class="c-auto" id="csf_' + id + '"></td><td class="c-auto" id="ccr_' + id + '"></td><td class="c-consulta">' + (l.dritzline != null ? fmt(l.dritzline) : '—') + '</td>' +
+        '<td class="c-auto dif" id="cdt_' + id + '"></td><td class="c-auto" id="cdg_' + id + '"></td></tr>'; }); });
+  return '<div class="tabla-caja"><table class="registro"><thead>' +
+    '<tr class="banda"><th class="prod">Producto</th><th class="g-consulta" colspan="2">Solo consulta</th><th class="g-captura" colspan="3">Captura del gerente</th><th class="g-auto" colspan="2">Automático</th><th class="g-auto" colspan="3">Contra POS</th></tr>' +
+    '<tr class="cols"><th class="prod">Nombre y unidad</th><th class="h-consulta">Saldo inicial</th><th class="h-consulta">Entrada</th><th class="h-captura">Baño María</th><th class="h-captura">Refrigerador</th><th class="h-captura">Congelador</th><th>Saldo final</th><th>Consumo real</th><th>Dritzline</th><th>Dif. teórica</th><th>Diferencia (g)</th></tr></thead><tbody>' + rows +
+    '</tbody><tfoot><tr><td class="prod">Total</td><td id="ct_si"></td><td id="ct_ent"></td><td id="ct_bano"></td><td id="ct_refri"></td><td id="ct_congelador"></td><td id="ct_sf"></td><td id="ct_cr"></td><td id="ct_dz"></td><td></td><td id="ct_dg"></td></tr></tfoot></table></div>';
+}
+// Recalcula en pantalla lo mismo que calcula el servidor al guardar
+function recalcCap() {
+  const r = S.cap.r; if (!r) return; const tot = { si: 0, ent: 0, bano: 0, refri: 0, congelador: 0, sf: 0, cr: 0, dz: 0 }; let fuera = 0, hay = 0; const lineas = [];
+  r.productos.forEach(l => { const id = l.inventario_producto_id;
+    const v = UBI.map(u => { const el = $('c' + u[0] + '_' + id); return el ? (capNum(el.value) || 0) : num(l[u[0]]); });
+    if (v.some(x => x !== 0)) hay++;
+    const sf = v[0] + v[1] + v[2], si = num(l.saldo_inicial), ent = num(l.entradas), cr = si + ent - sf, dz = l.dritzline != null && num(l.dritzline) ? num(l.dritzline) : null;
+    const dg = dz != null ? cr - dz : null, dt = dg != null && num(l.gpg) ? Math.round(dg / num(l.gpg)) : null, mal = dt != null && Math.abs(dt) > UMBRAL;
+    if (mal) fuera++;
+    tot.si += si; tot.ent += ent; tot.bano += v[0]; tot.refri += v[1]; tot.congelador += v[2]; tot.sf += sf; tot.cr += cr; tot.dz += dz || 0;
+    const set = (k, h) => { const e = $(k + '_' + id); if (e) e.innerHTML = h; };
+    set('csf', fmt(sf)); set('ccr', fmt(cr)); set('cdg', dg == null ? '—' : fmt(dg));
+    set('cdt', dt == null ? '—' : fmt(dt) + (mal ? '<span class="flecha">' + (dt > 0 ? '▲' : '▼') + '</span>' : ''));
+    const ct = $('cdt_' + id); if (ct) ct.classList.toggle('fuera', mal); const cn = $('cn_' + id); if (cn) cn.classList.toggle('fila-fuera', mal);
+    lineas.push({ categoria: l.categoria, dritzline: dz, consumo_real: cr }); });
+  ['si', 'ent', 'bano', 'refri', 'congelador', 'sf', 'cr', 'dz'].forEach(k => { const e = $('ct_' + k); if (e) e.textContent = fmt(tot[k]); });
+  const g = $('ct_dg'); if (g) g.textContent = fmt(tot.cr - tot.dz);
+  const ef = $('capEf'); if (ef) ef.innerHTML = efCardsHTML(lineas);
+  const b = $('capCnt'); if (b) b.textContent = hay + ' de ' + r.productos.length + ' productos con cantidad' + (fuera ? ' · ' + fuera + ' fuera de ±10 gorditas' : '');
+  S.cap.hay = hay; capGuardarBorrador();
+}
+function capLineas() { return S.cap.r.productos.map(l => { const o = { inventario_producto_id: l.inventario_producto_id }; UBI.forEach(u => { const el = $('c' + u[0] + '_' + l.inventario_producto_id); o[u[0]] = el ? (capNum(el.value) || 0) : num(l[u[0]]); }); return o; }); }
+function capConfirmar() {
+  recalcCap(); const r = S.cap.r; const corr = r.existe;
+  if (!S.cap.hay) { toast('⚠️ No hay datos para guardar'); return; }
+  const que = corr ? 'la corrección del conteo' : 'el inventario ' + (r.es_ayer ? 'de AYER' : 'de hoy');
+  modal('<h3>¿Guardar ' + que + '?</h3><p><b>' + esc(corto(r.sucursal || sucNombre(r.branch_id))) + '</b> · ' + fmtLargo(r.fecha) + '</p>' +
+    (corr ? '<p>Se reemplaza el conteo guardado y se recalcula el consumo de este día y del siguiente. Queda registrado con tu usuario.</p>'
+          : (r.es_ayer ? '<p class="nota bad">Estás registrando el inventario de <b>AYER</b>. Confirma que los datos son de ese día.</p>' : '') + '<p>Después de guardar ya no lo puedes cambiar; si algo queda mal, administración lo corrige.</p>') +
+    '<div class="acts"><button class="btn" onclick="cerrarModal()">No, seguir revisando</button><button class="btn btn-ok" onclick="capGuardar(this)">Sí, guardar</button></div>');
+}
+async function capGuardar(btn) {
+  const r = S.cap.r; if (btn) btn.disabled = true;
+  let x; try { x = await api('inv_diario_guardar', { branch_id: r.branch_id, fecha: r.fecha, lineas: capLineas() }); } catch (e) { if (btn) btn.disabled = false; return; }
+  cerrarModal(); capBorrarBorrador(r); S.cache = {}; S.kpis = null;
+  toast('✅ ' + (r.existe ? 'Corrección guardada' : 'Inventario guardado'));
+  if (S.tab === 'capturar') { S.cap.r = null; vCapturarAdmin(); } else { S.diario.fecha = x.fecha; pintar(); }
+}
+function capHdrHTML(r) {
+  if (r.es_ayer) return '<div class="cap-hdr ayer"><b>⚠️ Tienes pendiente cerrar el día de AYER (' + esc(fmtDia(r.fecha)) + ')</b><p>Captúralo antes de la ' + esc(r.hora_limite.replace(/^0/, '')) + ' hrs. Después se pasa a hoy.</p></div>';
+  return '<div class="cap-hdr"><b>📝 Registrando el inventario de hoy · ' + esc(fmtDia(r.fecha)) + '</b><p>Escribe lo que hay en Baño María, Refrigerador y Congelador. El resto se calcula solo.</p></div>';
+}
+// Gerente: el día que le toca
+function vCapturaGerente(r) {
+  S.cap.r = r;
+  let h = '<div class="vista-hdr"><div><h2>📋 Registro del Día</h2><p>' + esc(corto(sucNombre(S.branch))) + ' · ' + fmtLargo(r.fecha) + '</p></div><div class="acciones"><button class="btn btn-sm" onclick="S.cap.verRegistro=true;vRegistro()">Ver días anteriores</button></div></div>';
+  h += capHdrHTML(r) + (r.hay_si_admin ? '<div class="nota">El saldo inicial de este día lo puso administración.</div>' : '') + leyendaHTML(true) + capTablaHTML(r, true) + '<div id="capEf"></div>';
+  h += '<div class="barra"><div class="t" style="font-size:16px">' + (r.es_ayer ? 'Ayer · ' : 'Hoy · ') + esc(fmtDia(r.fecha)) + '<small id="capCnt"></small></div><div class="acciones"><button class="btn btn-ok btn-lg" onclick="capConfirmar()">💾 Guardar registro ' + (r.es_ayer ? 'de ayer' : 'de hoy') + '</button></div></div>';
+  M().className = 'main con-barra'; M().innerHTML = h; recalcCap();
+}
+// Administración: saldo inicial, entradas y Dritzline del día; y capturar o corregir el conteo
+async function vCapturarAdmin() {
+  const b = S.cap.branch, f = S.cap.fecha || todayStr();
+  let h = '<div class="vista-hdr"><div><h2>✏️ Capturar diario</h2><p>Saldo inicial, entradas y Dritzline de cada día, y el conteo del gerente si hay que capturarlo o corregirlo.</p></div><div class="acciones">' +
+    selSuc('capSuc', b, 'S.cap.branch=Number(this.value)||null;S.cap.r=null;vCapturarAdmin()', false) +
+    '<input class="inp" type="date" id="capFecha" value="' + esc(f) + '" max="' + todayStr() + '" onchange="S.cap.fecha=this.value;S.cap.r=null;vCapturarAdmin()"></div></div>';
+  M().className = 'main';
+  if (!b) { M().innerHTML = h + '<div class="vacio">Elige la tienda.</div>'; return; }
+  M().innerHTML = h + '<div class="loading">Cargando…</div>';
+  let r; try { r = await api('inv_diario', { branch_id: b, fecha: f }); } catch (e) { M().innerHTML = h + '<div class="vacio">' + esc(e.detalle || e.message) + '</div>'; return; }
+  S.cap.r = r; S.cap.fecha = r.fecha;
+  if (!r.habilitada) { M().innerHTML = h + '<div class="vacio">' + esc(r.motivo || 'Este día no se captura en el portal.') + '</div>'; return; }
+  const robot = r.productos.some(p => p.adm_dritzline_fuente === 'robot');
+  h += '<section class="card"><div class="row"><h3 style="margin:0">Administración · ' + esc(fmtDia(r.fecha)) + '</h3><button class="btn btn-ok" onclick="capAdmGuardar(this)">Guardar saldo inicial, entradas y Dritzline</button></div>' +
+    '<p class="hint" style="margin:6px 0 10px">Saldo inicial: déjalo vacío para que salga del día anterior' + (r.dia_anterior ? ' (' + esc(fmtDia(r.dia_anterior)) + ')' : '') + '. Si pones alguno, se usan los tuyos para todo el día (los vacíos cuentan 0), igual que en la app. La entrada puede ser negativa.' + (robot ? ' El Dritzline marcado <span class="tag-robot">robot</span> lo puso el robot de las 2 pm.' : '') + '</p>' +
+    '<div class="tbl" style="margin:0"><table class="simple adm-cap"><thead><tr><th>Producto</th><th class="num">Saldo inicial</th><th class="num">Entrada</th><th class="num">Dritzline</th></tr></thead><tbody>' +
+    CATS.map(k => { const ls = r.productos.filter(l => l.categoria === k); if (!ls.length) return ''; return '<tr><td colspan="4" style="background:var(--band);font-weight:700">' + CAT_LABEL[k] + '</td></tr>' + ls.map(l => { const id = l.inventario_producto_id; const ph = r.hay_si_admin ? '0' : fmt(l.saldo_inicial);
+      return '<tr><td>' + esc(l.producto) + '<span class="unidad">' + esc(unidadTxt(l.unidad)) + '</span></td>' +
+        '<td class="num"><input class="cap" type="number" inputmode="decimal" step="any" min="0" id="asi_' + id + '" value="' + (l.adm_saldo_inicial != null && num(l.adm_saldo_inicial) ? num(l.adm_saldo_inicial) : '') + '" placeholder="' + esc(ph) + '"></td>' +
+        '<td class="num"><input class="cap" type="number" inputmode="decimal" step="any" id="aen_' + id + '" value="' + (l.adm_entradas != null && num(l.adm_entradas) ? num(l.adm_entradas) : '') + '" placeholder="0"></td>' +
+        '<td class="num"><input class="cap" type="number" inputmode="decimal" step="any" min="0" id="adz_' + id + '" value="' + (l.adm_dritzline != null ? num(l.adm_dritzline) : '') + '" placeholder="—">' + (l.adm_dritzline_fuente === 'robot' ? '<span class="tag-robot">robot</span>' : '') + '</td></tr>'; }).join(''); }).join('') +
+    '</tbody></table></div></section>';
+  const ed = r.existe ? r.puede_corregir : r.puede_guardar;
+  h += '<section class="card"><div class="row"><h3 style="margin:0">Conteo del gerente</h3>' + (r.existe ? '<span class="badge ' + (r.estado === 'editado' ? 'b-warn' : 'b-ok') + '">' + (r.estado === 'editado' ? '✏️ Corregido por ' + esc(r.editado_por || '') : '✓ Capturado por ' + esc(r.capturado_por || '')) + '</span>' : '<span class="badge b-gris">Todavía sin captura</span>') + '</div>' +
+    '<p class="hint" style="margin:6px 0 10px">' + (r.existe ? 'Si corriges, se recalcula el consumo de este día y el saldo inicial del día siguiente.' : 'Puedes capturarlo por el gerente si no lo hizo.') + '</p></section>' +
+    leyendaHTML(true) + capTablaHTML(r, ed) + '<div id="capEf"></div>';
+  if (ed) h += '<div class="barra"><div class="t" style="font-size:16px">' + esc(corto(r.sucursal || '')) + ' · ' + esc(fmtDia(r.fecha)) + '<small id="capCnt"></small></div><div class="acciones"><button class="btn btn-ok btn-lg" onclick="capConfirmar()">' + (r.existe ? '💾 Guardar corrección' : '💾 Guardar conteo') + '</button></div></div>';
+  M().className = 'main' + (ed ? ' con-barra' : ''); M().innerHTML = h; recalcCap();
+}
+async function capAdmGuardar(btn) {
+  const r = S.cap.r; if (!r) return;
+  const lineas = r.productos.map(l => { const id = l.inventario_producto_id; return { inventario_producto_id: id, saldo_inicial: capNum($('asi_' + id).value), entradas: capNum($('aen_' + id).value) || 0, dritzline: capNum($('adz_' + id).value) }; });
+  if (lineas.some(l => (l.saldo_inicial != null && l.saldo_inicial < 0) || (l.dritzline != null && l.dritzline < 0))) { toast('⚠️ El saldo inicial y el Dritzline no pueden ser negativos'); return; }
+  if (btn) btn.disabled = true;
+  try { await api('inv_diario_adm_guardar', { branch_id: r.branch_id, fecha: r.fecha, lineas }); } catch (e) { if (btn) btn.disabled = false; return; }
+  S.cache = {}; S.kpis = null; toast('✅ Guardado' + (r.existe ? ' y recalculado' : '')); S.cap.r = null; vCapturarAdmin();
 }
 
 /* ── HISTORIAL (gerente): cada día abre el registro completo ── */
@@ -651,7 +775,7 @@ function exportarGeneral() {
 /* ── DIARIO (administración y asesores): la misma tabla del registro, por tienda y fecha ── */
 async function vDiario() {
   const branch = S.diario.branch || null;
-  let h = '<div class="vista-hdr"><div><h2>📋 Conteo diario</h2><p>Lo que la app registró cada día (sincronizado de madrugada). Para editarlo usa la app.</p></div><div class="acciones">' + selSuc('diaSuc', branch, 'S.diario.branch=Number(this.value)||null;S.diario.fecha=\'\';vDiario()', false) +
+  let h = '<div class="vista-hdr"><div><h2>📋 Conteo diario</h2><p>El conteo de cada día. Para capturar o corregir un día desde el corte usa ✏️ Capturar diario; los días anteriores se corrigen en la app.</p></div><div class="acciones">' + selSuc('diaSuc', branch, 'S.diario.branch=Number(this.value)||null;S.diario.fecha=\'\';vDiario()', false) +
     '<input class="inp" type="date" id="diaFecha" value="' + esc(S.diario.fecha) + '" max="' + todayStr() + '" onchange="S.diario.fecha=this.value;vDiario()">' + (branch ? '<button class="btn btn-sm" onclick="exportar(' + branch + ')">⬇︎ Excel</button>' : '') + '</div></div>';
   M().className = 'main';
   if (!branch) { M().innerHTML = h + '<div class="vacio">Elige la tienda.</div>'; return; }
@@ -662,6 +786,7 @@ async function vDiario() {
   const t = tablaRegistroHTML(d, true);
   M().innerHTML = h + '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '<span class="pill">' + fmtLargo(d.fecha) + '</span></div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vDiario()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vDiario()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' + leyendaHTML() + t.html + efCardsHTML(d.lineas);
   const f = $('diaFecha'); if (f) f.value = S.diario.fecha; const s = $('diaSuc'); if (s) s.value = branch;
+  if (esAdmin()) { const a = M().querySelector('.vista-hdr[style] .acciones:last-child'); if (a) a.insertAdjacentHTML('beforeend', '<button class="btn btn-sm btn-primary" onclick="S.cap.branch=' + branch + ';S.cap.fecha=\'' + S.diario.fecha + '\';irTab(\'capturar\')">✏️ Corregir</button>'); }
 }
 
 /* ── PANEL (administración y asesores) ── */
