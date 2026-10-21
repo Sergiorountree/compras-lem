@@ -40,6 +40,7 @@
   .b-gris { background: #F1EFE8; color: #565550; } .b-lem { background: var(--lem-light); color: var(--lem-dark); }
   .conf { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 99px; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; border: 1px solid; white-space: nowrap; vertical-align: middle; }
   .conf-est { background: #FFF7E6; color: var(--ambar); border-color: #F0CD83; } .conf-auto { background: #EEF8F2; color: var(--verde); border-color: #B9E0CB; }
+  .conf-reg { background: var(--lem-light); color: var(--lem-dark); border-color: #D9D6F7; } .conf-inc { background: #FEF2F2; color: var(--rojo); border-color: #F2B8B3; } .conf-sf { background: #F6F5F0; color: #6B6B66; border-color: var(--border); }   /* Estado de resultados (112) */
   .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; border-radius: 99px; padding: 1px 8px; background: #F1EFE8; color: #565550; white-space: nowrap; }
   .chip-pf { background: #EAE6F7; color: #322787; }
   .lem-table { border-collapse: separate; border-spacing: 0; width: 100%; }
@@ -183,7 +184,7 @@ const Conexion = Object.freeze({
 /* ═══ SQL Connect (fin) ═══ */
 
 /* ── Módulo Contabilidad · F0 (7-oct-2026). C0 Inicio, Subir XML (mig. 093: Alan sube los XML de las facturas aquí, sin Drive),
-   C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal, C3 Cortes de caja con su conciliación y Efectivo: ESPEJO de Drive de
+   Estado de resultados (mig. 112, 21-oct-2026: la cascada del P&L por tienda, calculada en SQL), C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal, C3 Cortes de caja con su conciliación y Efectivo: ESPEJO de Drive de
    solo lectura (mig. 094, 8-oct-2026: la hoja "ERP Cortes" y la carpeta "Control de Efectivo" se muestran como están; se editan en Drive).
    Los números los da SQL (lem.fn_api_conta_*, migraciones 091, 093 y 094); la pantalla solo pinta. Contrato:
    compras-v1/docs/contabilidad-api.md. Solo entran administración y contabilidad: el servidor responde "sin_acceso" a los demás.
@@ -193,10 +194,11 @@ document.documentElement.setAttribute('data-conta', 'ok');
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const INACTIVIDAD_MIN = 15;
 const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
-const ACCIONES = new Set(['conta_inicio', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas', 'conta_espejo_cortes', 'conta_espejo_efectivo', 'ver_como_opciones']);   // ver_como_opciones: barra "Punto de vista" (mig. 097)
+const ACCIONES = new Set(['conta_inicio', 'conta_resultados', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas', 'conta_espejo_cortes', 'conta_espejo_efectivo', 'ver_como_opciones']);   // ver_como_opciones: barra "Punto de vista" (mig. 097)
 const ss = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }, del(k) { try { sessionStorage.removeItem(k); } catch (e) {} } };
 const uiInicial = () => ({ excTodas: false, q: '', soloSaldo: true, orden: 'abierto', base: null, factSolo: false, mesIng: null, mesCor: null, diasFiltro: 'revisar',
-                           concBranch: null, concEstado: null, concTec: false, concDias: 14, concTiendas: [], efeOrden: 'semana' });
+                           concBranch: null, concEstado: null, concTec: false, concDias: 14, concTiendas: [], efeOrden: 'semana',
+                           resMes: null, resDest: 'consolidado', resVista: 'una', resDet: null });
 const subInicial = () => ({ items: [], leyendo: false, enviando: false, detener: false, lote: null, empresa: null, hechos: 0, total: 0, error: null, filtro: 'todos',
                             hist: null, histCargando: false, histErr: null, histEstado: 'todos', histQ: '', histT: null, sec: 0 });
 const S = { token: ss.get('lem_tok') || null, usuario: '', inicio: null, empresa: null, cache: new Map(), vez: 0, epoca: 0, ultima: Date.now(), motivo: '', tiendas: [], deb: null, ui: uiInicial(), sub: subInicial(), toastT: null };
@@ -409,11 +411,10 @@ function pintarShell() {
     '<main class="main"><div class="scroll" id="scroll"><div id="vista"></div></div></main></div>';
 }
 function pintarNav(r) {
-  const items = [['inicio', 'home', 'Inicio'], ['subir', 'upload', 'Subir XML'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja'], ['efectivo', 'file', 'Efectivo (espejo)']];
+  const items = [['inicio', 'home', 'Inicio'], ['resultados', 'file', 'Estado de resultados'], ['subir', 'upload', 'Subir XML'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja'], ['efectivo', 'file', 'Efectivo (espejo)']];
   const n = $('nav'); if (!n) return;
   const act = r === 'conciliacion' ? 'cortes' : r;   // la conciliación es una pestaña de Cortes de caja
   n.innerHTML = items.map(([k, ic, t]) => '<a class="nav-item' + (act === k ? ' active' : '') + '" href="#' + k + '"' + (act === k ? ' aria-current="page"' : '') + '>' + icon(ic) + '<span>' + t + '</span></a>').join('') +
-    '<div class="nav-item soon-item">' + icon('file') + '<span>Estado de resultados</span><span class="soon">F1</span></div>' +
     '<div class="nav-item soon-item">' + icon('lock') + '<span>Cierre del mes</span><span class="soon">F2</span></div>';
 }
 function topbar(t, sub, acciones) { return '<header class="topbar"><div class="min-w-0"><h1>' + t + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (acciones ? '<div class="acciones flex items-center gap-2 flex-wrap">' + acciones + '</div>' : '') + '</header>'; }
@@ -430,9 +431,9 @@ function pon(h) { const v = $('vista'); if (v) v.innerHTML = '<div class="fade-i
 function arriba() { const sc = $('scroll'); if (sc) sc.scrollTop = 0; if (window.innerWidth <= 760) window.scrollTo(0, 0); }
 function cargando(t, sub) { pon(topbar(t, sub) + '<div class="p-8"><div class="msg-card shadow-card">Cargando…</div></div>'); }
 
-/* ── Rutas: #inicio · #subir · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ·
+/* ── Rutas: #inicio · #resultados[/AAAA-MM] · #subir · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ·
    #conciliacion[/semana/AAAA-SS | /motor/AAAA-MM[/branch_id] | /resumen | /falta | /cambios] · #efectivo[/AAAA-MM | /historico/<pestaña>] ── */
-const RUTAS = { inicio: vInicio, subir: vSubir, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes, conciliacion: vConciliacion, efectivo: vEfectivo };
+const RUTAS = { inicio: vInicio, resultados: vResultados, subir: vSubir, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes, conciliacion: vConciliacion, efectivo: vEfectivo };
 function ruta() {
   let h = (location.hash || '').replace(/^#/, ''); try { h = decodeURIComponent(h); } catch (e) {}
   const i = h.indexOf('/'); const r = i < 0 ? h : h.slice(0, i); const arg = i < 0 ? null : (h.slice(i + 1) || null);
@@ -1337,6 +1338,155 @@ function tablaMovimientos(d) {
     (cuerpo || '<tr><td colspan="10" class="text-center text-gray-500" style="padding:24px">Sin movimientos.</td></tr>') + '</tbody></table></div>';
 }
 
+/* ════════════════ Estado de resultados (mig. 112, M2a, 21-oct-2026): la cascada del P&L por tienda, calculada en SQL al leer ════════════════
+   conta_resultados da los renglones de la hoja "P&L TOTA 2026 V1" con una celda por destino (cada tienda, Indirectos, Corporativo,
+   sin asignar y Consolidado). Cada celda trae monto (null = no se publica: incompleto o sin fuente), confianza, fuentes, la cifra de la
+   foto de la hoja y la diferencia. Sin celda = 0. La pantalla solo pinta y saca el % de venta; el detalle de una celda se pide aparte
+   (renglon + destino). A consulta (Damián, P7) el servidor ya le quita el Corporativo, el EBITDA y la nómina. */
+const CONF_RES = { automatica: ['Automático', 'conf-auto', 'Sale directo de la base'], por_factura: ['Por factura', 'conf-reg', 'Decisión a mano sobre esa factura (Motor de julio)'],
+  regla: ['Por regla', 'conf-reg', 'Lo decidió una regla de clasificación'], prorrateo: ['Prorrateo', 'conf-reg', 'Repartido entre tiendas con su criterio (venta R26, TDC, Rappi o partes iguales)'],
+  estimada: ['Estimado', 'conf-est', 'Provisional: se ajusta cuando llega el dato real'], incompleto: ['Incompleto', 'conf-inc', 'Le falta un dato (un inventario, compras sin tienda o un renglón sin fuente): no se publica la cifra'],
+  falta_fuente: ['Sin fuente', 'conf-sf', 'Todavía no hay fuente en la base (nómina, caja, SUA o bancos): llega con la M2b'] };
+const COMO_RES = { por_factura: 'Por factura', prorrateo: 'Prorrateo', sucursal: 'Regla (tienda fija)', sin_asignar: 'Regla (sin tienda)', factura_tienda: 'Factura → tienda (PDF)',
+  llave_predial: 'Cuenta predial', uber_concepto: 'Alias de Uber', texto_suc: '"SUC." de SISA', nota_relacionada: 'De su factura relacionada', sin_regla: 'Sin regla',
+  prorrateo_sin_criterio: 'Prorrateo sin criterio', prorrateo_sin_asegurados: 'Prorrateo por asegurados (sin fuente)', prorrateo_sin_base: 'Prorrateo sin base' };
+const PLAT_RES = { uber: 'Uber Eats', didi: 'DiDi Food', didi_bill_report: 'DiDi · otros cargos (Bill Report)', rappi: 'Rappi (factura)', rappi_estimado: 'Rappi (estimado)' };
+const INGRESO_RES = new Set(['ventas_tdc', 'ventas_efectivo', 'venta_uber', 'venta_didi', 'venta_rappi', 'vales']);
+function chipConf(c) { const x = CONF_RES[c] || [c || '—', 'conf-sf', '']; return '<span class="conf ' + x[1] + '" title="' + esc(x[2]) + '">' + esc(x[0]) + '</span>'; }
+function comoRes(c) { const k = String(c || ''); return COMO_RES[k] || (k.startsWith('sin_llave:') ? 'Sin llave (' + esc(COMO_RES[k.slice(10)] || k.slice(10)) + ')' : esc(k || '—')); }
+function nombreDestino(d, x) { const r = (d.destinos || []).find(y => y.destino === x); return r ? r.nombre : (x === 'sin_asignar' ? 'Sin asignar' : x === 'consolidado' ? 'Consolidado' : 'Sucursal ' + x); }
+function proveedorRes(p) { p = p || {}; return p.persona_fisica ? '<span class="chip chip-pf" title="Persona física: sin nombre ni RFC (clave de esta consulta)">Persona física</span>' : '<div class="font-medium">' + esc(p.nombre || p.rfc || '—') + '</div><div class="text-11 text-gray-500 num">' + esc(p.rfc || '') + '</div>'; }
+function celdaRes(r, dest) { return (r.celdas || {})[dest] || null; }
+function hojaRes(r, dest) { const c = celdaRes(r, dest); return c && c.hoja != null ? c.hoja : ((r.hoja_sin_celda || {})[dest] != null ? r.hoja_sin_celda[dest] : null); }
+function montoRes(c) {   // celda → texto: sin celda = 0; monto null = no publicable (con su parcial si lo hay)
+  if (!c) return '<span class="dim">' + pesos(0) + '</span>';
+  if (c.monto == null) { const p = c.fuentes && esNum(c.fuentes.parcial) ? c.fuentes.parcial : null; return '<span class="text-gray-400" title="' + esc(c.nota || (CONF_RES[c.confianza] || [])[2] || '') + '">—</span>' + (p != null ? '<div class="text-11 text-gray-400 num">parcial ' + pesos(p) + '</div>' : ''); }
+  return Number(c.monto) === 0 ? '<span class="dim">' + pesos(0) + '</span>' : pesos(c.monto);
+}
+async function vResultados(arg, vez) {
+  if (arg && /^\d{4}-\d{2}$/.test(arg)) S.ui.resMes = arg;
+  cargando('Estado de resultados', S.ui.resMes ? mesLargo(S.ui.resMes) : 'mes anterior');
+  const d = await traer('conta_resultados', S.ui.resMes ? { mes: S.ui.resMes } : {}); if (vez !== S.vez) return;
+  if (!S.ui.resMes && d.mes) { S.ui.resMes = d.mes; guardarEnMemoria('conta_resultados', { mes: d.mes }, d); }
+  const hoyMes = String(S.inicio.hoy || '').slice(0, 7);
+  const prev = d.mes > '2026-07' ? mesMas(d.mes, -1) : null; const sig = mesMas(d.mes, 1) <= hoyMes ? mesMas(d.mes, 1) : null;
+  const dests = d.destinos || []; if (!dests.some(x => x.destino === S.ui.resDest)) S.ui.resDest = 'consolidado';
+  const dest = S.ui.resDest; const ren = d.renglones || []; const R = k => ren.find(r => r.clave === k);
+  const sel = '<span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="mesRes" data-arg="' + esc(prev || '') + '"' + (prev ? '' : ' disabled') + ' aria-label="Mes anterior">' + icon('chevronL', 14) + '</button><b class="text-sm text-center" style="min-width:128px">' + mesLargo(d.mes) + '</b><button class="btn btn-ghost p-15" data-act="mesRes" data-arg="' + esc(sig || '') + '"' + (sig ? '' : ' disabled') + ' aria-label="Mes siguiente">' + icon('chevronR', 14) + '</button></span>';
+  const grupo = t => dests.filter(x => x.tipo === t);
+  const selD = '<select class="sel" data-chg="resDest" aria-label="Tienda o Consolidado">' + [['consolidado', 'Consolidado'], ['tienda', 'Tiendas'], ['centro', 'Centros'], ['sin_asignar', 'Sin asignar']].map(([t, lab]) => {
+      const xs = t === 'consolidado' || t === 'sin_asignar' ? dests.filter(x => x.destino === t) : grupo(t); if (!xs.length) return '';
+      const op = xs.map(x => '<option value="' + esc(x.destino) + '"' + (x.destino === dest ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('');
+      return t === 'tienda' || t === 'centro' ? '<optgroup label="' + lab + '">' + op + '</optgroup>' : op; }).join('') + '</select>';
+  const vista = S.ui.resVista === 'matriz' ? 'matriz' : 'una';
+  const seg = '<div class="seg" role="group" aria-label="Vista"><button class="' + (vista === 'una' ? 'on' : '') + '" data-act="resVista" data-arg="una">Una columna</button><button class="' + (vista === 'matriz' ? 'on' : '') + '" data-act="resVista" data-arg="matriz">Todas las tiendas</button></div>';
+  let h = topbar('Estado de resultados', esc(S.inicio.empresa || '') + ' · ' + mesLargo(d.mes) + ' · sin IVA · calculado ' + instante(d.calculado_al), sel + (vista === 'una' ? selD : '') + seg + btnActualizar()) + '<div class="p-8">';
+  // Avisos del mes
+  if (d.aviso_mes) h += '<div class="banner banner-amber"><b>' + esc(mesLargo(d.mes)) + ' está cerrado.</b> ' + esc(d.aviso_mes) + '.</div>';
+  else if (d.mes === hoyMes) h += '<div class="banner banner-amber">' + mesLargo(d.mes) + ' es el mes en curso: las cifras son parciales.</div>';
+  if (d.acceso) h += '<div class="banner banner-lem">Tu acceso es de consulta: no incluye el Corporativo (ni el EBITDA, que lo incluye) ni la nómina.</div>';
+  h += '<div class="banner banner-gris"><div class="text-13 mb-1"><b>Primera versión (M2a).</b> Facturas clasificadas con las reglas del Motor, prorrateos, costo de venta con los inventarios de cierre, plataformas (Uber, DiDi, Rappi) y ventas del R26. ' +
+    'La nómina, IMSS, ISN, finiquitos, la caja y los ajustes con evidencia llegan con la M2b: esos renglones salen <b>sin fuente</b> y los subtotales que los incluyen, <b>incompletos</b> (sin cifra; se muestra lo parcial).</div>' +
+    '<div class="flex gap-1 flex-wrap mt-2">' + Object.keys(CONF_RES).map(chipConf).join('') + '</div>' + (d.hoja ? '<div class="text-11 text-gray-500 mt-2">"Hoja" = la foto de ' + esc(d.hoja.archivo) + ' exportada el ' + instante(d.hoja.exportado_en) + '.</div>' : '') + '</div>';
+  // Tarjetas del destino elegido (en la vista de todas las tiendas, del Consolidado)
+  const dTar = vista === 'una' ? dest : 'consolidado';
+  const tarjeta = (k, t) => { const r = R(k); if (!r) return ''; const c = celdaRes(r, dTar); const ing = celdaRes(R('ingresos_totales') || {}, dTar);
+    const pct = c && esNum(c.monto) && ing && N(ing.monto) ? porc(100 * Number(c.monto) / Number(ing.monto)) + ' de la venta' : (c && c.monto == null && c.fuentes && esNum(c.fuentes.parcial) ? 'parcial ' + pesos(c.fuentes.parcial) : '');
+    return stat(t, c && c.monto == null ? '—' : pesos(c ? c.monto : 0), pct, c && N(c.monto) < 0 ? 'var(--rojo)' : null, ' ' + chipConf(c ? c.confianza : 'automatica')); };
+  h += '<div class="grid grid-4 mb-6">' + tarjeta('ingresos_totales', 'Ingresos') + tarjeta('utilidad_bruta', 'Utilidad bruta') + tarjeta('utilidad_operativa_tiendas', 'Utilidad operativa tiendas') +
+    (R('ebitda') ? tarjeta('ebitda', 'EBITDA') : tarjeta('utilidad_operativa', 'Utilidad operativa')) + '</div>';
+  h += '<div id="resDet"></div>';
+  h += vista === 'una' ? tablaResUna(d, dest) : tablaResMatriz(d);
+  h += faltantesRes(d);
+  pon(h + '</div>');
+  if (S.ui.resDet && S.ui.resDet.mes === d.mes) pintarDetalleRes(d, vez);
+}
+function tablaResUna(d, dest) {
+  const ren = d.renglones || []; const ing = (ren.find(r => r.clave === 'ingresos_totales') || {}).celdas || {}; const base = ing[dest] && N(ing[dest].monto);
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:860px"><thead><tr>' + th('Renglón', false, ' class="fija"') + th('Monto', true) + th('% de venta', true) + th('Hoja', true) + th('Diferencia', true) + th('Confianza') + '</tr></thead><tbody>';
+  t += ren.map(r => { const c = celdaRes(r, dest); const hoja = hojaRes(r, dest); const sub = r.tipo === 'subtotal';
+    const dif = c && c.diferencia != null ? Number(c.diferencia) : (hoja != null && c && esNum(c.monto) ? null : (hoja != null && !c ? -Number(hoja) : null));
+    const clic = !sub && (c || hoja != null);
+    return '<tr class="' + (sub ? 'total' : '') + (clic ? ' link' : '') + (S.ui.resDet && S.ui.resDet.ren === r.clave && S.ui.resDet.dest === dest ? ' sel' : '') + '"' + (clic ? ' data-act="resDet" data-arg="' + esc(r.clave + '|' + dest) + '"' : '') + '>' +
+      '<td class="fija' + (sub ? '' : '" style="padding-left:18px') + '">' + esc(r.nombre) + (c && c.nota && !sub && c.confianza !== 'falta_fuente' ? '<div class="text-11 text-gray-500" style="white-space:normal;max-width:340px">' + esc(c.nota) + '</div>' : '') + '</td>' +
+      '<td class="text-right num">' + montoRes(c) + '</td>' +
+      '<td class="text-right num text-gray-500">' + (c && esNum(c.monto) && base ? porc(100 * Number(c.monto) / base) : '—') + '</td>' +
+      '<td class="text-right num text-gray-500">' + (hoja != null ? pesos(hoja) : '—') + '</td>' +
+      '<td class="text-right num' + (dif != null && Math.abs(dif) >= 1 ? ' warn font-medium' : '') + '">' + (dif == null ? '—' : Math.abs(dif) < 0.005 ? '<span class="dim">' + pesos(0) + '</span>' : pesos(dif)) + '</td>' +
+      '<td>' + (c ? chipConf(c.confianza) : '') + (c && c.fuentes && c.fuentes.faltan ? '<div class="text-11 text-gray-500 mt-1" style="white-space:normal;max-width:220px">falta: ' + esc(c.fuentes.faltan.map(k => (ren.find(x => x.clave === k) || {}).nombre || String(k).replace(/_/g, ' ')).join(', ')) + '</div>' : '') + '</td></tr>'; }).join('');
+  t += '</tbody></table></div>';
+  return card(esc(nombreDestino(d, dest)) + ' · ' + mesLargo(d.mes), 'Clic en un renglón para ver de dónde sale. Diferencia = la base menos la hoja; en ámbar si es de un peso o más.', t);
+}
+function tablaResMatriz(d) {
+  const dests = d.destinos || []; const ren = d.renglones || [];
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:' + (260 + dests.length * 118) + 'px"><thead><tr>' + th('Renglón', false, ' class="fija"') + dests.map(x => th(esc(x.nombre), true, ' title="' + esc(x.nombre) + '" style="max-width:118px;white-space:normal"')).join('') + '</tr></thead><tbody>';
+  t += ren.map(r => '<tr class="' + (r.tipo === 'subtotal' ? 'total' : '') + '"><td class="fija">' + esc(r.nombre) + '</td>' + dests.map(x => { const c = celdaRes(r, x.destino); const clic = r.tipo !== 'subtotal' && c;
+      return '<td class="text-right num' + (clic ? ' link' : '') + '"' + (clic ? ' data-act="resDet" data-arg="' + esc(r.clave + '|' + x.destino) + '" style="cursor:pointer"' : '') + (c && c.confianza && !['automatica', 'regla', 'por_factura', 'prorrateo'].includes(c.confianza) ? ' title="' + esc((CONF_RES[c.confianza] || [c.confianza])[0]) + '"' : '') + '>' + montoRes(c) + '</td>'; }).join('') + '</tr>').join('');
+  t += '</tbody></table></div>';
+  return card('Todas las tiendas · ' + mesLargo(d.mes), 'Cada columna es un destino; Sin asignar y Consolidado al final. "—" = no se publica (incompleto o sin fuente). Clic en una cifra para ver su detalle.', t);
+}
+function faltantesRes(d) {
+  const f = d.faltantes || {}; const cf = (d.cuadres || {}).facturas || {}; const nom = k => ((d.renglones || []).find(r => r.clave === k) || {}).nombre || k;
+  let a = '<div class="card-body">';
+  a += '<div class="kv"><div class="k">Facturas que no suman su subtotal</div><div class="v num">' + (N(cf.documentos_que_no_cuadran) ? '<span class="neg">' + entero(cf.documentos_que_no_cuadran) + '</span>' : '<span class="pos">0</span>') + '</div></div>';
+  a += '<div class="kv"><div class="k">Prorrateos que suman exacto</div><div class="v">' + (cf.prorrateo_exacto === false ? '<span class="neg">No</span>' : '<span class="pos">Sí</span>') + '</div></div>';
+  if (esNum(cf.total)) a += '<div class="kv"><div class="k">Facturas del mes contable<div class="text-11 text-gray-400">' + entero(cf.documentos) + ' documentos, ' + entero(cf.partidas) + ' partidas, sin IVA</div></div><div class="v num">' + pesos(cf.total) + '</div></div>';
+  const sf = f.sin_fuente || []; if (sf.length) a += '<div class="kv"><div class="k">Renglones sin fuente (M2b)</div><div class="v text-xs" style="white-space:normal;text-align:right;max-width:60%">' + esc(sf.map(nom).join(', ')) + '</div></div>';
+  const inc = f.incompletos || []; if (inc.length) { const por = {}; inc.forEach(x => { por[x.renglon] = (por[x.renglon] || 0) + 1; });
+    a += '<div class="kv"><div class="k">Celdas incompletas<div class="text-11 text-gray-400">' + esc(Object.keys(por).map(k => nom(k) + ' (' + por[k] + ')').join(', ')) + '</div></div><div class="v num">' + entero(inc.length) + '</div></div>'; }
+  const pl = f.plataformas || {};
+  if (pl.rappi_estimado) a += '<div class="kv"><div class="k">Rappi</div><div class="v text-xs">' + chipConf('estimada') + ' días sin factura</div></div>';
+  if (N(pl.didi_otros_cargos_fuera)) a += '<div class="kv"><div class="k">Otros cargos de DiDi fuera de la receta<div class="text-11 text-gray-400">liquidaciones que no son del Bill Report, en semanas sin anuncios</div></div><div class="v num">' + pesos(pl.didi_otros_cargos_fuera) + '</div></div>';
+  if (N(f.ingresos_otros)) a += '<div class="kv"><div class="k">Ingresos "otros" del R26 fuera de la cascada</div><div class="v num">' + pesos(f.ingresos_otros) + '</div></div>';
+  (f.avisos || []).forEach(x => { a += '<div class="kv"><div class="k">' + esc(x.aviso) + '</div><div class="v num">' + entero(x.partidas) + ' partidas' + (esNum(x.monto) ? ' · ' + pesos(x.monto) : '') + '</div></div>'; });
+  a += '</div>';
+  const lista = (xs, extra) => xs.length ? '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Proveedor') + (extra ? th('Renglón') : '') + th('Cómo') + th('Monto', true) + '</tr></thead><tbody>' +
+      xs.slice(0, 15).map(x => '<tr><td class="nombre-prov">' + proveedorRes(x.proveedor) + '</td>' + (extra ? '<td class="text-xs">' + esc(nom(x.renglon)) + '</td>' : '') + '<td class="text-xs">' + comoRes(x.como) + '<div class="text-11 text-gray-500">' + entero(x.partidas) + ' partidas</div></td>' + tdP(x.monto) + '</tr>').join('') +
+      '</tbody></table></div>' + (xs.length > 15 ? '<p class="text-11 text-gray-400 mt-2" style="padding:0 16px 12px">Las 15 más grandes de ' + xs.length + '.</p>' : '')
+    : '<div class="card-body"><p class="text-sm text-gray-500">Nada.</p></div>';
+  const sa = f.sin_asignar || [], pc = f.por_clasificar || [];
+  const tot = xs => xs.reduce((s, x) => s + N(x.monto), 0);
+  return '<div class="grid grid-2 mt-5">' + card('Cuadres y lo que falta', 'Lo que la base todavía no puede decir solo.', a) +
+    '<div>' + card('Sin tienda (' + pesos(tot(sa)) + ')', 'Facturas del P&L sin tienda: entran al Consolidado, no a una tienda. Se resuelven con una llave, una asignación o el desglose de CDC (regalías).', lista(sa, true)) +
+    (pc.length ? '<div class="mt-4"></div>' + card('Por clasificar (' + pesos(tot(pc)) + ')', 'Facturas sin concepto: no entran a ningún renglón.', lista(pc, false)) : '') + '</div></div>';
+}
+async function pintarDetalleRes(d, vez) {
+  const x = S.ui.resDet; const el = $('resDet'); if (!el || !x) return;
+  const ren = (d.renglones || []).find(r => r.clave === x.ren) || { nombre: x.ren };
+  const cerrar = '<button class="btn btn-ghost sm" data-act="resCerrar">Cerrar</button>';
+  const titulo = esc(ren.nombre) + ' · ' + esc(nombreDestino(d, x.dest));
+  el.innerHTML = card(titulo, 'Cargando el detalle…', '<div class="card-body"><p class="text-sm text-gray-500">Cargando…</p></div>', cerrar);
+  let r;
+  try { r = await traer('conta_resultados', { mes: d.mes, renglon: x.ren, destino: x.dest }); }
+  catch (e) { if (vez !== S.vez || e.obsoleto) return; el.innerHTML = card(titulo, '', '<div class="card-body"><p class="text-sm neg">' + esc(e.message) + '</p></div>', cerrar); return; }
+  if (vez !== S.vez || S.ui.resDet !== x) return;
+  const det = r.detalle || {}; const tienda = b => b == null ? 'Sin asignar' : nombreDestino(d, String(b));
+  let b = '';
+  if (det.tipo === 'ventas') b = '<div class="card-body"><p class="text-sm">' + esc(det.nota || '') + ' <a class="lnk" href="#ingresos">Ver Ingresos</a></p></div>';
+  else if (det.tipo === 'plataformas') {
+    const fs = det.filas || [];
+    b = '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Plataforma') + th('Tienda') + th('Monto', true) + th('Confianza') + th('Nota') + '</tr></thead><tbody>' +
+      (fs.length ? fs.map(y => '<tr><td class="nowrap">' + esc(PLAT_RES[y.plataforma] || y.plataforma) + '</td><td class="nowrap">' + esc(tienda(y.branch_id)) + '</td>' + tdP(y.monto) + '<td>' + chipConf(y.confianza) + '</td><td class="text-xs" style="white-space:normal;max-width:420px">' + esc(y.nota || '') + '</td></tr>').join('')
+        : '<tr><td colspan="5" class="text-center text-gray-500" style="padding:18px">Sin movimientos.</td></tr>') + '</tbody></table></div>';
+  } else {
+    const cv = det.costo_venta || [];
+    if (cv.length) b += '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Tienda') + th('Inventario inicial', true) + th('Compras', true) + th('Inventario final', true) + th('Costo', true) + th('') + '</tr></thead><tbody>' +
+      cv.map(y => '<tr><td class="nowrap">' + esc(tienda(y.branch_id)) + '</td>' + tdP(y.inv_inicial) + tdP(y.compras) + tdP(y.inv_final) + '<td class="text-right num font-semibold">' + (y.completo ? pesos(y.costo) : '<span class="text-gray-400">—</span>' + (esNum(y.costo) ? '<div class="text-11 text-gray-400">parcial ' + pesos(y.costo) + '</div>' : '')) + '</td><td class="text-xs" style="white-space:normal;max-width:300px">' + (y.completo ? '' : esc(y.motivo || '')) + '</td></tr>').join('') + '</tbody></table></div>' +
+      '<p class="text-11 text-gray-500" style="padding:8px 16px 0">Costo = inventario inicial (cierre del mes anterior) + compras clasificadas − inventario final. Abajo, las compras (facturas).</p>';
+    const fs = det.filas || [];
+    b += '<div class="tabla mt-2"><table class="lem-table densa" style="min-width:980px"><thead><tr>' + th('Fecha') + th('Proveedor') + th('Descripción') + th('Concepto') + th('Cómo') + th('Tienda') + th('Monto', true) + '</tr></thead><tbody>' +
+      (fs.length ? fs.map(y => '<tr><td class="num nowrap">' + fecha(y.fecha) + (y.tipo === 'E' ? '<div class="text-11 text-gray-500">nota de crédito</div>' : '') + '</td><td class="nombre-prov">' + proveedorRes(y.proveedor) + '</td>' +
+          '<td class="text-xs" style="white-space:normal;min-width:200px;max-width:340px">' + esc(y.descripcion || (y.proveedor && y.proveedor.persona_fisica ? '(sin descripción: persona física)' : '—')) + (y.aviso ? '<div class="text-11 warn">' + esc(y.aviso) + '</div>' : '') + '</td>' +
+          '<td class="text-xs nowrap">' + esc(y.concepto || '—') + (y.mes_devengo && String(y.mes_devengo).slice(0, 7) !== d.mes ? '<div class="text-11 text-gray-500">devenga ' + esc(mesLargo(String(y.mes_devengo).slice(0, 7))) + '</div>' : '') + '</td>' +
+          '<td class="text-xs">' + comoRes(y.como) + (y.criterio ? '<div class="text-11 text-gray-500">' + esc(String(y.criterio).replace(/_/g, ' ')) + (esNum(y.monto_partida) && Number(y.monto_partida) !== Number(y.parte) ? ' · de ' + pesos(y.monto_partida) : '') + '</div>' : '') + '</td>' +
+          '<td class="text-xs nowrap">' + esc(tienda(y.branch_id)) + '</td>' + tdP(y.parte) + '</tr>').join('')
+        : '<tr><td colspan="7" class="text-center text-gray-500" style="padding:18px">Sin facturas en esta celda.</td></tr>') + '</tbody></table></div>';
+    b += '<div class="card-foot text-xs text-gray-500">' + entero(det.partidas) + ' partidas · total ' + pesos(det.total) + (N(det.partidas) > fs.length ? ' · se muestran las ' + fs.length + ' más grandes' : '') + '</div>';
+  }
+  el.innerHTML = card(titulo, mesLargo(d.mes) + ' · de dónde sale esta cifra', b, cerrar);
+  if (!x.visto) { x.visto = true; try { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {} }   // el detalle se pinta arriba de la tabla
+}
+
 /* ── Eventos (delegados: no hay funciones globales en window) ── */
 document.addEventListener('click', ev => {
   const a = ev.target.closest('[data-act]');
@@ -1357,6 +1507,7 @@ document.addEventListener('change', ev => {
                                  if (p[0] === 'motor' && p[2]) ir('conciliacion/motor/' + p[1] + (S.ui.concBranch != null ? '/' + S.ui.concBranch : '')); else router(); }
   else if (k === 'concSemana') { if (/^\d{4}-\d{1,2}$/.test(el.value)) ir('conciliacion/semana/' + el.value); }
   else if (k === 'concTec') { S.ui.concTec = !!el.checked; router(); }
+  else if (k === 'resDest') { if (/^([0-9]{1,5}|sin_asignar|consolidado)$/.test(el.value)) { S.ui.resDest = el.value; S.ui.resDet = null; router(); } }
   else if (k === 'efeMes') { if (/^(\d{4}-\d{2}|historico\/[a-z0-9 ._-]{1,60})$/.test(el.value)) ir('efectivo/' + el.value); }
 });
 document.addEventListener('input', ev => {
@@ -1388,6 +1539,10 @@ function accion(k, arg) {
   else if (k === 'concEstado') { S.ui.concEstado = arg || null; router(); }
   else if (k === 'concDias') { const n = Number(arg); if ([7, 14, 30, 60].includes(n)) { S.ui.concDias = n; router(); } }
   else if (k === 'efeOrden') { S.ui.efeOrden = arg === 'hoja' ? 'hoja' : 'semana'; router(); }
+  else if (k === 'mesRes') { if (arg && /^\d{4}-\d{2}$/.test(arg)) { S.ui.resMes = arg; S.ui.resDet = null; router(); } }
+  else if (k === 'resVista') { S.ui.resVista = arg === 'matriz' ? 'matriz' : 'una'; router(); }
+  else if (k === 'resDet') { const m = /^([a-z][a-z0-9_]*)\|([0-9]{1,5}|sin_asignar|consolidado)$/.exec(arg || ''); if (m) { S.ui.resDet = { ren: m[1], dest: m[2], mes: S.ui.resMes }; router(); } }
+  else if (k === 'resCerrar') { S.ui.resDet = null; router(); }
 }
 async function actualizar() {
   const ep = S.epoca; S.cache.clear();
