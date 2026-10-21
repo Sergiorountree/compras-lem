@@ -173,6 +173,10 @@ td.n, th.n { text-align: right; }
 @media (min-width: 641px) { .modal-backdrop { align-items: center; padding: 20px; } .modal-card { border-radius: 14px; } }
 /* pérdidas semanales de guisos (mig. 083) */
 .perd-card { border-top: 4px solid var(--alert-line); margin-bottom: 14px; }
+.acab-card { border-top: 4px solid #E0A23A; margin-bottom: 14px; }
+.prob.acab { background: var(--warn-bg); border-color: #EFD3A0; } .prob.acab .det, .prob.acab .cifra small { color: var(--warn); } .prob.acab .cifra b { color: var(--warn); }
+.acab-tienda { padding: 10px 0; border-bottom: 1px solid var(--divider); } .acab-tienda:last-child { border-bottom: 0; }
+.acab-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .perd-comp { display: block; font-size: 14px; margin-top: 8px; font-variant-numeric: tabular-nums; } .perd-comp.mejor { color: var(--ok); } .perd-comp.peor { color: var(--alert); }
 .perd-dias { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; } .perd-dias span { font-size: 12px; background: var(--surface); border: 1px solid #F3C5C2; border-radius: 6px; padding: 1px 6px; color: #7F2E2B; font-variant-numeric: tabular-nums; }
 .semana-nav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -441,6 +445,24 @@ function problemasHTML(prev) {
   }
   return '<section class="card"><div class="prob-hdr"><h3>Productos problema del día anterior</h3><span class="dia-et">' + (prev ? esc(fmtDiaA(prev.fecha)) : '') + '</span></div><div class="prob-lista">' + cuerpo + '</div></section>';
 }
+/* ── Guisos por acabarse (mig. 103) ──
+   Regla (Sergio, 20-oct-2026): aviso cuando la existencia de un guiso alcanza para 3.5 días o menos de su consumo promedio
+   (últimos 12 días capturados). Lo calcula SQL (fn_inv_por_acabarse) al cierre del último día capturado; llega en inv_hoy
+   (gerente) e inv_panel (admin). Un día con más de la mitad de los guisos en cero no cuenta (captura_incompleta) y un guiso que
+   se consumió muy por encima de lo vendido sale en 'revisar' en lugar de calificarse. */
+function diasTxt(d) { return fmt(d) + (num(d) === 1 ? ' día' : ' días'); }
+function acabarseHTML(pa) {
+  let cuerpo; const L = (pa && pa.productos) || []; const umbral = fmt((pa && pa.umbral_dias) || 3.5);
+  if (!pa || !pa.fecha) cuerpo = '<div class="prob-gris">No hay días capturados en los últimos 30 días para calcular el consumo.</div>';
+  else if (!L.length) cuerpo = '<div class="prob-ok">✓ Ningún guiso está por debajo de ' + umbral + ' días de consumo.</div>';
+  else cuerpo = '<div class="prob-resumen">' + L.length + ' guiso' + (L.length === 1 ? '' : 's') + ' alcanza' + (L.length === 1 ? '' : 'n') + ' para ' + umbral + ' días o menos de tu consumo promedio. Pide a tiempo.</div>' +
+    L.map(l => { const un = unidadTxt(l.unidad); return '<div class="prob acab"><div><div class="nm">' + esc(l.producto) + '<span class="unidad">' + esc(un) + '</span></div><div class="det">Quedan ' + fmt(l.existencia) + ' ' + esc(un) + ' · consumo promedio ' + fmt(l.consumo_prom) + ' ' + esc(un) + ' al día</div></div><div class="cifra"><b>' + diasTxt(l.dias) + '</b><small>de inventario</small></div></div>'; }).join('');
+  const R = (pa && pa.revisar) || [];
+  if (pa && pa.captura_incompleta) cuerpo = '<div class="prob-gris">⚠︎ La captura del ' + esc(fmtDia(pa.captura_incompleta)) + ' quedó con casi todos los guisos en cero, así que se usa el cierre del ' + esc(fmtDia(pa.fecha)) + '.</div>' + cuerpo;
+  if (R.length) cuerpo += R.map(l => { const un = unidadTxt(l.unidad); return '<div class="prob-gris"><b>Revisa la captura · ' + esc(l.producto) + '</b><br>Quedaron ' + fmt(l.existencia) + ' ' + esc(un) + ', pero se consumieron ' + fmt(l.consumo) + ' ' + esc(un) + ' y se vendieron ' + fmt(l.venta) + ' ' + esc(un) + '. Puede faltar contar una ubicación.</div>'; }).join('');
+  return '<section class="card acab-card"><div class="prob-hdr"><h3>⏳ Guisos por acabarse</h3><span class="dia-et">' + (pa && pa.fecha ? 'al cierre del ' + esc(fmtDiaA(pa.fecha)) : '') + '</span></div><div class="prob-lista">' + cuerpo + '</div>' +
+    '<p class="hint" style="margin:10px 0 0">Consumo promedio de los últimos ' + ((pa && pa.dias_promedio) || 12) + ' días capturados. Lo que entró o se gastó después de ese cierre se refleja en la siguiente sincronización.</p></section>';
+}
 function toggleProb(b) { const abierto = b.dataset.abierto === '1'; b.dataset.abierto = abierto ? '0' : '1'; b.closest('.prob-lista').querySelectorAll('.prob[data-extra]').forEach(x => { x.hidden = abierto; }); b.querySelector('.txt').textContent = abierto ? b.dataset.mas : 'Ver menos'; b.querySelector('.chev').style.transform = abierto ? '' : 'rotate(90deg)'; }
 
 /* ── REGISTRO DEL DÍA (gerente): espejo de la app, sin captura ── */
@@ -457,7 +479,7 @@ async function vRegistro() {
   let pw = null; try { pw = await perdidasDe(S.branch, null); } catch (x) { S.cache['perd|' + S.branch + '|cerrada'] = { error: 'fallo' }; }   // la tarjeta es opcional: si falla, el Registro sigue y no se reintenta en cada visita
   const t = tablaRegistroHTML(d, true);
   h += '<div class="vista-hdr" style="padding-top:0"><div class="acciones">' + chipsDia(d, t.fuera) + '</div><div class="acciones"><button class="btn btn-sm" ' + (d.anterior ? 'onclick="S.diario.fecha=\'' + d.anterior + '\';vRegistro()"' : 'disabled') + '>‹ ' + (d.anterior ? fmtDia(d.anterior) : 'anterior') + '</button><button class="btn btn-sm" ' + (d.siguiente ? 'onclick="S.diario.fecha=\'' + d.siguiente + '\';vRegistro()"' : 'disabled') + '>' + (d.siguiente ? fmtDia(d.siguiente) : 'siguiente') + ' ›</button></div></div>' +
-    '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + perdidasCardHTML(pw) + leyendaHTML() + t.html + efCardsHTML(d.lineas) +
+    '<div class="destacados">' + rachaCardHTML(e, dias) + problemasHTML(prev && !prev.error ? prev : null) + '</div>' + (e && e.por_acabarse ? acabarseHTML(e.por_acabarse) : '') + perdidasCardHTML(pw) + leyendaHTML() + t.html + efCardsHTML(d.lineas) +
     '<p class="hint">Lo capturado en la app aparece aquí en la sincronización de la 1:30 am.</p>';
   M().innerHTML = h;
 }
@@ -665,6 +687,15 @@ async function vPanel() {
     const al = []; if (num(e.generados_mes)) al.push('<span class="badge mini b-warn">' + e.generados_mes + ' generado' + (e.generados_mes === 1 ? '' : 's') + ' este mes</span>'); if (ug && num(ug.sin_precio)) al.push('<span class="badge mini b-warn">' + ug.sin_precio + ' sin precio</span>'); if ((e7.postre != null && e7.postre < 90) || (e7.bebida != null && e7.bebida < 90)) al.push('<span class="badge mini b-bad">eficiencia baja</span>');
     const msg = 'Hola, ' + nombre + ': no se registró el inventario del ' + fmtFecha(e.dia_esperado) + ' en la app (o quedó generado en ceros). Por favor pasa los datos reales a administración para corregirlo.';
     return '<tr><td><b>' + esc(nombre) + '</b></td><td>' + diario + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + ORDEN_CHIPS.map(k => efChip(e7[k], CAT_LABEL[k].slice(0, 1))).join('') + '</span></td><td>' + (ug ? '<b class="num">' + money(ug.total_valor) + '</b><div class="hint">' + fmtDia(ug.fecha) + (e.general_hoy ? ' (hoy)' : '') + '</div>' + (num(ug.sin_contar) ? '<span class="badge mini b-warn">' + ug.sin_contar + ' sin contar</span>' : '') : '<span class="hint">sin conteo</span>') + '</td><td><span style="display:flex;gap:4px;flex-wrap:wrap">' + (al.join('') || '<span class="hint">—</span>') + '</span></td><td style="white-space:nowrap">' + (!e.al_dia && !e.sin_actividad ? '<a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink(msg) + '">💬 WhatsApp</a> ' : '') + '<button class="btn btn-sm" onclick="S.diario.branch=' + s.branch_id + ';S.diario.fecha=\'\';irTab(\'diario\')">Ver</button></td></tr>'; }).join('') + '</tbody></table></div>';
+  const conAcab = T.filter(s => s.por_acabarse && ((s.por_acabarse.productos || []).length || (s.por_acabarse.revisar || []).length || s.por_acabarse.captura_incompleta));
+  if (T.some(s => s.por_acabarse)) h += '<section class="card acab-card"><div class="prob-hdr"><h3>⏳ Guisos por acabarse</h3><span class="dia-et">' + (conAcab.length ? conAcab.length + ' de ' + T.length + ' tiendas' : '') + '</span></div>' +
+    (conAcab.length ? conAcab.map(s => { const pa = s.por_acabarse;
+      return '<div class="acab-tienda"><div class="row"><span><b>' + esc(corto(s.corto || s.nombre)) + '</b> <span class="hint">· al cierre del ' + esc(fmtDia(pa.fecha)) + '</span></span><button class="btn btn-sm" onclick="S.diario.branch=' + s.branch_id + ';S.diario.fecha=\'\';irTab(\'diario\')">Ver</button></div><div class="acab-chips">' +
+        (pa.captura_incompleta ? '<span class="badge mini b-gris" title="Más de la mitad de los guisos quedó en cero">⚠︎ captura del ' + esc(fmtDia(pa.captura_incompleta)) + ' incompleta</span>' : '') +
+        (pa.revisar || []).map(l => '<span class="badge mini b-gris" title="' + esc('Quedaron ' + fmt(l.existencia) + ' · consumo ' + fmt(l.consumo) + ' contra venta ' + fmt(l.venta)) + '">' + esc(l.producto) + ' · revisar captura</span>').join('') +
+        (pa.productos || []).map(l => '<span class="badge mini b-warn" title="Quedan ' + esc(fmt(l.existencia) + ' ' + unidadTxt(l.unidad) + ' · consumo promedio ' + fmt(l.consumo_prom) + ' ' + unidadTxt(l.unidad) + ' al día') + '">' + esc(l.producto) + ' · ' + diasTxt(l.dias) + '</span>').join('') + '</div></div>'; }).join('')
+      : '<div class="prob-ok">✓ Ninguna tienda tiene guisos por debajo de 3.5 días de consumo.</div>') +
+    '<p class="hint" style="margin:10px 0 0">Existencia del último día capturado entre el consumo promedio de los últimos 12 días capturados de cada tienda.</p></section>';
   const ag = p.autogenerados || [];
   h += '<div class="card"><div class="row"><h3 style="margin:0">Días generados sin captura' + (S.filtroMes ? ' · ' + S.filtroMes : ' · todos') + '</h3><div class="acciones"><input class="inp" type="month" value="' + esc(S.filtroMes) + '" onchange="S.filtroMes=this.value;vPanel()"><button class="btn btn-sm" onclick="exportar(null)">⬇︎ Excel global</button></div></div>' +
     (ag.length ? '<div class="lista" style="margin-top:10px">' + ag.slice(0, 40).map(a => '<div class="row" style="border-bottom:1px solid var(--divider);padding:6px 0"><span>🏪 <b>' + esc(a.sucursal || '') + '</b> · ' + fmtFecha(a.fecha) + '</span><a class="btn btn-sm" target="_blank" rel="noopener" href="' + waLink('Hola, no se registró el inventario de ' + (a.sucursal || '') + ' del ' + fmtFecha(a.fecha) + '. El sistema lo generó en ceros. Por favor pasar los datos reales a administración para corregirlo.') + '">💬 WhatsApp</a></div>').join('') + (ag.length > 40 ? '<div class="hint">…y ' + (ag.length - 40) + ' más</div>' : '') + '</div>' : '<div class="hint" style="margin-top:8px">Ninguno en este periodo.</div>') + '</div>';
