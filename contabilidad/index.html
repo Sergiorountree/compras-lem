@@ -392,7 +392,9 @@ async function arrancar() {
 }
 
 /* ── Armazón ── */
-const ROLES = { admin: { label: 'Administrador', color: '#534AB7' }, contabilidad: { label: 'Contabilidad', color: '#0E5A42' } };
+const ROLES = { admin: { label: 'Administrador', color: '#534AB7' }, contabilidad: { label: 'Contabilidad', color: '#0E5A42' },
+                consulta: { label: 'Consulta (solo lectura)', color: '#6B6B66' } };   // consulta: mig. 110 (20-oct-2026), ve todo y no sube ni captura
+const soloLectura = () => !!(S.inicio && S.inicio.rol === 'consulta');
 function pintarShell() {
   const p = S.inicio; const rol = ROLES[p.rol] || { label: p.rol || '—', color: '#6B6B66' };
   const quien = (p.ver_como_aplicado && p.ver_como_aplicado.cuenta) || S.usuario || '—'; const ini = (quien.split('@')[0] || '?').slice(0, 2).toUpperCase();   // viendo como (mig. 097): la cuenta vista
@@ -542,6 +544,10 @@ async function vSubir(arg, vez) {
 }
 function pintarSubir() {
   const el = $('subirCuerpo'); if (!el) return;
+  if (soloLectura()) {   // el servidor también se lo niega (fn_conta_entrada, mig. 110)
+    el.innerHTML = '<div class="banner banner-lem"><b>Tu perfil de Contabilidad es de consulta.</b> Puedes ver el historial de lo que se ha subido, pero no subir XML. Si necesitas subir facturas, pídeselo a Sergio.</div>';
+    return;
+  }
   const sub = S.sub; const c = cuentaSub(); const h = sub.hist;
   const sinRfc = h && h.empresa_id === S.empresa && !h.rfc_empresa;
   let x = '<div class="banner banner-lem"><b>Aquí se suben los XML de las facturas que recibió ' + esc(S.inicio.empresa || 'la empresa') + '.</b> Ya no hace falta Drive: el XML se guarda en la base tal cual y no se puede cambiar ni borrar. ' +
@@ -651,6 +657,7 @@ function pintarHistDentro(el) {
 }
 // Revisión en el navegador (la base vuelve a revisar todo)
 async function agregarArchivos(lista) {
+  if (soloLectura()) { toast('Tu perfil es de consulta: no puedes subir XML.'); return; }
   const sub = S.sub; if (sub.enviando || sub.leyendo) { toast('Espera a que termine lo que está en curso.'); return; }
   if (!lista.length) return;
   sub.leyendo = true; sub.error = null; pintarSubir();
