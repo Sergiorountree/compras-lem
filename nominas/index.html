@@ -931,16 +931,27 @@ function porHoraHtml() {
       const x = idx[k + '-' + h]; if (!x) { t += '<td style="background:var(--bg)"></td>'; continue; }
       const p = prog[k + '-' + h] || 0, r = Number(x.recomendadas), dif = p - r; if (dif <= -2) faltan2++;
       const c = dif <= -2 ? ['#FCE7E5', '#8C1F1B'] : dif === -1 ? ['#FFF4ED', '#9A3412'] : dif >= 2 ? ['#EFF6FF', '#0F4471'] : ['#ECF7E8', '#2A5A0E'];
-      t += '<td style="text-align:center;padding:4px 2px;background:' + c[0] + ';color:' + c[1] + '" title="' + DIAS[k] + ' ' + h + ':00 · ' + esc(String(x.tickets)) + ' tickets en promedio · ' + p + ' programadas · ' + r + ' recomendadas' + (x.apertura ? ' (apertura)' : '') + '"><div class="num" style="font-size:12px;font-weight:600">' + p + '/' + r + '</div><div class="num" style="font-size:9.5px;opacity:.75">' + esc(String(x.tickets)) + '</div></td>';
+      const ideal = x.ideal != null && Number(x.ideal) !== r ? ' (con más gente serían ' + Number(x.ideal) + ')' : '';
+      t += '<td style="text-align:center;padding:4px 2px;background:' + c[0] + ';color:' + c[1] + '" title="' + DIAS[k] + ' ' + h + ':00 · ' + esc(String(x.tickets)) + ' tickets en promedio · ' + p + ' programadas · ' + r + ' recomendadas' + ideal + (x.apertura ? ' · apertura' : '') + '"><div class="num" style="font-size:12px;font-weight:600">' + p + '/' + r + '</div><div class="num" style="font-size:9.5px;opacity:.75">' + esc(String(x.tickets)) + '</div></td>';
     }
     t += '</tr>';
   }
   t += '</tbody></table>';
+  /* El aviso a administración (mig. 104) lo calcula el servidor sobre el horario GUARDADO y sin contar descansos en el tope del día,
+     para que amontonar descansos en un día de mucha venta no lo apague; sin la 104, se usa la cuenta de la pantalla. */
+  const nAviso = Array.isArray(dm.horas_aviso) ? dm.horas_aviso.length : faltan2;
+  const avisoTxt = nAviso ? nAviso + ' hora' + (nAviso === 1 ? '' : 's') + (Array.isArray(dm.horas_aviso) ? ' se avisarían a administración al definir' : ' con 2 o más personas de menos') : 'Sin horas que avisen a administración';
   return '<div class="mt-4 bg-white rounded-xl shadow-card p-4"><div class="flex items-center justify-between flex-wrap gap-2 mb-2"><div class="text-xs uppercase tracking-wider text-gray-500 font-medium">Gente por hora: programada / recomendada</div>' +
-    (faltan2 ? '<span class="badge" style="background:#FCE7E5;color:#8C1F1B">' + faltan2 + ' hora' + (faltan2 === 1 ? '' : 's') + ' con 2 o más personas de menos</span>' : '<span class="badge badge-aprobada">Sin horas con 2 o más personas de menos</span>') + '</div>' +
+    (nAviso ? '<span class="badge" style="background:#FCE7E5;color:#8C1F1B" title="Horas con 2 o más personas menos de lo que pide la venta, si los descansos se repartieran bien. Se recalcula al guardar.">' + avisoTxt + '</span>' : '<span class="badge badge-aprobada">' + avisoTxt + '</span>') + '</div>' +
+    (dm.personas != null ? '<p class="text-sm mb-2" style="color:var(--text)">Con <b>' + Number(dm.personas) + (Number(dm.personas) === 1 ? ' persona activa' : ' personas activas') + '</b> hay <b>' + Number(dm.horas_disponibles) + ' horas-persona</b> esta semana (turnos de ' + Number(dm.horas_turno) + ' h y al menos 1 descanso por persona). ' +
+      (Number(dm.horas_recomendadas) > Number(dm.horas_disponibles)
+        ? '<span style="color:#8C1F1B;font-weight:600">Ni con 1 persona por hora alcanzan: tener la sucursal abierta pide ' + Number(dm.horas_recomendadas) + ' horas-persona.</span> Hace falta más gente.'
+        : Number(dm.horas_ideales) > Number(dm.horas_disponibles)
+        ? '<span style="color:#8C1F1B;font-weight:600">La venta pediría ' + Number(dm.horas_ideales) + ': faltan ' + (Number(dm.horas_ideales) - Number(dm.horas_disponibles)) + ' horas-persona.</span> La recomendación reparte las que hay: 2 al cierre y las horas de más venta primero; las de menos venta pueden quedar con 1.'
+        : 'Alcanza para lo que pide la venta (' + Number(dm.horas_ideales) + ' horas-persona).') + '</p>' : '') +
     '<p class="text-xs text-gray-500 mb-3">Recomendado con la venta promedio de esta sucursal del ' + fmtCorta(dm.desde) + ' al ' + fmtCorta(dm.hasta) + ': ' + Number(dm.capacidad) + ' tickets por persona por hora, mínimo ' + Number(dm.minimo_apertura) + ' en la hora de apertura y ' + Number(dm.minimo_resto) + ' el resto del día. El número chico es el promedio de tickets de esa hora.</p>' +
     '<div class="overflow-auto">' + t + '</div><div class="mt-3 flex flex-wrap gap-2 text-xs">' +
-    [['#ECF7E8', '#2A5A0E', 'Completo'], ['#FFF4ED', '#9A3412', 'Falta 1'], ['#FCE7E5', '#8C1F1B', 'Faltan 2 o más (aviso a administración al definir)'], ['#EFF6FF', '#0F4471', 'Sobran 2 o más']]
+    [['#ECF7E8', '#2A5A0E', 'Completo'], ['#FFF4ED', '#9A3412', 'Falta 1'], ['#FCE7E5', '#8C1F1B', 'Faltan 2 o más'], ['#EFF6FF', '#0F4471', 'Sobran 2 o más']]
       .map(([b, f, tx]) => '<span style="padding:3px 8px;border-radius:6px;background:' + b + ';color:' + f + '">' + tx + '</span>').join('') + '</div></div>';
 }
 function coberturaHtml() { const d = S.horario; return DIAS.map((x, k) => { const n = d.lineas.filter(l => l.dias && l.dias[k] && l.dias[k].tipo === 'trabaja').length; return '<div class="rounded-lg text-sm" style="padding:6px 12px;background:' + (n === 0 ? '#FCE7E5' : 'var(--bg)') + ';border:1px solid var(--border)"><span class="text-gray-500">' + x + '</span> <span class="num font-medium" style="color:' + (n === 0 ? '#8C1F1B' : 'var(--text)') + '">' + n + '</span></div>'; }).join(''); }
@@ -954,7 +965,16 @@ function elegirHtipo(b) { [...document.querySelectorAll('#htipos .tipo-btn')].fo
 function guardarHcell(i, k) { const v = (document.querySelector('#htipos .tipo-btn.on') || { dataset: {} }).dataset.v || 'trabaja'; setHcell(i, k, v === 'trabaja' ? { tipo: v, entrada: $('hent').value, salida: $('hsal').value } : { tipo: v }); }
 function setHcell(i, k, val) { const l = S.horario.lineas[i]; l.dias = l.dias || {}; if (val) l.dias[k] = val; else delete l.dias[k]; cerrarModal(); const td = $('h' + i + '_' + k); if (td) td.innerHTML = hcell(val, k, true, i); if ($('cobertura')) $('cobertura').innerHTML = coberturaHtml(); if ($('porhora')) $('porhora').innerHTML = porHoraHtml(); if ($('findes')) $('findes').innerHTML = findesHtml(); S.horDirty = true; if ($('horSave')) $('horSave').textContent = 'Cambios sin guardar…'; clearTimeout(S.horT); S.horT = setTimeout(() => guardarHorario(S.horario.estado === 'definido' ? 'definido' : 'borrador', false), 2000); }
 async function guardarHorario(estado, avisar) { const d = S.horario; if (!d) return; clearTimeout(S.horT); const dias = {}; d.lineas.forEach(l => { if (l.dias && Object.keys(l.dias).length) dias[l.colaborador_id] = l.dias; });
-  try { const r = await api('nom_horario_guardar', { branch_id: d.branch_id, week_id: d.week_id, estado, dias }); S.horDirty = false; d.existe = true; d.estado = r.estado; if ($('horSave')) $('horSave').textContent = 'Guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); if (avisar) { toast(estado === 'definido' ? 'Horario definido.' : 'Borrador guardado.'); pintarHorario(); } } catch (e) { errorUI(e); } }
+  try { const r = await api('nom_horario_guardar', { branch_id: d.branch_id, week_id: d.week_id, estado, dias }); S.horDirty = false; d.existe = true; d.estado = r.estado; refrescarDemanda(); if ($('horSave')) $('horSave').textContent = 'Guardado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }); if (avisar) { toast(estado === 'definido' ? 'Horario definido.' : 'Borrador guardado.'); pintarHorario(); } } catch (e) { errorUI(e); } }
+/* La recomendación (mig. 104) depende de los descansos guardados: al guardar el horario se vuelve a pedir y se repinta el panel por hora */
+async function refrescarDemanda() {
+  const d = S.horario; if (!d || !S.horDem) return;
+  const turno = S.demSeq = (S.demSeq || 0) + 1;   // si llegan dos respuestas, solo cuenta la del último guardado
+  try {
+    const dm = await api('nom_horario_demanda', { branch_id: d.branch_id, week_id: d.week_id });
+    if (dm && dm.habilitada && S.horario === d && turno === S.demSeq) { S.horDem = dm; if ($('porhora')) $('porhora').innerHTML = porHoraHtml(); }
+  } catch (e) {}
+}
 /* Copiar semana anterior: solo turnos y descansos; vacaciones y permisos son de una sola semana y no se copian ni se pisan */
 const H_COPIABLE = { trabaja: true, descanso: true };
 async function copiarSemanaAnterior() {
