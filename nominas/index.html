@@ -903,7 +903,7 @@ function pintarHorario() {
   pon(h + '</div>');
 }
 function hcell(val, dia, ed, i) { let cls = 'cell-empty', txt = '—'; const t = val && val.tipo; if (t === 'trabaja') { cls = 'cell-A'; txt = (val.entrada || '?') + '–' + (val.salida || '?'); } else if (t === 'descanso') { cls = 'cell-D'; txt = 'Descanso'; } else if (t === 'vacaciones') { cls = 'cell-VAC'; txt = 'VAC'; } else if (t === 'pcgs') { cls = 'cell-PCGS'; txt = 'PCGS'; } else if (t === 'psgs') { cls = 'cell-PSGS'; txt = 'PSGS'; }
-  const finde = t === 'descanso' && dia >= 4; return '<button class="hcell ' + cls + (finde ? ' finde' : '') + '" ' + (ed ? 'onclick="abrirHcell(' + i + ',' + dia + ')"' : 'disabled') + (finde ? ' title="Descanso en fin de semana (día pico) — visible para asesor y administración"' : '') + '>' + (finde ? '<span style="font-size:10px">⚠</span>' : '') + txt + '</button>'; }
+  const finde = t === 'descanso' && dia >= 4; return '<button class="hcell ' + cls + (finde ? ' finde' : '') + '" ' + (ed ? 'onclick="abrirHcell(' + i + ',' + dia + ')"' : 'disabled') + (finde ? ' title="Descanso en fin de semana (día pico) — visible para asesor y administración"' : '') + '>' + (finde ? '<span style="font-size:10px">⚠</span>' : '') + esc(txt) + '</button>'; }
 /* Gente por hora (mig. 102, solo sucursales habilitadas): programadas contra recomendadas. Misma regla que lem.fn_horario_programadas:
    un turno de 9:00 a 17:00 cuenta en las horas 9 a 16; de 9:30 a 17:30, en 9 a 17; uno que cruza la medianoche, hasta las 23 h. */
 function progPorHora() {
@@ -978,17 +978,19 @@ async function refrescarDemanda() {
 }
 /* Copiar semana anterior: solo turnos y descansos; vacaciones y permisos son de una sola semana y no se copian ni se pisan */
 const H_COPIABLE = { trabaja: true, descanso: true };
+// En la semana en curso, los días que ya pasaron no se tocan (hora de Chihuahua)
+function diaPasado(lunes, k) { return addDays(lunes, k) < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date()); }
 async function copiarSemanaAnterior() {
   const d = S.horario; if (!d) return;
   const ocupada = d.lineas.some(l => l.dias && Object.values(l.dias).some(v => v && H_COPIABLE[v.tipo]));
-  if (ocupada && !confirm('Esta semana ya tiene turnos o descansos. ¿Reemplazarlos con los de la semana anterior? Las vacaciones y los permisos se respetan.')) return;
+  if (ocupada && !confirm('Esta semana ya tiene turnos o descansos. ¿Reemplazarlos con los de la semana anterior? Las vacaciones y los permisos se respetan' + ([0, 1, 2, 3, 4, 5, 6].some(k => diaPasado(d.lunes, k)) ? ' y los días que ya pasaron no se tocan' : '') + '.')) return;
   let prev;
   try { prev = await api('nom_horario', { branch_id: d.branch_id, week_id: weekDe(addDays(d.lunes, -7)) }); } catch (e) { errorUI(e); return; }
   const antes = {}; (prev.lineas || []).forEach(l => { if (l.dias) antes[l.colaborador_id] = l.dias; });
   let copiados = 0, sinPrevio = 0;
   d.lineas.forEach(l => {
     const p = antes[l.colaborador_id]; let algo = false; l.dias = l.dias || {};
-    if (p) for (let k = 0; k < 7; k++) { const cur = l.dias[k], src = p[k]; if (cur && !H_COPIABLE[cur.tipo]) continue; if (src && H_COPIABLE[src.tipo]) { l.dias[k] = Object.assign({}, src); algo = true; } }
+    if (p) for (let k = 0; k < 7; k++) { const cur = l.dias[k], src = p[k]; if ((cur && !H_COPIABLE[cur.tipo]) || diaPasado(d.lunes, k)) continue; if (src && H_COPIABLE[src.tipo]) { l.dias[k] = Object.assign({}, src); algo = true; } }
     if (algo) copiados++; else sinPrevio++;
   });
   if (!copiados) { toast('La semana anterior no tiene horario capturado para copiar.'); return; }
@@ -1054,9 +1056,9 @@ function horaTxt(h) { return (h < 10 ? '0' : '') + h + ':00'; }
 async function sugerirAcomodo() {
   const d = S.horario, dm = S.horDem; if (!d || !dm) return;
   if (!(dm.horas || []).length) { toast('No hay venta suficiente de las semanas anteriores para sugerir un acomodo.'); return; }
+  if (!S.horDisp) { toast('No se pudo cargar la disponibilidad del equipo. Recarga la página antes de sugerir el acomodo.'); return; }   // sin ella, todos parecerían disponibles todo el día
   const TH = Number(dm.horas_turno) || 8;   // Sergio: siempre turnos de 8 horas (lem.horario_parametros.horas_turno)
-  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chihuahua' }).format(new Date());
-  const pasado = k => addDays(d.lunes, k) < hoy;   // en la semana en curso, los días que ya pasaron no se tocan
+  const pasado = k => diaPasado(d.lunes, k);
   const activos = d.lineas.filter(l => !l.estatus || l.estatus === 'activo');
   if (activos.some(l => l.dias && Object.values(l.dias).some(v => v && v.tipo === 'trabaja'))
       && !confirm('Se reemplazan los turnos de esta semana con una sugerencia' + ([0, 1, 2, 3, 4, 5, 6].some(pasado) ? ' (los días que ya pasaron no se tocan)' : '') + '. Se respetan los descansos, vacaciones y permisos ya marcados. Queda como borrador. ¿Continuar?')) return;
@@ -1075,16 +1077,18 @@ async function sugerirAcomodo() {
   activos.forEach(l => { const m = libre[l.colaborador_id] = {}; forzado[l.colaborador_id] = {};
     for (let k = 0; k < 7; k++) {
       const v = l.dias && l.dias[k];
-      if ((v && H_FIJO[v.tipo]) || pasado(k)) { m[k] = true; continue; }
+      if ((v && H_FIJO[v.tipo]) || pasado(k)) { if (!(v && v.tipo === 'trabaja')) m[k] = true; continue; }   // un día pasado trabajado no cuenta como descanso
       if (!cabe(l.colaborador_id, k)) { m[k] = true; if (abre(k) != null && ventana(l.colaborador_id, k)) noCupo++; }   // tiene ventana, pero no le cabe un turno con la tienda abierta
     } });
   const trabajan = k => activos.filter(l => !libre[l.colaborador_id][k]).length;
   const necDia = k => Object.values(nec[k] || {}).reduce((a, b) => a + b, 0);
+  const sinDescanso = [];
   activos.forEach(l => {
     const m = libre[l.colaborador_id]; if ([0, 1, 2, 3, 4, 5, 6].some(k => m[k])) return;
     let mejor = null, hol = -Infinity;
-    for (const k of [0, 1, 2, 3]) { const h = (trabajan(k) - 1) * TH - necDia(k); if (h > hol) { hol = h; mejor = k; } }
+    for (const k of [0, 1, 2, 3]) { if (pasado(k)) continue; const h = (trabajan(k) - 1) * TH - necDia(k); if (h > hol) { hol = h; mejor = k; } }
     if (mejor != null) { m[mejor] = true; forzado[l.colaborador_id][mejor] = true; }
+    else sinDescanso.push(partesNombre(l.nombre)[0]);   // ya pasó el jueves y no ha descansado: el gerente decide
   });
   const turnos = {}; const sinNadie = [];
   for (let k = 0; k < 7; k++) {
@@ -1124,7 +1128,8 @@ async function sugerirAcomodo() {
   if (S.horDirty) return;
   toast('Acomodo sugerido: ' + nT + ' turnos y ' + nD + ' descansos nuevos. Quedó en borrador: revísalo y ajústalo antes de definir.' +
     (noCupo ? ' ' + noCupo + ' turno' + (noCupo === 1 ? '' : 's') + ' no cupieron por la disponibilidad.' : '') +
-    (sinNadie.length ? ' Sin nadie disponible: ' + sinNadie.join(', ') + '.' : ''));
+    (sinNadie.length ? ' Sin nadie disponible: ' + sinNadie.join(', ') + '.' : '') +
+    (sinDescanso.length ? ' Sin descanso esta semana (ya pasó el jueves): ' + sinDescanso.join(', ') + '; ponlo a mano.' : ''));
 }
 /* Hoja del horario para imprimir o guardar en PDF y mandarla al grupo. Los permisos salen como "Permiso", sin decir si son con o sin goce */
 function pdfHorario() {
