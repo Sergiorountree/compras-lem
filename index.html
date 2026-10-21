@@ -142,6 +142,9 @@ function salir() { S.avGen = (S.avGen || 0) + 1; store.del(); S.token = null; S.
 function pintar(p) {
   S.avGen = (S.avGen || 0) + 1;   // descarta los avisos que venían en camino para la vista anterior
   const mods = (p.modulos || []).filter(m => MODULOS[m]);
+  // Sergio (21-oct): el gerente tiene pocos módulos y ve sus avisos debajo de ellos; quien supervisa (cualquier rol distinto de
+  // gerente en Inventarios o Nóminas: asesor, aprobador, admin…) los ve en su pestaña Avisos
+  S.supervisa = ['inventarios', 'nominas'].some(m => ((p.permisos || {})[m] || []).some(r => r !== 'gerente'));
   $('hUser').innerHTML = esc(p.usuario) + '<button onclick="salir()">Salir</button>';
   if (!mods.length) { $('app').innerHTML = '<div class="msg">Tu cuenta no tiene ningún módulo asignado. Pide acceso al administrador.</div>'; if (window.LEM_PV) LEM_PV.iniciar({ api }); return; }
   /* #pvPortal: la barra "Punto de vista" (mig. 097). Solo aparece si el servidor dice que esta cuenta puede elegirlo (hoy, Sergio). */
@@ -152,14 +155,14 @@ function pintar(p) {
     if (!mods.includes(k)) continue; const m = MODULOS[k];
     h += '<div class="mod ' + m.clase + '">' + (m.etiqueta ? '<span class="etq">' + m.etiqueta + '</span>' : '') + '<div class="ico">' + m.ico + '</div><h3>' + m.titulo + '</h3><p>' + m.texto + '</p><a href="' + m.href + '">' + m.boton + '</a></div>';
   }
-  $('app').innerHTML = h + '</div></div><div id="tabAvisos" hidden></div>';
+  $('app').innerHTML = h + '</div><div id="avisosGer" style="margin-top:26px"></div></div><div id="tabAvisos" hidden></div>';
   if (window.LEM_PV) LEM_PV.iniciar({ api, contenedor: 'pvPortal' });
   if (mods.includes('nominas') || mods.includes('inventarios')) cargarAvisos();
 }
 /* Avisos (mig. 113, Sergio 21-oct): cada quien lo suyo. Inventarios (guisos por acabarse, inventario diario atrasado, días sin captura)
    de las tiendas donde la cuenta tiene Inventarios, y Horario (102: gerente que descansa en fin de semana, horas sin cubrir) para admin,
-   asesor y el gerente de la sucursal. Sin la 113 se usan los avisos de horario de la 102 (solo admin y asesor). Si el servidor no da
-   avisos a esta cuenta, no hay pestaña. */
+   asesor y el gerente de la sucursal. Asesor y administración: pestaña Avisos; gerente: debajo de sus módulos, solo si tiene avisos.
+   Sin la 113 se usan los avisos de horario de la 102 (solo admin y asesor). Si el servidor no da avisos a esta cuenta, no hay nada. */
 const DIAS_AV = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 function verTab(t) {
   document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
@@ -189,37 +192,45 @@ function avisoInventario(suc, lista) {
   return '<div class="av"><div class="top"><span class="suc">' + esc(suc) + '</span>' + chips.join('') + '</div>' + cuerpo.join('<div style="height:8px"></div>') +
          '<div style="margin-top:8px"><a href="/inventarios/">Ver inventario →</a></div></div>';
 }
+function avisoHorario(a, semana) {
+  const horas = (a.detalle && a.detalle.horas) || [];
+  const det = a.tipo === 'horas_sin_cubrir' ? horas.slice(0, 8).map(x => DIAS_AV[x.dia] + ' ' + x.hora + ' h: ' + x.programadas + ' de ' + x.recomendadas).join(' · ') + (horas.length > 8 ? ' · y ' + (horas.length - 8) + ' más' : '') : '';
+  return '<div class="av"><div class="top"><span class="suc">' + esc(a.sucursal) + '</span>' +
+         '<span class="chip ' + (a.tipo === 'gerente_descansa_finde' ? 'finde">Gerente descansa en fin de semana' : 'horas">Horas sin cubrir') + '</span>' +
+         '<span class="chip est">' + (semana ? esc(semana) + ' · ' : '') + (a.estado === 'definido' ? 'Horario definido' : 'Horario en borrador') + '</span></div>' +
+         '<div class="txt">' + esc(a.texto) + '</div>' + (det ? '<div class="det">' + esc(det) + '</div>' : '') +
+         '<div style="margin-top:8px"><a href="/nominas/#horario">Ver horarios →</a></div></div>';
+}
+function porSucursal(lista) { const g = []; lista.forEach(a => { let x = g.find(y => y.b === a.branch_id); if (!x) g.push(x = { b: a.branch_id, suc: a.sucursal, l: [] }); x.l.push(a); }); return g; }
 async function cargarAvisos() {
   const gen = S.avGen = (S.avGen || 0) + 1;   // si mientras tanto salió o entró otra cuenta, esta respuesta ya no se pinta
   let r; try { r = await api('portal_avisos', {}); } catch (e) { r = null; }
   if (r && (r.error === 'accion_desconocida' || r.error === 'sin_clasificar')) { try { r = await api('nom_avisos', {}); } catch (e) { return; } }   // sin la mig. 113
   if (gen !== S.avGen || !r || r.error || !Array.isArray(r.avisos) || !$('tabs')) return;
   const avs = r.avisos;
+  const inv = avs.filter(a => a.modulo === 'inventarios'), hor = avs.filter(a => a.modulo !== 'inventarios');   // los de la 102 no traen módulo: son de horario
+  const semDe = a => (r.semanas || []).find(s => String(s.lunes).slice(0, 10) === String(a.lunes).slice(0, 10));
+  if (!S.supervisa) {   // gerente: sin pestaña; sus avisos, si hay, debajo de los módulos
+    if (!avs.length || !$('avisosGer')) return;
+    const varias = new Set(avs.map(a => a.branch_id)).size > 1;
+    $('avisosGer').innerHTML = '<div class="secc">Avisos de ' + (varias ? 'tus sucursales' : 'tu sucursal') + '</div>' +
+      porSucursal(inv).map(g => avisoInventario(g.suc, g.l)).join('') + hor.map(a => avisoHorario(a, (semDe(a) || {}).etiqueta)).join('');
+    return;
+  }
   $('nAvisos').textContent = avs.length; $('nAvisos').style.display = avs.length ? '' : 'none'; $('tabs').style.display = 'flex';
   const conInv = r.inventarios === true, conHor = r.horario === undefined ? true : r.horario === true;   // la respuesta de la 102 solo trae horario
   let h = '';
   if (conInv) {
-    const inv = avs.filter(a => a.modulo === 'inventarios');
     h += '<div class="secc">Inventarios</div>';
     if (!inv.length) h += '<div class="av" style="color:var(--txt2)">Sin avisos de inventario.</div>';
-    const porSuc = []; inv.forEach(a => { let g = porSuc.find(x => x.b === a.branch_id); if (!g) porSuc.push(g = { b: a.branch_id, suc: a.sucursal, l: [] }); g.l.push(a); });
-    porSuc.forEach(g => { h += avisoInventario(g.suc, g.l); });
+    porSucursal(inv).forEach(g => { h += avisoInventario(g.suc, g.l); });
   }
-  const hor = avs.filter(a => a.modulo !== 'inventarios');   // los de la 102 no traen módulo: son de horario
   if (conHor) h += '<div class="secc">Horario</div><p style="color:var(--txt2);font-size:14px;margin:0 0 4px">Gerentes que descansan en fin de semana y horarios definidos con horas a las que les faltan 2 o más personas según la venta.</p>';
   for (const s of (conHor ? (r.semanas || []) : [])) {
-    const del = hor.filter(a => String(a.lunes).slice(0, 10) === String(s.lunes).slice(0, 10));
+    const del = hor.filter(a => semDe(a) === s);
     h += '<div class="sem">' + esc(s.etiqueta) + ' · ' + fechaCorta(s.lunes) + ' – ' + fechaCorta(sumaDias(s.lunes, 6)) + '</div>';
     if (!del.length) { h += '<div class="av" style="color:var(--txt2)">Sin avisos.</div>'; continue; }
-    for (const a of del) {
-      const horas = (a.detalle && a.detalle.horas) || [];
-      const det = a.tipo === 'horas_sin_cubrir' ? horas.slice(0, 8).map(x => DIAS_AV[x.dia] + ' ' + x.hora + ' h: ' + x.programadas + ' de ' + x.recomendadas).join(' · ') + (horas.length > 8 ? ' · y ' + (horas.length - 8) + ' más' : '') : '';
-      h += '<div class="av"><div class="top"><span class="suc">' + esc(a.sucursal) + '</span>' +
-           '<span class="chip ' + (a.tipo === 'gerente_descansa_finde' ? 'finde">Gerente descansa en fin de semana' : 'horas">Horas sin cubrir') + '</span>' +
-           '<span class="chip est">' + (a.estado === 'definido' ? 'Horario definido' : 'Horario en borrador') + '</span></div>' +
-           '<div class="txt">' + esc(a.texto) + '</div>' + (det ? '<div class="det">' + esc(det) + '</div>' : '') +
-           '<div style="margin-top:8px"><a href="/nominas/#horario">Ver horarios →</a></div></div>';
-    }
+    del.forEach(a => { h += avisoHorario(a); });
   }
   $('tabAvisos').innerHTML = h;
 }
