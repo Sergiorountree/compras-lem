@@ -28,6 +28,7 @@
   .nomina { background:#e9f5ee; border-color:#c3e2cf; } .nomina a { background:#2f855a; color:#fff; }
   .inventarios { background:#fbf0e6; border-color:#f0d5bb; } .inventarios a { background:#b5541c; color:#fff; }
   .contabilidad { background:#e9f0f8; border-color:#c7d7ea; } .contabilidad a { background:#1f4e79; color:#fff; }
+  .asistente { background:#fdf2f2; border-color:#f3cfcf; } .asistente a { background:#B3282D; color:#fff; }
   .etq { position:absolute; top:14px; right:14px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:#fff; border:1px solid var(--borde); border-radius:99px; padding:3px 8px; color:var(--txt2); }
   .login { text-align:center; padding-top:70px; }
   .login .ico { font-size:46px; }
@@ -125,8 +126,13 @@ const MODULOS = {
   ventas:      { clase: 'ventas',      ico: '🚦', titulo: 'Ventas',      texto: 'Semáforo diario de ventas por sucursal: presupuesto del día, avance del mes y proyección.', href: '/ventas/', boton: 'Ir a Ventas →' },
   /* Contabilidad (F0, 7-oct-2026): solo administración y contabilidad. La tarjeta sale solo si perfil.modulos trae 'contabilidad';
      aunque alguien abra la liga, el servidor responde "sin_acceso" a quien no tiene el módulo. */
-  contabilidad: { clase: 'contabilidad', ico: '📒', titulo: 'Contabilidad', texto: 'Cuánto debemos (estimado), ingresos por tienda y canal, cortes de caja y qué tan al día están los datos. Solo administración y contabilidad.', href: '/contabilidad/', boton: 'Ir a Contabilidad →' }
+  contabilidad: { clase: 'contabilidad', ico: '📒', titulo: 'Contabilidad', texto: 'Cuánto debemos (estimado), ingresos por tienda y canal, cortes de caja y qué tan al día están los datos. Solo administración y contabilidad.', href: '/contabilidad/', boton: 'Ir a Contabilidad →' },
+  /* Asistente (piloto, 22-oct-2026): chat de venta por tienda y fecha. No es un módulo de lem.usuarios_modulos: la tarjeta sale a
+     quien tiene rol admin, asesor o contabilidad en Ventas (la misma regla de lem.fn_ai_sucursales_de, mig. 116/117); el servidor
+     del asistente vuelve a revisarlo y a cualquier otra cuenta le responde sin_acceso. */
+  asistente:   { clase: 'asistente',   ico: '💬', titulo: 'Asistente',   texto: 'Pregunta por la venta en español: por tienda, por día o contra otro periodo. Las cifras salen de la base y se revisan antes de mostrarse.', href: '/asistente/', boton: 'Abrir el asistente →', etiqueta: 'Piloto' }
 };
+const ROLES_ASISTENTE = ['admin', 'asesor', 'contabilidad'];
 function vLogin(msj) {
   $('hUser').innerHTML = 'ERP modular';
   $('app').innerHTML = '<div class="login"><div class="ico">🏢</div><h2>Grupo LEM</h2><p>' + esc(msj || 'Entra con tu cuenta @grupolem.com para ver tus módulos') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div>';
@@ -142,6 +148,7 @@ function salir() { S.avGen = (S.avGen || 0) + 1; store.del(); S.token = null; S.
 function pintar(p) {
   S.avGen = (S.avGen || 0) + 1;   // descarta los avisos que venían en camino para la vista anterior
   const mods = (p.modulos || []).filter(m => MODULOS[m]);
+  if (((p.permisos || {}).ventas || []).some(r => ROLES_ASISTENTE.includes(r))) mods.push('asistente');
   // Sergio (21-oct): el gerente tiene pocos módulos y ve sus avisos debajo de ellos; quien supervisa (cualquier rol distinto de
   // gerente en Inventarios o Nóminas: asesor, aprobador, admin…) los ve en su pestaña Avisos
   S.supervisa = ['inventarios', 'nominas'].some(m => ((p.permisos || {})[m] || []).some(r => r !== 'gerente'));
@@ -151,7 +158,7 @@ function pintar(p) {
   let h = '<div class="hola"><h2>Bienvenido</h2><p>Elige el módulo con el que vas a trabajar.</p></div><div id="pvPortal" style="margin:-6px 0 20px"></div>' +
           '<div class="tabs" id="tabs" style="display:none"><button class="tab on" data-t="mods" onclick="verTab(\'mods\')">Módulos</button><button class="tab" data-t="avisos" onclick="verTab(\'avisos\')">Avisos<span class="n" id="nAvisos">0</span></button></div>' +
           '<div id="tabMods"><div class="grid">';
-  for (const k of ['compras', 'nominas', 'inventarios', 'ventas', 'contabilidad']) {
+  for (const k of ['compras', 'nominas', 'inventarios', 'ventas', 'contabilidad', 'asistente']) {
     if (!mods.includes(k)) continue; const m = MODULOS[k];
     h += '<div class="mod ' + m.clase + '">' + (m.etiqueta ? '<span class="etq">' + m.etiqueta + '</span>' : '') + '<div class="ico">' + m.ico + '</div><h3>' + m.titulo + '</h3><p>' + m.texto + '</p><a href="' + m.href + '">' + m.boton + '</a></div>';
   }

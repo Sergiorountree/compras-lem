@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asistente de ventas · Grupo LEM</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root { --rojo:#B3282D; --gris:#f4f4f5; --borde:#e4e4e7; --txt:#18181b; --txt2:#71717a; --azul:#1f4e79; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--gris); color:var(--txt); display:flex; flex-direction:column; }
+  header { background:var(--rojo); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  header h1 { font-size:17px; font-weight:800; } header h1 a { color:#fff; text-decoration:none; opacity:.85; font-weight:600; }
+  header .s { font-size:12px; opacity:.9; text-align:right; }
+  header button { background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.4); border-radius:8px; padding:5px 10px; font-size:12px; cursor:pointer; margin-left:8px; }
+  main { flex:1; width:100%; max-width:780px; margin:0 auto; padding:16px 16px 0; display:flex; flex-direction:column; min-height:0; }
+  .msg { text-align:center; color:var(--txt2); padding:60px 0; }
+  .login { text-align:center; padding-top:70px; } .login h2 { font-size:22px; margin:10px 0 4px; } .login p { color:var(--txt2); margin-bottom:20px; }
+  .aviso { background:#fff3cd; border:1px solid #ffe08a; color:#664d03; border-radius:10px; padding:10px 12px; margin:0 0 12px; font-size:14px; }
+  #hilo { flex:1; overflow-y:auto; padding-bottom:12px; }
+  .intro { background:#fff; border:1px solid var(--borde); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .intro h2 { font-size:18px; font-weight:800; margin-bottom:4px; } .intro p { color:#3f3f46; font-size:14px; line-height:1.45; }
+  .ejemplos { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .ejemplos button { background:var(--gris); border:1px solid var(--borde); border-radius:99px; padding:6px 12px; font-size:13px; cursor:pointer; color:var(--txt); }
+  .burbuja { max-width:88%; border-radius:14px; padding:10px 14px; margin:8px 0; font-size:15px; line-height:1.45; white-space:pre-wrap; word-wrap:break-word; }
+  .yo { background:var(--azul); color:#fff; margin-left:auto; border-bottom-right-radius:4px; }
+  .el { background:#fff; border:1px solid var(--borde); border-bottom-left-radius:4px; max-width:100%; }
+  .el .pie { margin-top:8px; font-size:12px; color:var(--txt2); white-space:normal; }
+  .el .chip { display:inline-block; font-size:11.5px; font-weight:700; border-radius:99px; padding:2px 8px; background:#FEF9C3; color:#713F12; margin-right:6px; }
+  .el.error { background:#FCE7E5; border-color:#F2B8B3; color:#8C1F1B; }
+  .datos { margin-top:8px; white-space:normal; overflow-x:auto; } .datos + .datos { margin-top:12px; }
+  .datos .tit { font-weight:800; font-size:13.5px; } .datos .comp { color:var(--txt2); font-size:12.5px; }
+  .datos table { border-collapse:collapse; width:100%; margin-top:6px; font-size:13.5px; font-variant-numeric:tabular-nums; }
+  .datos td { padding:4px 6px; border-top:1px solid var(--borde); vertical-align:top; } .datos td.n { text-align:right; white-space:nowrap; }
+  @media (max-width:420px) { .datos table { font-size:12.5px; } .datos td { padding:4px 3px; } }
+  .datos tr.tot td { font-weight:800; } .datos .sub { color:var(--txt2); font-size:12px; }
+  .datos .baja { color:#8C1F1B; } .datos .sube { color:#2A5A0E; }
+  .datos .notas { margin-top:6px; font-size:12.5px; color:#713F12; }
+  .pensando { color:var(--txt2); font-style:italic; }
+  form { display:flex; gap:8px; padding:12px 0 16px; background:var(--gris); }
+  textarea { flex:1; resize:none; border:1px solid var(--borde); border-radius:12px; padding:10px 12px; font:inherit; font-size:15px; min-height:46px; max-height:140px; }
+  form button { background:var(--rojo); color:#fff; border:none; border-radius:12px; padding:0 18px; font-size:15px; font-weight:700; cursor:pointer; }
+  form button:disabled { opacity:.5; cursor:default; }
+  .nota { font-size:12px; color:var(--txt2); text-align:center; padding-bottom:10px; }
+</style>
+</head>
+<body>
+<header><h1><a href="/">Grupo LEM</a> · Asistente</h1><div class="s" id="hUser"></div></header>
+<main id="app"><div class="msg">Cargando…</div></main>
+
+<script type="module">
+/* Misma sesión de Firebase que el portal y los módulos. El asistente pide el ID token de Firebase (no el de Google): con ese
+   token el backend lem-asistente verifica quién pregunta. */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+const fbApp = initializeApp({"apiKey": "AIzaSyC1ycKtN1atpb1monWFIJqmR4X5vmpnNoo", "authDomain": "lem-erp.firebaseapp.com", "projectId": "lem-erp", "appId": "1:902179844288:web:e887a0886fa1188da2fd25"});
+const fbAuth = getAuth(fbApp);
+let resolverListo; const listo = new Promise(r => { resolverListo = r; });
+onAuthStateChanged(fbAuth, () => resolverListo());
+window.LEMDC = {
+  listo,
+  usuario: () => fbAuth.currentUser,
+  entrar: (idToken) => signInWithCredential(fbAuth, GoogleAuthProvider.credential(idToken)),
+  salir: () => signOut(fbAuth).catch(() => {}),
+  idToken: () => fbAuth.currentUser ? fbAuth.currentUser.getIdToken() : Promise.resolve(null)
+};
+</script>
+<script>
+/* ── Asistente de ventas (tarde 2, 22-oct-2026). Chat con una sola herramienta: venta por sucursal y fecha. Lo usan admin,
+   asesor y contabilidad de Ventas (decisión del 22-oct-2026); a cualquier otra cuenta el servidor le responde sin_acceso.
+   Las cifras las da la base; el servidor revisa cada número antes de mandar la respuesta (guardia de números). Aquí solo se
+   pinta: el texto se escapa y la fuente la escribe el servidor, no el modelo. ── */
+const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
+const ASISTENTE = 'https://lem-asistente-902179844288.us-central1.run.app';
+const store = { get(){ try { return sessionStorage.getItem('lem_tok'); } catch(e){ return null; } }, set(v){ try { sessionStorage.setItem('lem_tok', v); } catch(e){} }, del(){ try { sessionStorage.removeItem('lem_tok'); } catch(e){} } };
+// gen: cada entrada o salida de sesión la incrementa; una respuesta que llega con otra generación se descarta (si A sale y
+// entra B mientras A esperaba, la respuesta de A nunca se pinta ni se guarda para B). anteriores: solo las preguntas.
+const S = { token: store.get() || null, anteriores: [], ocupado: false, gen: 0 };
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fCorta(iso) { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? Number(p[2]) + ' ' + MESES[Number(p[1]) - 1] : ''; }
+function emailDeToken(t) { try { return (JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; } }
+const EJEMPLOS = ['¿Cuánto vendimos ayer por tienda?', '¿Cómo va esta semana contra la pasada?', '¿Cuál fue la venta de Plaza Bosques en septiembre?', 'Venta por día de Mall Plaza en los últimos 7 días'];
+const MENSAJES = {
+  sin_acceso: 'Tu cuenta no tiene acceso al asistente. Por ahora es solo para administración, asesoría y contabilidad.',
+  cuenta_no_permitida: 'Entra con tu cuenta @grupolem.com.',
+  demasiadas_peticiones: 'Muchas preguntas seguidas. Espera un minuto y vuelve a intentar.',
+  demasiadas_preguntas: 'Llegaste al límite de preguntas por ahora. Espera un minuto (o hasta mañana si fueron muchas hoy).',
+  modelo_no_configurado: 'El asistente todavía no está encendido.',
+  modelo_ocupado: 'El asistente está ocupado. Intenta en un momento.',
+  modelo_no_disponible: 'El asistente no respondió. Intenta en un momento.',
+  base_no_disponible: 'No se pudo consultar la base. Intenta en un momento.',
+  verificacion_no_disponible: 'No se pudo verificar tu sesión. Intenta en un momento.',
+  pregunta_invalida: 'Escribe una pregunta (máximo 1,000 caracteres).',
+  pregunta_muy_larga: 'La pregunta es muy larga.',
+  anteriores_invalidas: 'Se reinició la conversación. Vuelve a preguntar.',
+  cuerpo_invalido: 'No se pudo mandar la pregunta. Intenta de nuevo.',
+  sin_tiempo: 'La consulta tardó demasiado. Intenta con una pregunta más concreta.',
+  error_interno: 'Algo falló del lado del asistente. Intenta de nuevo.'
+};
+
+async function esperarLEMDC() {
+  if (!window.LEMDC) await new Promise(r => { const t0 = Date.now(); const iv = setInterval(() => { if (window.LEMDC || Date.now() - t0 > 4000) { clearInterval(iv); r(); } }, 50); });
+  if (window.LEMDC) await Promise.race([LEMDC.listo, new Promise(r => setTimeout(r, 4000))]);
+}
+// La sesión de Firebase con la misma credencial de Google del portal. El ID token sale del MISMO usuario con el que se entró
+// (no del usuario global, que otra entrada puede cambiar a media espera), y se comprueba que la sesión no cambió en cada paso.
+function cambioDeSesion() { const x = new Error('cambio'); x.cambio = true; return x; }
+async function sesionFirebase(gen) {
+  const credencial = S.token; const em = emailDeToken(credencial);
+  await esperarLEMDC();
+  if (!window.LEMDC) throw new Error('sin Firebase');
+  if (gen !== S.gen || credencial !== S.token) throw cambioDeSesion();
+  let u = LEMDC.usuario();
+  if (!u || (em && (u.email || '').toLowerCase() !== em)) u = (await LEMDC.entrar(credencial)).user;
+  if (gen !== S.gen || credencial !== S.token) throw cambioDeSesion();
+  if (!u || (em && (u.email || '').toLowerCase() !== em)) throw new Error('otra cuenta');
+  const t = await u.getIdToken();
+  if (gen !== S.gen || credencial !== S.token) throw cambioDeSesion();
+  return t;
+}
+async function llamar(ruta, cuerpo, gen) {
+  let t;
+  try { t = await sesionFirebase(gen); }
+  catch (e) { if (e.cambio) throw e; const x = new Error('sesion'); x.sesion = true; throw x; }
+  // Un reintento: con el servicio en cero instancias, la primera petición puede fallar antes de que arranque (el 22-oct-2026
+  // Cloud Run le contestó 500 a un OPTIONS en 0 ms, 5 s antes de levantar la instancia). Esa falla llega como error de red.
+  const pedir = () => fetch(ASISTENTE + ruta, { method: 'POST', headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo || {}) });
+  let r;
+  try { r = await pedir(); }
+  catch (e) {
+    await new Promise(ok => setTimeout(ok, 2500));
+    try { r = await pedir(); } catch (e2) { const x = new Error('red'); x.red = true; throw x; }   // servicio cerrado o sin red
+  }
+  let j = {}; try { j = await r.json(); } catch (e) { j = { ok: false, error: 'error_interno' }; }
+  j._estado = r.status;
+  return j;
+}
+
+function vLogin(msj) {
+  $('hUser').innerHTML = '';
+  $('app').innerHTML = '<div class="login"><div style="font-size:42px">💬</div><h2>Asistente de ventas</h2><p>' + esc(msj || 'Entra con tu cuenta @grupolem.com') + '</p><div id="gbtn" style="display:flex;justify-content:center"></div></div>';
+  if (window.google) {
+    google.accounts.id.initialize({ client_id: CLIENT_ID, itp_support: true,
+      callback: (resp) => { nuevaSesion(); S.token = resp.credential; store.set(S.token); arrancar(); } });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
+  } else { setTimeout(() => vLogin(msj), 400); }
+}
+function nuevaSesion() { S.gen += 1; S.anteriores = []; S.ocupado = false; }
+function salir() { nuevaSesion(); store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Sesión cerrada.'); }
+function sesionVencida() { nuevaSesion(); store.del(); S.token = null; if (window.LEMDC) LEMDC.salir(); vLogin('Tu sesión expiró — vuelve a entrar.'); }
+
+async function arrancar() {
+  const gen = S.gen;
+  $('app').innerHTML = '<div class="msg">Conectando con el asistente…</div>';
+  let j;
+  try { j = await llamar('/ping', {}, gen); }
+  catch (e) {
+    if (gen !== S.gen || e.cambio) return;
+    if (e.sesion) return sesionVencida();
+    return pintarNoDisponible('El asistente todavía no está disponible. Cuando se encienda, esta página funcionará sin cambiar nada.');
+  }
+  if (gen !== S.gen) return;
+  if (j._estado === 401) return sesionVencida();
+  if (!j.ok) return pintarNoDisponible(MENSAJES[j.error] || ('No se pudo abrir el asistente (' + esc(j.error) + ').'));
+  $('hUser').innerHTML = esc(j.usuario) + '<button onclick="salir()">Salir</button>';
+  pintarChat(j);
+}
+function pintarNoDisponible(t) {
+  $('hUser').innerHTML = S.token ? esc(emailDeToken(S.token)) + '<button onclick="salir()">Salir</button>' : '';
+  $('app').innerHTML = '<div class="intro" style="margin-top:20px"><h2>Asistente de ventas</h2><p>' + esc(t) + '</p><p style="margin-top:10px"><a href="/" style="color:var(--rojo);font-weight:700;text-decoration:none">← Volver a los módulos</a></p></div>';
+}
+function pintarChat(p) {
+  $('app').innerHTML =
+    '<div id="hilo"><div class="intro"><h2>Pregúntale por la venta</h2><p>Venta sin IVA por tienda y fecha, la misma del semáforo de Ventas. ' +
+    'Puede comparar periodos y darte la venta por día. Por ahora no ve inventario, nómina ni cuentas.' +
+    (p.ultima_fecha_con_ventas ? ' Hay venta hasta el <b>' + esc(fCorta(p.ultima_fecha_con_ventas)) + '</b>.' : '') + '</p>' +
+    '<div class="ejemplos">' + EJEMPLOS.map((e, i) => '<button type="button" onclick="usarEjemplo(' + i + ')">' + esc(e) + '</button>').join('') + '</div></div></div>' +
+    '<form id="f" onsubmit="enviar(event)"><textarea id="q" rows="1" maxlength="1000" placeholder="Escribe tu pregunta…" onkeydown="teclaEnter(event)"></textarea><button id="b">Enviar</button></form>' +
+    '<div class="nota">Piloto. Las cifras salen de la base y se revisan antes de mostrarse; si algo no cuadra, avísale a Sergio.</div>';
+  $('q').focus();
+}
+function usarEjemplo(i) { $('q').value = EJEMPLOS[i]; enviar(); }
+function teclaEnter(ev) { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); enviar(); } }
+function burbuja(clase, html) { const d = document.createElement('div'); d.className = 'burbuja ' + clase; d.innerHTML = html; $('hilo').appendChild(d); $('hilo').scrollTop = $('hilo').scrollHeight; return d; }
+
+// Las cifras las escribe el servidor desde la base (`datos`); aquí solo se acomodan en una tabla, todo escapado.
+function clase(v) { return /^−/.test(v || '') ? 'baja' : /^\+/.test(v || '') ? 'sube' : ''; }
+function htmlDatos(b) {
+  const comp = !!b.comparacion;
+  const filaHtml = (f, tot) => '<tr' + (tot ? ' class="tot"' : '') + '><td>' + esc(f.nombre) + (f.nota ? '<div class="sub">' + esc(f.nota) + '</div>' : '') +
+    (f.tickets && !tot ? '<div class="sub">' + esc(f.tickets) + ' tickets' + (f.ticket_promedio ? ' · ticket ' + esc(f.ticket_promedio) : '') + '</div>' : '') +
+    (f.promedio_diario ? '<div class="sub">promedio diario ' + esc(f.promedio_diario) + '</div>' : '') +
+    (f.diferencia ? '<div class="sub">diferencia ' + esc(f.diferencia) + '</div>' : '') + '</td>' +
+    '<td class="n">' + esc(f.venta) + '</td>' + (comp ? '<td class="n">' + esc(f.antes || '') + '</td><td class="n ' + clase(f.variacion) + '">' + esc(f.variacion || '') + '</td>' : '') + '</tr>';
+  let h = '<div class="datos"><div class="tit">' + esc(b.titulo) + '</div>' + (comp ? '<div class="comp">' + esc(b.comparacion) + '</div>' : '');
+  if ((b.filas || []).length || b.total) {
+    h += '<table>' + (comp ? '<tr class="sub"><td></td><td class="n">Venta</td><td class="n">Antes</td><td class="n">Var.</td></tr>' : '') +
+         (b.filas || []).map(f => filaHtml(f, false)).join('') + (b.total ? filaHtml(b.total, true) : '') + '</table>';
+  }
+  const serie = (lista, tit) => '<table>' + (tit ? '<tr class="sub"><td colspan="2">' + esc(tit) + '</td></tr>' : '') + lista.map(d => '<tr><td>' + esc(d.dia) + '</td><td class="n">' + esc(d.venta) + '</td></tr>').join('') + '</table>';
+  if ((b.por_dia || []).length) h += serie(b.por_dia, comp ? 'Por día' : '');
+  if ((b.por_dia_comparacion || []).length) h += serie(b.por_dia_comparacion, 'Por día, periodo anterior');
+  if ((b.notas || []).length) h += '<div class="notas">' + b.notas.map(esc).join('<br>') + '</div>';
+  return h + '</div>';
+}
+async function enviar(ev) {
+  if (ev) ev.preventDefault();
+  if (S.ocupado) return;
+  const pregunta = $('q').value.trim();
+  if (!pregunta) return;
+  const gen = S.gen;
+  S.ocupado = true; $('b').disabled = true; $('q').value = '';
+  burbuja('yo', esc(pregunta));
+  const espera = burbuja('el pensando', 'Consultando la base…');
+  let j;
+  try { j = await llamar('/chat', { pregunta, anteriores: S.anteriores.slice(-3) }, gen); }
+  catch (e) { if (e.cambio) return; j = { ok: false, error: e.sesion ? 'sesion' : 'red' }; }
+  if (gen !== S.gen) return;   // la sesión cambió mientras se esperaba: esta respuesta ya no es de quien está aquí
+  try {
+    espera.remove();
+    if (j._estado === 401 || j.error === 'sesion') return sesionVencida();
+    if (j.ok) {
+      const datos = Array.isArray(j.datos) ? j.datos : [];
+      let h = j.respuesta ? esc(j.respuesta) : '';
+      h += datos.map(htmlDatos).join('');
+      if (!h) h = esc('No tengo ese dato.');
+      const pie = [];
+      if (!j.verificada && datos.length) pie.push('<span class="chip">Solo las cifras de la base</span>');
+      else if (j.respuesta && datos.length) pie.push('<span class="sub">El texto es un comentario del asistente; las cifras son las de la tabla.</span>');
+      if (j.fuente) pie.push(esc('Fuente: ' + j.fuente) + (j.consultado_en ? ' · consultado ' + esc(fCorta(j.consultado_en)) + ' ' + esc(String(j.consultado_en).slice(11, 16)) : ''));
+      burbuja('el', h + (pie.length ? '<div class="pie">' + pie.join(' ') + '</div>' : ''));
+      S.anteriores.push(pregunta);
+    } else {
+      if (j.error === 'anteriores_invalidas') S.anteriores = [];
+      const t = j.error === 'red' ? 'No hubo respuesta del asistente. Revisa tu internet o intenta en un momento.' : (MENSAJES[j.error] || 'No se pudo responder (' + j.error + ').');
+      burbuja('el error', esc(t) + (j.solicitud ? '<div class="pie">Folio ' + esc(String(j.solicitud).slice(0, 8)) + '</div>' : ''));
+    }
+  } finally {
+    if (gen === S.gen) { S.ocupado = false; if ($('b')) $('b').disabled = false; if ($('q')) $('q').focus(); }
+  }
+}
+
+if (S.token) arrancar(); else vLogin();
+</script>
+</body>
+</html>
