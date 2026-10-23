@@ -127,12 +127,18 @@ async function llamar(ruta, cuerpo, gen) {
   catch (e) { if (e.cambio) throw e; const x = new Error('sesion'); x.sesion = true; throw x; }
   // Un reintento: con el servicio en cero instancias, la primera petición puede fallar antes de que arranque (el 22-oct-2026
   // Cloud Run le contestó 500 a un OPTIONS en 0 ms, 5 s antes de levantar la instancia). Esa falla llega como error de red.
-  const pedir = () => fetch(ASISTENTE + ruta, { method: 'POST', headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo || {}) });
+  // Antes de cada envío (también del reintento) se revisa que la sesión siga siendo la misma (cuarta revisión de Astra).
+  const credencial = S.token;
+  const pedir = () => {
+    if (gen !== S.gen || credencial !== S.token) throw cambioDeSesion();
+    return fetch(ASISTENTE + ruta, { method: 'POST', headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo || {}) });
+  };
   let r;
   try { r = await pedir(); }
   catch (e) {
+    if (e.cambio) throw e;
     await new Promise(ok => setTimeout(ok, 2500));
-    try { r = await pedir(); } catch (e2) { const x = new Error('red'); x.red = true; throw x; }   // servicio cerrado o sin red
+    try { r = await pedir(); } catch (e2) { if (e2.cambio) throw e2; const x = new Error('red'); x.red = true; throw x; }   // servicio cerrado o sin red
   }
   let j = {}; try { j = await r.json(); } catch (e) { j = { ok: false, error: 'error_interno' }; }
   j._estado = r.status;
