@@ -212,6 +212,25 @@ function htmlDatos(b) {
   if ((b.notas || []).length) h += '<div class="notas">' + b.notas.map(esc).join('<br>') + '</div>';
   return h + '</div>';
 }
+// Venta por canal (migración 118): mostrador y delivery con su participación; en total, el detalle por plataforma.
+function htmlCanal(b) {
+  const comp = !!b.comparacion;
+  const g = (x) => x ? esc(x.venta) + (x.pct ? '<div class="sub">' + esc(x.pct) + '</div>' : '') : 'sin dato';
+  const filaHtml = (f, tot) => '<tr' + (tot ? ' class="tot"' : '') + '><td>' + esc(f.nombre) + (f.nota ? '<div class="sub">' + esc(f.nota) + '</div>' : '') +
+    (f.antes ? '<div class="sub">antes: mostrador ' + esc(f.antes.mostrador) + ' · delivery ' + esc(f.antes.delivery) + '</div>' : '') + '</td>' +
+    '<td class="n">' + g(f.mostrador) + (f.variacion && f.variacion.mostrador ? '<div class="sub ' + clase(f.variacion.mostrador) + '">' + esc(f.variacion.mostrador) + '</div>' : '') + '</td>' +
+    '<td class="n">' + g(f.delivery) + (f.variacion && f.variacion.delivery ? '<div class="sub ' + clase(f.variacion.delivery) + '">' + esc(f.variacion.delivery) + '</div>' : '') + '</td>' +
+    '<td class="n">' + esc(f.total) + '</td></tr>';
+  let h = '<div class="datos"><div class="tit">' + esc(b.titulo) + '</div>' + (comp ? '<div class="comp">' + esc(b.comparacion) + '</div>' : '');
+  if ((b.filas || []).length) {
+    h += '<table><tr class="sub"><td></td><td class="n">Mostrador</td><td class="n">Delivery</td><td class="n">Total</td></tr>' +
+         b.filas.map(f => filaHtml(f, false)).join('') + (b.total ? filaHtml(b.total, true) : '') + '</table>';
+  }
+  if ((b.plataformas || []).length) h += '<table><tr class="sub"><td colspan="2">Por forma de pago' + (b.filas.length > 1 ? ', todas las tiendas' : '') + '</td></tr>' +
+    b.plataformas.map(p => '<tr><td>' + esc(p.canal) + '</td><td class="n">' + esc(p.venta) + (p.pct ? ' <span class="sub">' + esc(p.pct) + '</span>' : '') + '</td></tr>').join('') + '</table>';
+  if ((b.notas || []).length) h += '<div class="notas">' + b.notas.map(esc).join('<br>') + '</div>';
+  return h + '</div>';
+}
 async function enviar(ev) {
   if (ev) ev.preventDefault();
   if (S.ocupado) return;
@@ -231,7 +250,7 @@ async function enviar(ev) {
     if (j.ok) {
       const datos = Array.isArray(j.datos) ? j.datos : [];
       let h = j.respuesta ? esc(j.respuesta) : '';
-      h += datos.map(htmlDatos).join('');
+      h += datos.map(b => b.tipo === 'canal' ? htmlCanal(b) : htmlDatos(b)).join('');
       if (!h) h = esc('No tengo ese dato.');
       const pie = [];
       if (!j.verificada && datos.length) pie.push('<span class="chip">Solo las cifras de la base</span>');
