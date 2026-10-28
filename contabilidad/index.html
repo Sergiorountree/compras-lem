@@ -43,6 +43,9 @@
   .conf-reg { background: var(--lem-light); color: var(--lem-dark); border-color: #D9D6F7; } .conf-inc { background: #FEF2F2; color: var(--rojo); border-color: #F2B8B3; } .conf-sf { background: #F6F5F0; color: #6B6B66; border-color: var(--border); }   /* Estado de resultados (112) */
   .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; border-radius: 99px; padding: 1px 8px; background: #F1EFE8; color: #565550; white-space: nowrap; }
   .chip-pf { background: #EAE6F7; color: #322787; }
+  .fac-barra { position: sticky; bottom: 12px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: white; border: 1px solid var(--border-strong); border-radius: 10px; padding: 10px 14px; margin-top: 12px; }   /* Facturas (121) */
+  .fac-form { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 6px; } .fac-form label { font-weight: 500; } .fac-form textarea { resize: vertical; font-family: inherit; }
+  .fac-hist { font-size: 12.5px; line-height: 1.45; padding: 8px 0; border-bottom: 1px solid var(--border); } .fac-hist:last-child { border-bottom: none; } .fac-hist.anulada { color: var(--text-soft); text-decoration: line-through; text-decoration-color: #C5C2B5; }
   .lem-table { border-collapse: separate; border-spacing: 0; width: 100%; }
   .lem-table thead th { background: #F5F3EC; font-size: 11px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
   .lem-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13.5px; background: white; vertical-align: middle; }
@@ -184,7 +187,7 @@ const Conexion = Object.freeze({
 /* ═══ SQL Connect (fin) ═══ */
 
 /* ── Módulo Contabilidad · F0 (7-oct-2026). C0 Inicio, Subir XML (mig. 093: Alan sube los XML de las facturas aquí, sin Drive),
-   Estado de resultados (mig. 112, 21-oct-2026: la cascada del P&L por tienda, calculada en SQL), C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal, C3 Cortes de caja con su conciliación y Efectivo: ESPEJO de Drive de
+   Estado de resultados (mig. 112, 21-oct-2026: la cascada del P&L por tienda, calculada en SQL), Facturas (mig. 121, 27-oct-2026: cada factura del mes con lo que decidió el motor y su corrección por factura), C1 Cuánto debemos (estimado), C2 Ingresos por tienda y canal, C3 Cortes de caja con su conciliación y Efectivo: ESPEJO de Drive de
    solo lectura (mig. 094, 8-oct-2026: la hoja "ERP Cortes" y la carpeta "Control de Efectivo" se muestran como están; se editan en Drive).
    Los números los da SQL (lem.fn_api_conta_*, migraciones 091, 093 y 094); la pantalla solo pinta. Contrato:
    compras-v1/docs/contabilidad-api.md. Solo entran administración y contabilidad: el servidor responde "sin_acceso" a los demás.
@@ -194,11 +197,12 @@ document.documentElement.setAttribute('data-conta', 'ok');
 const CLIENT_ID = '902179844288-c4ppk03u5ss2vdqvl0chfoghhedi9ape.apps.googleusercontent.com';
 const INACTIVIDAD_MIN = 15;
 const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
-const ACCIONES = new Set(['conta_inicio', 'conta_resultados', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas', 'conta_espejo_cortes', 'conta_espejo_efectivo', 'ver_como_opciones']);   // ver_como_opciones: barra "Punto de vista" (mig. 097)
+const ACCIONES = new Set(['conta_inicio', 'conta_resultados', 'conta_facturas', 'conta_factura_decidir', 'conta_debemos', 'conta_ingresos', 'conta_cortes', 'conta_xml_subir', 'conta_xml_subidas', 'conta_espejo_cortes', 'conta_espejo_efectivo', 'ver_como_opciones']);   // ver_como_opciones: barra "Punto de vista" (mig. 097)
 const ss = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }, del(k) { try { sessionStorage.removeItem(k); } catch (e) {} } };
 const uiInicial = () => ({ excTodas: false, q: '', soloSaldo: true, orden: 'abierto', base: null, factSolo: false, mesIng: null, mesCor: null, diasFiltro: 'revisar',
                            concBranch: null, concEstado: null, concTec: false, concDias: 14, concTiendas: [], efeOrden: 'semana',
-                           resMes: null, resDest: 'consolidado', resVista: 'una', resDet: null });
+                           resMes: null, resDest: 'consolidado', resVista: 'una', resDet: null,
+                           facMes: null, facFiltro: 'todas', facQ: '', facAbiertos: {}, facSel: {}, facDet: null, facForm: null, facCtx: null, facError: null, facGuardando: false });
 const subInicial = () => ({ items: [], leyendo: false, enviando: false, detener: false, lote: null, empresa: null, hechos: 0, total: 0, error: null, filtro: 'todos',
                             hist: null, histCargando: false, histErr: null, histEstado: 'todos', histQ: '', histT: null, sec: 0 });
 const S = { token: ss.get('lem_tok') || null, usuario: '', inicio: null, empresa: null, cache: new Map(), vez: 0, epoca: 0, ultima: Date.now(), motivo: '', tiendas: [], deb: null, ui: uiInicial(), sub: subInicial(), toastT: null };
@@ -242,7 +246,8 @@ const ICONS = { home: '<path d="M3 12L12 4l9 8M5 10v10h4v-6h6v6h4V10"/>', chart:
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>', lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>', refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>',
   chevronR: '<path d="M9 6l6 6-6 6"/>', chevronL: '<path d="M15 6l-6 6 6 6"/>', alert: '<path d="M12 2L2 22h20L12 2zM12 9v4M12 17h.01"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
-  upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>' };
+  upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/>', chevronD: '<path d="M6 9l6 6 6-6"/>' };
 const icon = (n, s) => '<svg width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
 
 /* ── Sesión: solo mientras la pestaña está abierta y con cierre por inactividad ── */
@@ -269,7 +274,7 @@ setInterval(revisarInactividad, 15000);
   }
 })();
 function cerrarSesion(msj, soloAqui) {
-  S.epoca++; S.vez++; S.inicio = null; S.empresa = null; S.usuario = ''; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial(); S.sub = subInicial();   // los XML en memoria se borran
+  S.epoca++; S.vez++; S.inicio = null; S.empresa = null; S.usuario = ''; S.cache.clear(); S.tiendas = []; S.deb = null; S.fac = null; S.ui = uiInicial(); S.sub = subInicial();   // los XML en memoria se borran
   if (soloAqui && S.token) ss.set('lem_conta_cerrado', huella(S.token)); else { ss.del('lem_tok'); if (window.LEM_PV) LEM_PV.salir(); }
   ss.del('lem_conta_ultima'); S.token = null;
   Conexion.salir();   // solo la sesión de Firebase de esta página (browserSessionPersistence)
@@ -411,7 +416,7 @@ function pintarShell() {
     '<main class="main"><div class="scroll" id="scroll"><div id="vista"></div></div></main></div>';
 }
 function pintarNav(r) {
-  const items = [['inicio', 'home', 'Inicio'], ['resultados', 'file', 'Estado de resultados'], ['subir', 'upload', 'Subir XML'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja'], ['efectivo', 'file', 'Efectivo (espejo)']];
+  const items = [['inicio', 'home', 'Inicio'], ['resultados', 'file', 'Estado de resultados'], ['facturas', 'receipt', 'Facturas'], ['subir', 'upload', 'Subir XML'], ['debemos', 'money', 'Cuánto debemos'], ['ingresos', 'chart', 'Ingresos'], ['cortes', 'cash', 'Cortes de caja'], ['efectivo', 'file', 'Efectivo (espejo)']];
   const n = $('nav'); if (!n) return;
   const act = r === 'conciliacion' ? 'cortes' : r;   // la conciliación es una pestaña de Cortes de caja
   n.innerHTML = items.map(([k, ic, t]) => '<a class="nav-item' + (act === k ? ' active' : '') + '" href="#' + k + '"' + (act === k ? ' aria-current="page"' : '') + '>' + icon(ic) + '<span>' + t + '</span></a>').join('') +
@@ -431,9 +436,9 @@ function pon(h) { const v = $('vista'); if (v) v.innerHTML = '<div class="fade-i
 function arriba() { const sc = $('scroll'); if (sc) sc.scrollTop = 0; if (window.innerWidth <= 760) window.scrollTo(0, 0); }
 function cargando(t, sub) { pon(topbar(t, sub) + '<div class="p-8"><div class="msg-card shadow-card">Cargando…</div></div>'); }
 
-/* ── Rutas: #inicio · #resultados[/AAAA-MM] · #subir · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ·
+/* ── Rutas: #inicio · #resultados[/AAAA-MM] · #facturas[/AAAA-MM] · #subir · #debemos · #debemos/<clave> · #ingresos · #cortes · #cortes/<branch_id> ·
    #conciliacion[/semana/AAAA-SS | /motor/AAAA-MM[/branch_id] | /resumen | /falta | /cambios] · #efectivo[/AAAA-MM | /historico/<pestaña>] ── */
-const RUTAS = { inicio: vInicio, resultados: vResultados, subir: vSubir, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes, conciliacion: vConciliacion, efectivo: vEfectivo };
+const RUTAS = { inicio: vInicio, resultados: vResultados, facturas: vFacturas, subir: vSubir, debemos: vDebemos, ingresos: vIngresos, cortes: vCortes, conciliacion: vConciliacion, efectivo: vEfectivo };
 function ruta() {
   let h = (location.hash || '').replace(/^#/, ''); try { h = decodeURIComponent(h); } catch (e) {}
   const i = h.indexOf('/'); const r = i < 0 ? h : h.slice(0, i); const arg = i < 0 ? null : (h.slice(i + 1) || null);
@@ -1487,6 +1492,221 @@ async function pintarDetalleRes(d, vez) {
   if (!x.visto) { x.visto = true; try { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {} }   // el detalle se pinta arriba de la tabla
 }
 
+/* ════════════════ Facturas (mig. 121, 27-oct-2026): cada factura del mes contable con lo que decidió el motor, y su corrección ════════════════
+   conta_facturas {mes} da una fila por factura (proveedor, monto sin IVA, conceptos, destinos, cómo, la decisión del portal vigente y si
+   se puede corregir) más las opciones (tiendas y centros, conceptos con su criterio de prorrateo); {mes, uuid}, el detalle (partidas
+   repartidas, reglas, historial, notas de crédito). conta_factura_decidir guarda una regla POR FACTURA (solo ese UUID) con motivo: otra
+   tienda, prorrateo u otro concepto; "sistema" la anula y vuelve a la regla general. Nada se borra. Consulta solo ve (el servidor ya le
+   quita Corporativo y nómina). La pantalla agrupa por proveedor; las personas físicas van juntas y sin nombre. */
+const DEST_FAC = { sucursal: 'Tienda', prorrateo: 'Prorrateo', sin_asignar: 'Sin tienda', fuera: 'Fuera del P&L', excluir: 'Excluida', intercompania: 'Intercompañía' };
+const CRIT_FAC = { venta_r26: 'venta R26', venta_tdc: 'venta con tarjeta', venta_rappi: 'venta Rappi', partes_iguales: 'partes iguales', importe_fijo_por_tienda: 'importe fijo por tienda', asegurados: 'asegurados (sin fuente)' };
+const GRUPO_FAC = { exclusion: 'Exclusión', por_factura: 'Por factura', especifica: 'Específica', rfc: 'Por RFC', respaldo: 'Respaldo', comodin: 'Comodín' };
+const FILTROS_FAC = [['todas', 'Todas'], ['sin_tienda', 'Sin tienda'], ['por_clasificar', 'Por clasificar'], ['a_mano', 'Corregidas a mano']];
+function tiendaCorta(n) { return String(n || '').replace(/\s+Chihuahua$/, '').replace(/^Soriana\s+/, '').replace(/\s+2$/, ''); }
+function facTienda(b) { const t = ((S.fac || {}).tiendas || []).find(x => x.branch_id === Number(b)); return t ? tiendaCorta(t.nombre) : 'Sucursal ' + b; }
+function facConcepto(k) { const c = ((S.fac || {}).conceptos || []).find(x => x.clave === k); return c ? c.nombre : String(k || '—').replace(/_/g, ' '); }
+function facDestino(f) {
+  const ds = f.destinos || [], bs = f.branch_ids || [], partes = [];
+  if (ds.includes('sucursal')) partes.push(bs.length === 1 ? esc(facTienda(bs[0])) : bs.length + ' tiendas');
+  ds.filter(d => d !== 'sucursal').forEach(d => partes.push(d === 'sin_asignar' ? '<span class="neg font-medium">Sin tienda</span>' : esc(DEST_FAC[d] || d)));
+  return partes.join(' + ') || '—';
+}
+function facComo(f) {
+  if (f.decision) return '<span class="conf conf-reg" title="' + esc('Corregida en el portal por ' + f.decision.quien + ': ' + (f.decision.motivo || '')) + '">Corregida</span>' + (f.decision.revisada ? '' : ' <span class="badge b-ambar" title="La tomó contabilidad: Sergio la revisa">por revisar</span>');
+  return (f.comos || []).map(comoRes).join(', ');
+}
+function facPasa(f, q) {
+  const fil = S.ui.facFiltro;
+  if ((fil === 'sin_tienda' && !N(f.sin_tienda)) || (fil === 'por_clasificar' && !N(f.por_clasificar)) || (fil === 'a_mano' && !f.decision)) return false;
+  if (!q) return true;
+  const p = f.proveedor || {};
+  return sinAcentos([p.nombre, p.rfc, f.serie, f.folio, f.uuid].join(' ')).includes(q);
+}
+function facGrupos() {
+  const q = sinAcentos(S.ui.facQ || '').trim(); const g = new Map();
+  for (const f of (S.fac || {}).facturas || []) {
+    if (!facPasa(f, q)) continue;
+    const p = f.proveedor || {}; const k = p.persona_fisica ? 'persona_fisica' : (p.rfc || p.clave || '?');
+    if (!g.has(k)) g.set(k, { clave: k, pf: !!p.persona_fisica, nombre: p.persona_fisica ? 'Personas físicas' : (p.nombre || p.rfc), rfc: p.persona_fisica ? null : p.rfc, facturas: [], monto: 0, sin: 0, nsin: 0 });
+    const x = g.get(k); x.facturas.push(f); x.monto += N(f.monto); if (N(f.sin_tienda)) { x.sin += N(f.sin_tienda); x.nsin++; }
+  }
+  return [...g.values()].sort((a, b) => Math.abs(b.monto) - Math.abs(a.monto));
+}
+const facPuede = () => !!(S.fac && S.fac.puede_decidir && !soloLectura());
+async function vFacturas(arg, vez) {
+  if (arg && /^\d{4}-\d{2}$/.test(arg) && arg !== S.ui.facMes) { S.ui.facMes = arg; S.ui.facDet = null; S.ui.facForm = null; S.ui.facSel = {}; }
+  cargando('Facturas', S.ui.facMes ? mesLargo(S.ui.facMes) : 'mes anterior');
+  const L = await traer('conta_facturas', S.ui.facMes ? { mes: S.ui.facMes } : {}); if (vez !== S.vez) return;
+  if (!S.ui.facMes && L.mes) { S.ui.facMes = L.mes; guardarEnMemoria('conta_facturas', { mes: L.mes }, L); }
+  S.fac = L;
+  const hoyMes = String(S.inicio.hoy || '').slice(0, 7);
+  const prev = L.mes > '2026-07' ? mesMas(L.mes, -1) : null; const sig = mesMas(L.mes, 1) <= hoyMes ? mesMas(L.mes, 1) : null;
+  const sel = '<span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="mesFac" data-arg="' + esc(prev || '') + '"' + (prev ? '' : ' disabled') + ' aria-label="Mes anterior">' + icon('chevronL', 14) + '</button><b class="text-sm text-center" style="min-width:128px">' + mesLargo(L.mes) + '</b><button class="btn btn-ghost p-15" data-act="mesFac" data-arg="' + esc(sig || '') + '"' + (sig ? '' : ' disabled') + ' aria-label="Mes siguiente">' + icon('chevronR', 14) + '</button></span>';
+  const fs = L.facturas || []; const suma = xs => xs.reduce((s, f) => s + N(f.monto), 0);
+  const sinT = fs.filter(f => N(f.sin_tienda)), porC = fs.filter(f => N(f.por_clasificar)), man = fs.filter(f => f.decision);
+  let h = topbar('Facturas', esc(S.inicio.empresa || '') + ' · ' + mesLargo(L.mes) + ' (mes contable) · sin IVA · calculado ' + instante(L.calculado_al), sel + btnActualizar()) + '<div class="p-8">';
+  if (L.acceso) h += '<div class="banner banner-lem">Tu acceso es de consulta: ves las facturas (sin las de Corporativo ni las de nómina), pero no las corriges.</div>';
+  else if (!L.abierto) h += '<div class="banner banner-amber"><b>' + esc(mesLargo(L.mes)) + ' no está abierto.</b> Se ve, pero no se corrige.</div>';
+  h += '<div class="banner banner-gris text-13">Cada factura del mes con lo que decidió el sistema: concepto, tienda o prorrateo, y con qué regla. Si se equivocó, ábrela y corrígela: ' +
+    'tu decisión aplica <b>solo a esa factura</b>, queda con tu nombre y el motivo, el Estado de resultados la toma al instante y se puede regresar a lo del sistema. Para varias a la vez (por ejemplo, las de GEPP sin tienda), márcalas y usa <b>Corregir…</b>.</div>';
+  const tarj = (k, t, n, m, sub) => '<div class="stat-card click' + (S.ui.facFiltro === k ? ' on' : '') + '" data-act="facFiltro" data-arg="' + k + '" tabindex="0" role="button"><div class="stat-label">' + t + '</div><div class="stat-value num">' + entero(n) + '</div><div class="text-xs text-gray-500 mt-1">' + pesos(m) + (sub ? ' · ' + sub : '') + '</div></div>';
+  h += '<div class="grid grid-4 mb-6">' + tarj('todas', 'Facturas del mes', fs.length, suma(fs)) + tarj('sin_tienda', 'Sin tienda', sinT.length, sinT.reduce((s, f) => s + N(f.sin_tienda), 0)) +
+    tarj('por_clasificar', 'Por clasificar', porC.length, porC.reduce((s, f) => s + N(f.por_clasificar), 0)) + tarj('a_mano', 'Corregidas a mano', man.length, suma(man), man.filter(f => !f.decision.revisada).length + ' por revisar') + '</div>';
+  h += '<div id="facDet"></div>';
+  const ctrl = '<div class="flex items-center gap-2 flex-wrap"><div class="seg" role="group" aria-label="Filtro">' + FILTROS_FAC.map(([k, t]) => '<button class="' + (S.ui.facFiltro === k ? 'on' : '') + '" data-act="facFiltro" data-arg="' + k + '">' + t + '</button>').join('') + '</div>' +
+    '<label class="flex items-center gap-2 inp" style="padding:5px 10px">' + icon('search', 14) + '<input data-inp="facQ" type="search" placeholder="Proveedor, RFC, folio o UUID" value="' + esc(S.ui.facQ) + '" style="border:none;outline:none;font-size:13px;min-width:0;width:200px" aria-label="Buscar factura"></label></div>';
+  h += card('Por proveedor', 'Clic en un proveedor para ver sus facturas; clic en una factura para ver de dónde sale y corregirla.', '<div id="facLista"></div>', ctrl);
+  h += '<div id="facBarra"></div>';
+  pon(h + '</div>');
+  pintarListaFac(); pintarBarraFac();
+  if (S.ui.facDet || S.ui.facForm) pintarDetalleFac(vez);
+}
+function pintarListaFac() {
+  const el = $('facLista'); if (!el || !S.fac) return;
+  const gs = facGrupos(); const puede = facPuede();
+  if (!gs.length) { el.innerHTML = '<div class="card-body"><p class="text-sm text-gray-500">Ninguna factura con ese filtro.</p></div>'; return; }
+  let t = '<div class="tabla"><table class="lem-table densa" style="min-width:860px"><thead><tr>' + th('Proveedor') + th('Facturas', true) + th('Monto', true) + th('Sin tienda', true) + th('Cómo lo decidió') + th('') + '</tr></thead><tbody>';
+  for (const g of gs) {
+    const ab = !!S.ui.facAbiertos[g.clave];
+    const comos = [...new Set(g.facturas.flatMap(f => f.decision ? ['corregida'] : (f.comos || [])))];
+    t += '<tr class="link' + (ab ? ' sel' : '') + '" data-act="facProv" data-arg="' + esc(g.clave) + '"><td class="nombre-prov">' + (g.pf ? '<span class="chip chip-pf" title="Sin nombre ni RFC junto a un monto">Personas físicas</span>' : '<div class="font-medium">' + esc(g.nombre) + '</div><div class="text-11 text-gray-500 num">' + esc(g.rfc || '') + '</div>') + '</td>' +
+      '<td class="text-right num">' + entero(g.facturas.length) + '</td>' + tdP(g.monto) +
+      '<td class="text-right num">' + (g.nsin ? '<span class="neg">' + pesos(g.sin) + '</span><div class="text-11 text-gray-500">' + g.nsin + ' fact.</div>' : '<span class="dim">—</span>') + '</td>' +
+      '<td class="text-xs" style="white-space:normal;max-width:320px">' + comos.slice(0, 3).map(c => c === 'corregida' ? 'Corregida a mano' : comoRes(c)).join(' · ') + (comos.length > 3 ? ' …' : '') + '</td>' +
+      '<td class="text-right text-gray-500">' + icon(ab ? 'chevronD' : 'chevronR', 14) + '</td></tr>';
+    if (ab) t += '<tr><td colspan="6" style="padding:0 0 0 22px;background:#FAFAF7">' + tablaFacturasProv(g, puede) + '</td></tr>';
+  }
+  el.innerHTML = t + '</tbody></table></div>';
+}
+function tablaFacturasProv(g, puede) {
+  const libres = g.facturas.filter(f => !f.bloqueo && N(f.sin_tienda));
+  let h = puede && libres.length > 1 ? '<div style="padding:8px 10px 2px"><button class="btn btn-secondary sm" data-act="facSelProv" data-arg="' + esc(g.clave) + '">Marcar las ' + libres.length + ' sin tienda</button></div>' : '';
+  h += '<table class="lem-table densa"><thead><tr>' + (puede ? th('') : '') + th('Fecha') + th('Folio') + th('Concepto') + th('Destino') + th('Cómo') + th('Monto', true) + '</tr></thead><tbody>';
+  h += g.facturas.slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || Math.abs(N(b.monto)) - Math.abs(N(a.monto))).map(f => {
+    const v = ' data-act="facVer" data-arg="' + esc(f.uuid) + '"';
+    const fol = (f.serie ? f.serie + '-' : '') + (f.folio || '');
+    return '<tr class="link' + (S.ui.facDet === f.uuid ? ' sel' : '') + '">' +
+      (puede ? '<td style="width:30px">' + (f.bloqueo ? '<span class="text-gray-400" title="' + esc(f.bloqueo) + '">' + icon('lock', 13) + '</span>' : '<input type="checkbox" data-chg="facSel" value="' + esc(f.uuid) + '"' + (S.ui.facSel[f.uuid] ? ' checked' : '') + ' aria-label="Marcar la factura ' + esc(fol || f.uuid.slice(0, 8)) + '">') + '</td>' : '') +
+      '<td class="num nowrap"' + v + '>' + fecha(f.fecha) + (f.tipo === 'E' ? '<div class="text-11 text-gray-500">nota de crédito</div>' : '') + '</td>' +
+      '<td class="num nowrap"' + v + '>' + (fol ? esc(fol) : '<span class="text-gray-500">' + esc(f.uuid.slice(0, 8)) + '</span>') + (g.pf ? '<div class="text-11 text-gray-500">' + esc((f.proveedor || {}).clave || '') + '</div>' : '') + '</td>' +
+      '<td class="text-xs"' + v + ' style="white-space:normal;max-width:220px">' + (f.conceptos || []).map(k => esc(facConcepto(k))).join(', ') + '</td>' +
+      '<td class="text-xs"' + v + '>' + facDestino(f) + '</td>' +
+      '<td class="text-xs"' + v + ' style="white-space:normal;max-width:230px">' + facComo(f) + (f.aviso ? '<div class="text-11 warn">' + esc(f.aviso) + '</div>' : '') + '</td>' +
+      '<td class="text-right num"' + v + '>' + pesos(f.monto) + '</td></tr>';
+  }).join('');
+  return h + '</tbody></table>';
+}
+function pintarBarraFac() {
+  const el = $('facBarra'); if (!el) return; const us = Object.keys(S.ui.facSel);
+  if (!us.length || !S.fac) { el.innerHTML = ''; return; }
+  const m = (S.fac.facturas || []).filter(f => S.ui.facSel[f.uuid]).reduce((s, f) => s + N(f.monto), 0);
+  el.innerHTML = '<div class="fac-barra shadow-card"><span class="text-13"><b>' + us.length + '</b> factura' + (us.length === 1 ? '' : 's') + ' marcada' + (us.length === 1 ? '' : 's') + ' · ' + pesos(m) + '</span>' +
+    '<span class="flex gap-2"><button class="btn btn-ghost sm" data-act="facQuitarSel">Quitar marcas</button><button class="btn btn-primary sm" data-act="facCorregirSel">Corregir…</button></span></div>';
+}
+function abrirFormFac(uuids) { S.ui.facForm = { uuids, destino: 'sucursal', branch_id: '', concepto: '', motivo: '' }; S.ui.facError = null; }
+async function pintarDetalleFac(vez) {
+  const el = $('facDet'); const L = S.fac; if (!el || !L) return;
+  const cerrar = '<button class="btn btn-ghost sm" data-act="facCerrar">Cerrar</button>';
+  if (!S.ui.facDet && S.ui.facForm) {   // varias facturas marcadas: solo el formulario
+    const fs = (L.facturas || []).filter(f => S.ui.facForm.uuids.includes(f.uuid)); S.ui.facCtx = { fs };
+    const provs = [...new Set(fs.map(f => (f.proveedor || {}).persona_fisica ? 'Persona física' : (f.proveedor || {}).nombre))];
+    el.innerHTML = card('Corregir ' + fs.length + ' facturas', esc(provs.slice(0, 3).join(', ') + (provs.length > 3 ? '…' : '')) + ' · ' + pesos(fs.reduce((s, f) => s + N(f.monto), 0)) + ' · cada una queda con su propia regla', '<div class="card-body"><div id="facForm">' + formFac(L, fs) + '</div></div>', cerrar);
+    try { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+    return;
+  }
+  const u = S.ui.facDet; const f = (L.facturas || []).find(x => x.uuid === u) || { uuid: u, proveedor: {} };
+  const nomP = f.proveedor.persona_fisica ? 'Persona física' : (f.proveedor.nombre || 'Factura');
+  const titulo = esc(nomP) + ' · ' + esc((f.serie ? f.serie + '-' : '') + (f.folio || u.slice(0, 8)));
+  el.innerHTML = card(titulo, 'Cargando el detalle…', '<div class="card-body"><p class="text-sm text-gray-500">Cargando…</p></div>', cerrar);
+  try { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+  let r;
+  try { r = await traer('conta_facturas', { mes: L.mes, uuid: u }); }
+  catch (e) { if (vez !== S.vez || e.obsoleto) return; el.innerHTML = card(titulo, '', '<div class="card-body"><p class="text-sm neg">' + esc(e.message) + '</p></div>', cerrar); return; }
+  if (vez !== S.vez || S.ui.facDet !== u) return;
+  const D = r.detalle || {}; const fa = D.factura || {}; const pf = (fa.proveedor || {}).persona_fisica;
+  const kv = (k, v) => '<div class="kv"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>';
+  let b = '<div class="grid grid-2" style="padding:0 20px 6px"><div>' + kv('Proveedor', pf ? '<span class="chip chip-pf">Persona física</span>' : esc((fa.proveedor || {}).nombre || '') + '<div class="text-11 text-gray-500 num">' + esc((fa.proveedor || {}).rfc || '') + '</div>') +
+    kv('Fecha', fecha(fa.fecha) + (fa.tipo === 'E' ? ' · nota de crédito' : '')) + kv('UUID', '<span class="num text-xs" style="overflow-wrap:anywhere">' + esc(fa.uuid || u) + '</span>') + '</div><div>' +
+    kv('Subtotal (sin IVA)', pesos(fa.subtotal)) + kv('Total con IVA', pesos(fa.total)) + kv('En el estado de resultados', '<b>' + pesos(fa.monto) + '</b>') +
+    (fa.uuid_relacionado ? kv('Factura relacionada', '<span class="num text-xs">' + esc(fa.uuid_relacionado.slice(0, 8)) + '…</span>' + (fa.tipo === 'E' ? '<div class="text-11 text-gray-500">la nota sigue a su factura</div>' : '')) : '') + '</div></div>';
+  // Las partidas (una fila por partida; si se reparte, con el reparto debajo)
+  const porP = new Map(); (D.partidas || []).forEach(p => { if (!porP.has(p.num_partida)) porP.set(p.num_partida, []); porP.get(p.num_partida).push(p); });
+  b += '<div class="tabla"><table class="lem-table densa" style="min-width:820px"><thead><tr>' + th('#') + th('Descripción') + th('Concepto') + th('Cómo') + th('Destino') + th('Monto', true) + '</tr></thead><tbody>' +
+    [...porP.values()].map(ps => { const p = ps[0]; const rep = p.como === 'prorrateo' || ps.length > 1;
+      const dest = rep ? 'Prorrateo · ' + ps.length + ' tiendas' : (p.branch_id ? facTienda(p.branch_id) : (DEST_FAC[p.destino_tipo] || p.destino_tipo || '—'));
+      return '<tr><td class="num text-gray-500">' + esc(p.num_partida) + '</td><td class="text-xs" style="white-space:normal;min-width:200px;max-width:340px">' + esc(p.descripcion || (pf ? '(persona física: sin descripción)' : '—')) + (p.aviso ? '<div class="text-11 warn">' + esc(p.aviso) + '</div>' : '') + '</td>' +
+        '<td class="text-xs">' + esc(facConcepto(p.concepto)) + '</td><td class="text-xs">' + comoRes(p.como) + (p.criterio ? '<div class="text-11 text-gray-500">' + esc(CRIT_FAC[p.criterio] || p.criterio) + '</div>' : '') + '</td>' +
+        '<td class="text-xs' + (p.destino_tipo === 'sin_asignar' ? ' neg font-medium' : '') + '">' + esc(dest) + (rep ? '<div class="text-11 text-gray-500" style="white-space:normal;max-width:260px">' + ps.map(x => esc(x.branch_id ? facTienda(x.branch_id) : 'sin tienda') + ' ' + pesos(x.parte)).join(' · ') + '</div>' : '') + '</td>' +
+        tdP(rep ? p.monto_partida : p.parte) + '</tr>'; }).join('') + '</tbody></table></div>';
+  // La regla que la decidió
+  const rg = D.reglas || [];
+  b += '<div class="card-body" style="padding-top:12px"><div class="text-13 font-medium mb-1">Quién lo decidió</div>' + (rg.length ? rg.map(x => '<div class="text-13 mb-1">' + (x.portal ? '<span class="conf conf-reg">Corregida en el portal</span> ' + esc(x.creado_por || '') + ' · ' + instante(x.creado_en) + (x.revisada ? '' : ' <span class="badge b-ambar">por revisar</span>') + '<div class="text-xs text-gray-500">Motivo: ' + esc(x.motivo || '—') + '</div>'
+        : '<b>' + esc(GRUPO_FAC[x.grupo] || x.grupo) + '</b> <span class="text-gray-500 num text-xs">' + esc(x.clave) + '</span>' + (x.nota ? '<div class="text-xs text-gray-500" style="white-space:normal">' + esc(x.nota) + '</div>' : '')) + '</div>').join('') : '<div class="text-13 neg">Ninguna regla aplica: queda sin concepto y sin tienda.</div>');
+  // Historial
+  const hs = D.historial || [];
+  if (hs.length) b += '<div class="text-13 font-medium mt-3 mb-1">Historial</div>' + hs.map(x => { const dst = x.destino_tipo === 'sucursal' && x.branch_id ? facTienda(x.branch_id) : (DEST_FAC[x.destino_tipo] || x.destino_tipo || '');
+      return '<div class="fac-hist' + (x.anulada || x.vigente === false ? ' anulada' : '') + '">' + instante(x.cuando) + ' · ' + esc(x.quien || '') + ' · ' +
+        (x.tipo === 'portal' ? 'corrección del portal → <b>' + esc(dst) + '</b>' + (x.concepto ? ' (' + esc(facConcepto(x.concepto)) + ')' : '') + (x.motivo ? ' · «' + esc(x.motivo) + '»' : '') + (x.anulada ? ' · anulada por ' + esc(x.anulada_por || '') + ' el ' + instante(x.anulada_en) : '')
+          : 'factura → tienda (' + esc(x.fuente === 'captura' ? 'captura' : x.fuente) + ') → <b>' + esc(dst) + '</b>' + (x.metodo ? ' · ' + esc(x.metodo) : '') + (x.motivo ? ' · «' + esc(x.motivo) + '»' : '') + (x.vigente === false ? ' · reemplazada' : '')) + '</div>'; }).join('');
+  const nc = D.notas_credito || [];
+  if (nc.length) b += '<div class="text-13 font-medium mt-3 mb-1">Notas de crédito de esta factura</div><div class="text-xs text-gray-500">' + nc.map(n => fecha(n.fecha) + ' · ' + esc(n.folio || n.uuid.slice(0, 8)) + ' · ' + pesos(n.subtotal)).join('<br>') + '<div class="mt-1">Siguen a esta factura: si cambias su tienda, ellas también cambian.</div></div>';
+  b += '</div>';
+  // Corregir
+  const puede = facPuede() && D.puede_decidir;
+  if (puede) { if (!S.ui.facForm || S.ui.facForm.uuids.length !== 1 || S.ui.facForm.uuids[0] !== u) abrirFormFac([u]); S.ui.facCtx = { fs: [f] }; b += '<div class="card-body"><div id="facForm">' + formFac(L, [f]) + '</div></div>'; }
+  else { S.ui.facForm = null; if (D.bloqueo) b += '<div class="card-foot">' + icon('lock', 13) + ' ' + esc(D.bloqueo) + '</div>'; }
+  el.innerHTML = card(titulo, mesLargo(L.mes) + ' · qué decidió el sistema y por qué', b, cerrar);
+}
+function formFac(L, fs) {
+  const st = S.ui.facForm; if (!st) return '';
+  const hayDec = fs.some(f => f.decision); const una = fs.length === 1;
+  const actuales = [...new Set(fs.flatMap(f => f.conceptos || []))];
+  const ops = [['sucursal', 'Una tienda o centro'], ['prorrateo', 'Prorratear entre tiendas']].concat(hayDec ? [['sistema', 'Regresar a lo del sistema']] : []);
+  let h = '<div class="fac-form"><div class="text-13 font-medium mb-2">' + (una ? 'Corregir esta factura' : 'Corregir las ' + fs.length + ' facturas') + '</div>';
+  h += '<div class="seg" role="group" aria-label="Destino">' + ops.map(([k, t]) => '<button type="button" class="' + (st.destino === k ? 'on' : '') + '" data-act="facDestino" data-arg="' + k + '">' + t + '</button>').join('') + '</div>';
+  if (st.destino === 'sucursal') {
+    const ts = (L.tiendas || []).filter(x => x.tipo !== 'centro'), cs = (L.tiendas || []).filter(x => x.tipo === 'centro');
+    const op = x => '<option value="' + esc(x.branch_id) + '"' + (String(st.branch_id) === String(x.branch_id) ? ' selected' : '') + '>' + esc(tiendaCorta(x.nombre)) + '</option>';
+    h += '<div class="mt-3"><label class="text-13" for="facBranch">Tienda o centro</label><div class="mt-1"><select id="facBranch" class="sel" data-chg="facBranch"><option value="">Elige…</option><optgroup label="Tiendas">' + ts.map(op).join('') + '</optgroup>' + (cs.length ? '<optgroup label="Centros de costo">' + cs.map(op).join('') + '</optgroup>' : '') + '</select></div></div>';
+  }
+  if (st.destino !== 'sistema') {
+    const el = (L.conceptos || []).filter(k => k.elegible);
+    const actual = actuales.length === 1 ? facConcepto(actuales[0]) : actuales.length ? 'cada partida el suyo' : 'sin concepto';
+    const op = k => '<option value="' + esc(k.clave) + '"' + (st.concepto === k.clave ? ' selected' : '') + '>' + esc(k.nombre) + '</option>';
+    h += '<div class="mt-3"><label class="text-13" for="facConcepto">Concepto</label><div class="mt-1"><select id="facConcepto" class="sel" data-chg="facConcepto"><option value="">El que ya tiene (' + esc(actual) + ')</option>' +
+      '<optgroup label="Del estado de resultados">' + el.filter(k => k.clase === 'pl').map(op).join('') + '</optgroup><optgroup label="Fuera del estado de resultados">' + el.filter(k => k.clase !== 'pl').map(op).join('') + '</optgroup></select></div></div>';
+    if (st.destino === 'prorrateo') {
+      const cs = st.concepto ? [st.concepto] : actuales.filter(k => ((L.conceptos || []).find(c => c.clave === k) || {}).clase === 'pl');
+      h += '<div class="text-xs text-gray-500 mt-2">' + (cs.length ? cs.map(k => { const c = (L.conceptos || []).find(x => x.clave === k) || {};
+        return esc(c.nombre || k) + ': ' + (c.prorrateo && c.prorrateo !== 'asegurados' ? 'se reparte por ' + esc(CRIT_FAC[c.prorrateo] || c.prorrateo) + ' entre las tiendas con venta en el mes' : '<span class="neg">no tiene criterio de prorrateo; elige otro concepto o una tienda</span>'); }).join('<br>') : 'Elige el concepto.') + '</div>';
+    }
+  } else h += '<div class="text-xs text-gray-500 mt-2">Se anula tu corrección y la factura vuelve a lo que diga la regla general. La corrección anulada queda en el historial.</div>';
+  h += '<div class="mt-3"><label class="text-13" for="facMotivo">Motivo <span class="text-gray-500" style="font-weight:400">(obligatorio: queda con tu nombre)</span></label><textarea id="facMotivo" class="inp w-full mt-1" rows="2" maxlength="300" data-inp="facMotivo" placeholder="Ej.: el ticket de GEPP dice Vallarta">' + esc(st.motivo || '') + '</textarea></div>';
+  if (S.ui.facError) h += '<div class="banner banner-red mt-3" style="margin-bottom:0">' + esc(S.ui.facError) + '</div>';
+  h += '<div class="flex gap-2 mt-3 flex-wrap"><button class="btn btn-primary" data-act="facGuardar"' + (S.ui.facGuardando ? ' disabled' : '') + '>' + (S.ui.facGuardando ? 'Guardando…' : st.destino === 'sistema' ? 'Regresar a lo del sistema' : 'Guardar') + '</button><button class="btn btn-ghost" data-act="facCerrar">Cancelar</button></div>';
+  return h + '<p class="text-11 text-gray-500 mt-2">' + (una ? 'Aplica solo a esta factura' : 'Cada factura queda con su propia regla') + ' (una regla por factura). El Estado de resultados la toma al instante; nada se borra.</p></div>';
+}
+function pintarFormFac() { const el = $('facForm'); if (el && S.fac && S.ui.facCtx) el.innerHTML = formFac(S.fac, S.ui.facCtx.fs); }
+async function guardarFac() {
+  const st = S.ui.facForm; const L = S.fac; if (!st || !L || S.ui.facGuardando) return;
+  const motivo = String(st.motivo || '').trim();
+  if (st.destino === 'sucursal' && !st.branch_id) { S.ui.facError = 'Elige la tienda o el centro.'; pintarFormFac(); return; }
+  if (motivo.length < 5) { S.ui.facError = 'Escribe el motivo (al menos 5 letras).'; pintarFormFac(); return; }
+  S.ui.facError = null; S.ui.facGuardando = true; pintarFormFac();
+  const datos = { mes: L.mes, uuids: st.uuids.slice(), destino: st.destino, motivo };
+  if (st.destino === 'sucursal') datos.branch_id = Number(st.branch_id);
+  if (st.destino !== 'sistema' && st.concepto) datos.concepto = st.concepto;
+  const ep = S.epoca; let r;
+  try { r = await api('conta_factura_decidir', datos); }
+  catch (e) { S.ui.facGuardando = false; if (ep !== S.epoca || e.obsoleto) return; if (e.sesion) { errorEnVista(e); return; } S.ui.facError = e.message; pintarFormFac(); return; }
+  S.ui.facGuardando = false; if (ep !== S.epoca) return;
+  S.cache.clear();   // también cambió el Estado de resultados del mes
+  const uno = st.uuids.length === 1 ? st.uuids[0] : null;
+  S.ui.facForm = null; S.ui.facSel = {}; S.ui.facDet = uno; S.ui.facError = null;
+  toast(r.quitadas ? 'Listo: regresó a lo del sistema.' : 'Guardado: ' + entero(r.decididas) + ' factura' + (r.decididas === 1 ? '' : 's') + (r.ya_estaban ? ' (' + r.ya_estaban + ' ya estaba' + (r.ya_estaban === 1 ? '' : 'n') + ' así)' : '') + (r.revisada === false ? ' · Sergio la revisa' : '') + '.');
+  router();
+}
+
 /* ── Eventos (delegados: no hay funciones globales en window) ── */
 document.addEventListener('click', ev => {
   const a = ev.target.closest('[data-act]');
@@ -1508,11 +1728,16 @@ document.addEventListener('change', ev => {
   else if (k === 'concSemana') { if (/^\d{4}-\d{1,2}$/.test(el.value)) ir('conciliacion/semana/' + el.value); }
   else if (k === 'concTec') { S.ui.concTec = !!el.checked; router(); }
   else if (k === 'resDest') { if (/^([0-9]{1,5}|sin_asignar|consolidado)$/.test(el.value)) { S.ui.resDest = el.value; S.ui.resDet = null; router(); } }
+  else if (k === 'facSel') { if (el.checked) S.ui.facSel[el.value] = true; else delete S.ui.facSel[el.value]; pintarBarraFac(); }
+  else if (k === 'facBranch') { if (S.ui.facForm) S.ui.facForm.branch_id = el.value; }
+  else if (k === 'facConcepto') { if (S.ui.facForm) { S.ui.facForm.concepto = el.value; pintarFormFac(); } }
   else if (k === 'efeMes') { if (/^(\d{4}-\d{2}|historico\/[a-z0-9 ._-]{1,60})$/.test(el.value)) ir('efectivo/' + el.value); }
 });
 document.addEventListener('input', ev => {
   const el = ev.target.closest('[data-inp]'); if (!el) return;
   if (el.getAttribute('data-inp') === 'q') { S.ui.q = el.value || ''; if (S.deb && $('provs')) $('provs').innerHTML = tablaProveedores(S.deb); }
+  else if (el.getAttribute('data-inp') === 'facQ') { S.ui.facQ = el.value || ''; pintarListaFac(); }
+  else if (el.getAttribute('data-inp') === 'facMotivo') { if (S.ui.facForm) S.ui.facForm.motivo = el.value || ''; }
   else if (el.getAttribute('data-inp') === 'histQ') { S.sub.histQ = el.value || ''; clearTimeout(S.sub.histT); S.sub.histT = setTimeout(() => cargarHistorial(S.vez), 450); }
 });
 document.addEventListener('dragover', ev => { if (!S.inicio || ruta().r !== 'subir') return; ev.preventDefault(); const z = $('zona'); if (z && !z.classList.contains('apagada')) z.classList.add('sobre'); });
@@ -1543,6 +1768,16 @@ function accion(k, arg) {
   else if (k === 'resVista') { S.ui.resVista = arg === 'matriz' ? 'matriz' : 'una'; router(); }
   else if (k === 'resDet') { const m = /^([a-z][a-z0-9_]*)\|([0-9]{1,5}|sin_asignar|consolidado)$/.exec(arg || ''); if (m) { S.ui.resDet = { ren: m[1], dest: m[2], mes: S.ui.resMes }; router(); } }
   else if (k === 'resCerrar') { S.ui.resDet = null; router(); }
+  else if (k === 'mesFac') { if (arg && /^\d{4}-\d{2}$/.test(arg)) { S.ui.facMes = arg; S.ui.facDet = null; S.ui.facForm = null; S.ui.facSel = {}; router(); } }
+  else if (k === 'facFiltro') { S.ui.facFiltro = FILTROS_FAC.some(x => x[0] === arg) ? arg : 'todas'; router(); }
+  else if (k === 'facProv') { if (arg) { if (S.ui.facAbiertos[arg]) delete S.ui.facAbiertos[arg]; else S.ui.facAbiertos[arg] = true; pintarListaFac(); } }
+  else if (k === 'facVer') { if (/^[0-9a-f-]{36}$/.test(arg || '')) { S.ui.facDet = arg; S.ui.facError = null; pintarListaFac(); pintarDetalleFac(S.vez); } }
+  else if (k === 'facCerrar') { S.ui.facDet = null; S.ui.facForm = null; S.ui.facCtx = null; S.ui.facError = null; const d = $('facDet'); if (d) d.innerHTML = ''; pintarListaFac(); }
+  else if (k === 'facSelProv') { const g = facGrupos().find(x => x.clave === arg); if (g) { g.facturas.filter(f => !f.bloqueo && N(f.sin_tienda)).forEach(f => { S.ui.facSel[f.uuid] = true; }); pintarListaFac(); pintarBarraFac(); } }
+  else if (k === 'facQuitarSel') { S.ui.facSel = {}; pintarListaFac(); pintarBarraFac(); }
+  else if (k === 'facCorregirSel') { const us = Object.keys(S.ui.facSel); if (us.length > 60) { toast('Máximo 60 facturas a la vez.'); return; } if (us.length) { S.ui.facDet = null; abrirFormFac(us); pintarListaFac(); pintarDetalleFac(S.vez); } }
+  else if (k === 'facDestino') { if (S.ui.facForm && ['sucursal', 'prorrateo', 'sistema'].includes(arg)) { S.ui.facForm.destino = arg; if (arg !== 'sucursal') S.ui.facForm.branch_id = ''; if (arg === 'sistema') S.ui.facForm.concepto = ''; S.ui.facError = null; pintarFormFac(); } }
+  else if (k === 'facGuardar') guardarFac();
 }
 async function actualizar() {
   const ep = S.epoca; S.cache.clear();
@@ -1553,7 +1788,7 @@ async function actualizar() {
 function cambiarEmpresa(v) {
   const n = Number(v); if (!Number.isInteger(n)) return;
   if (S.sub.enviando || S.sub.leyendo) { toast('Espera a que termine la subida para cambiar de empresa.'); const s = $('selEmp'); if (s) s.value = String(S.empresa); return; }
-  S.empresa = n; S.cache.clear(); S.tiendas = []; S.deb = null; S.ui = uiInicial(); S.sub = subInicial(); arrancar();
+  S.empresa = n; S.cache.clear(); S.tiendas = []; S.deb = null; S.fac = null; S.ui = uiInicial(); S.sub = subInicial(); arrancar();
 }
 
 /* ── Arranque ── */
