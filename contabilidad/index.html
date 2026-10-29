@@ -1379,8 +1379,8 @@ async function vResultados(arg, vez) {
   const dest = S.ui.resDest; const ren = d.renglones || []; const R = k => ren.find(r => r.clave === k);
   const sel = '<span class="flex items-center gap-1"><button class="btn btn-ghost p-15" data-act="mesRes" data-arg="' + esc(prev || '') + '"' + (prev ? '' : ' disabled') + ' aria-label="Mes anterior">' + icon('chevronL', 14) + '</button><b class="text-sm text-center" style="min-width:128px">' + mesLargo(d.mes) + '</b><button class="btn btn-ghost p-15" data-act="mesRes" data-arg="' + esc(sig || '') + '"' + (sig ? '' : ' disabled') + ' aria-label="Mes siguiente">' + icon('chevronR', 14) + '</button></span>';
   const grupo = t => dests.filter(x => x.tipo === t);
-  const selD = '<select class="sel" data-chg="resDest" aria-label="Tienda o Consolidado">' + [['consolidado', 'Consolidado'], ['tienda', 'Tiendas'], ['centro', 'Centros'], ['sin_asignar', 'Sin asignar']].map(([t, lab]) => {
-      const xs = t === 'consolidado' || t === 'sin_asignar' ? dests.filter(x => x.destino === t) : grupo(t); if (!xs.length) return '';
+  const selD = '<select class="sel" data-chg="resDest" aria-label="Tienda o Consolidado">' + [['consolidado', 'Consolidado'], ['tienda', 'Tiendas'], ['almacen', 'Almacén central'], ['centro', 'Centros'], ['sin_asignar', 'Sin asignar']].map(([t, lab]) => {
+      const xs = t === 'consolidado' || t === 'sin_asignar' || t === 'almacen' ? dests.filter(x => x.destino === t) : grupo(t); if (!xs.length) return '';
       const op = xs.map(x => '<option value="' + esc(x.destino) + '"' + (x.destino === dest ? ' selected' : '') + '>' + esc(x.nombre) + '</option>').join('');
       return t === 'tienda' || t === 'centro' ? '<optgroup label="' + lab + '">' + op + '</optgroup>' : op; }).join('') + '</select>';
   const vista = S.ui.resVista === 'matriz' ? 'matriz' : 'una';
@@ -1474,10 +1474,16 @@ async function pintarDetalleRes(d, vez) {
       (fs.length ? fs.map(y => '<tr><td class="nowrap">' + esc(PLAT_RES[y.plataforma] || y.plataforma) + '</td><td class="nowrap">' + esc(tienda(y.branch_id)) + '</td>' + tdP(y.monto) + '<td>' + chipConf(y.confianza) + '</td><td class="text-xs" style="white-space:normal;max-width:420px">' + esc(y.nota || '') + '</td></tr>').join('')
         : '<tr><td colspan="5" class="text-center text-gray-500" style="padding:18px">Sin movimientos.</td></tr>') + '</tbody></table></div>';
   } else {
-    const cv = det.costo_venta || [];
-    if (cv.length) b += '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Tienda') + th('Inventario inicial', true) + th('Compras', true) + th('Inventario final', true) + th('Costo', true) + th('') + '</tr></thead><tbody>' +
-      cv.map(y => '<tr><td class="nowrap">' + esc(tienda(y.branch_id)) + '</td>' + tdP(y.inv_inicial) + tdP(y.compras) + tdP(y.inv_final) + '<td class="text-right num font-semibold">' + (y.completo ? pesos(y.costo) : '<span class="text-gray-400">—</span>' + (esNum(y.costo) ? '<div class="text-11 text-gray-400">parcial ' + pesos(y.costo) + '</div>' : '')) + '</td><td class="text-xs" style="white-space:normal;max-width:300px">' + (y.completo ? '' : esc(y.motivo || '')) + '</td></tr>').join('') + '</tbody></table></div>' +
-      '<p class="text-11 text-gray-500" style="padding:8px 16px 0">Costo = inventario inicial (cierre del mes anterior) + compras clasificadas − inventario final. Abajo, las compras (facturas).</p>';
+    // mig. 123: el almacén central (ubicacion 'almacen') y los traspasos entre almacén y tiendas
+    const cv = det.costo_venta || [], tr = det.traspasos || []; const conTr = tr.length > 0 || cv.some(y => N(y.traspasos));
+    const ubic = y => y && y.tipo === 'almacen' ? 'Almacén central' : tienda(y ? y.branch_id : null);
+    if (cv.length) b += '<div class="tabla"><table class="lem-table densa"><thead><tr>' + th('Tienda') + th('Inventario inicial', true) + th('Compras', true) + (conTr ? th('Traspasos', true) : '') + th('Inventario final', true) + th('Costo', true) + th('') + '</tr></thead><tbody>' +
+      cv.map(y => '<tr><td class="nowrap">' + esc(ubic({ tipo: y.ubicacion, branch_id: y.branch_id })) + '</td>' + tdP(y.inv_inicial) + tdP(y.compras) + (conTr ? tdP(y.traspasos) : '') + tdP(y.inv_final) + '<td class="text-right num font-semibold">' + (y.completo ? pesos(y.costo) : '<span class="text-gray-400">—</span>' + (esNum(y.costo) ? '<div class="text-11 text-gray-400">parcial ' + pesos(y.costo) + '</div>' : '')) + '</td><td class="text-xs" style="white-space:normal;max-width:300px">' + (y.completo && y.ubicacion !== 'almacen' ? '' : esc(y.motivo || '')) + '</td></tr>').join('') + '</tbody></table></div>' +
+      '<p class="text-11 text-gray-500" style="padding:8px 16px 0">Costo = inventario inicial (cierre del mes anterior) + compras clasificadas' + (conTr ? ' + traspasos que entran − los que salen' : '') + ' − inventario final.' +
+      (cv.some(y => y.ubicacion === 'almacen') ? ' El almacén central (2º piso de Vallarta) no compra: le entra y le sale por traspaso; sin conteo, su inventario va en 0.' : '') + (tr.length ? ' Abajo, los traspasos y las compras (facturas).' : ' Abajo, las compras (facturas).') + '</p>';
+    if (tr.length) b += '<div class="tabla mt-2"><table class="lem-table densa"><thead><tr>' + th('Fecha') + th('De') + th('A') + th('Valor', true) + th('Motivo') + '</tr></thead><tbody>' +
+      tr.map(y => '<tr><td class="num nowrap">' + fecha(y.fecha) + '</td><td class="text-xs nowrap">' + esc(ubic(y.origen)) + '</td><td class="text-xs nowrap">' + esc(ubic(y.destino)) + '</td>' + tdP(y.valor) +
+        '<td class="text-xs" style="white-space:normal;max-width:420px">' + esc(y.motivo || '') + '<div class="text-11 text-gray-500">' + (y.fuente === 'inventario_diario' ? 'Del inventario diario' : 'Captura') + '</div></td></tr>').join('') + '</tbody></table></div>';
     const fs = det.filas || [];
     b += '<div class="tabla mt-2"><table class="lem-table densa" style="min-width:980px"><thead><tr>' + th('Fecha') + th('Proveedor') + th('Descripción') + th('Concepto') + th('Cómo') + th('Tienda') + th('Monto', true) + '</tr></thead><tbody>' +
       (fs.length ? fs.map(y => '<tr><td class="num nowrap">' + fecha(y.fecha) + (y.tipo === 'E' ? '<div class="text-11 text-gray-500">nota de crédito</div>' : '') + '</td><td class="nombre-prov">' + proveedorRes(y.proveedor) + '</td>' +
@@ -1727,7 +1733,7 @@ document.addEventListener('change', ev => {
                                  if (p[0] === 'motor' && p[2]) ir('conciliacion/motor/' + p[1] + (S.ui.concBranch != null ? '/' + S.ui.concBranch : '')); else router(); }
   else if (k === 'concSemana') { if (/^\d{4}-\d{1,2}$/.test(el.value)) ir('conciliacion/semana/' + el.value); }
   else if (k === 'concTec') { S.ui.concTec = !!el.checked; router(); }
-  else if (k === 'resDest') { if (/^([0-9]{1,5}|sin_asignar|consolidado)$/.test(el.value)) { S.ui.resDest = el.value; S.ui.resDet = null; router(); } }
+  else if (k === 'resDest') { if (/^([0-9]{1,5}|almacen|sin_asignar|consolidado)$/.test(el.value)) { S.ui.resDest = el.value; S.ui.resDet = null; router(); } }
   else if (k === 'facSel') { if (el.checked) S.ui.facSel[el.value] = true; else delete S.ui.facSel[el.value]; pintarBarraFac(); }
   else if (k === 'facBranch') { if (S.ui.facForm) S.ui.facForm.branch_id = el.value; }
   else if (k === 'facConcepto') { if (S.ui.facForm) { S.ui.facForm.concepto = el.value; pintarFormFac(); } }
@@ -1766,7 +1772,7 @@ function accion(k, arg) {
   else if (k === 'efeOrden') { S.ui.efeOrden = arg === 'hoja' ? 'hoja' : 'semana'; router(); }
   else if (k === 'mesRes') { if (arg && /^\d{4}-\d{2}$/.test(arg)) { S.ui.resMes = arg; S.ui.resDet = null; router(); } }
   else if (k === 'resVista') { S.ui.resVista = arg === 'matriz' ? 'matriz' : 'una'; router(); }
-  else if (k === 'resDet') { const m = /^([a-z][a-z0-9_]*)\|([0-9]{1,5}|sin_asignar|consolidado)$/.exec(arg || ''); if (m) { S.ui.resDet = { ren: m[1], dest: m[2], mes: S.ui.resMes }; router(); } }
+  else if (k === 'resDet') { const m = /^([a-z][a-z0-9_]*)\|([0-9]{1,5}|almacen|sin_asignar|consolidado)$/.exec(arg || ''); if (m) { S.ui.resDet = { ren: m[1], dest: m[2], mes: S.ui.resMes }; router(); } }
   else if (k === 'resCerrar') { S.ui.resDet = null; router(); }
   else if (k === 'mesFac') { if (arg && /^\d{4}-\d{2}$/.test(arg)) { S.ui.facMes = arg; S.ui.facDet = null; S.ui.facForm = null; S.ui.facSel = {}; router(); } }
   else if (k === 'facFiltro') { S.ui.facFiltro = FILTROS_FAC.some(x => x[0] === arg) ? arg : 'todas'; router(); }
